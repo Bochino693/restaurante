@@ -1,0 +1,242 @@
+{% extends 'base.html' %}
+
+{% block title %} Controle de Estoque Profissional {% endblock %}
+
+{% block content %}
+<div class="flex flex-col h-[calc(100vh-80px)] gap-4 overflow-hidden relative">
+
+    <div class="bg-white p-4 rounded-[2rem] shadow-sm border border-gray-100">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+            <h1 class="text-xl font-black text-gray-800 uppercase tracking-tight flex items-center gap-2">
+                <i class="fas fa-boxes text-blue-600"></i> Estoque
+            </h1>
+
+            <div class="flex flex-1 max-w-2xl gap-2">
+                <div class="relative flex-1">
+                    <i class="fas fa-search absolute left-4 top-3 text-gray-400"></i>
+                    <input id="searchUnificado" type="text" placeholder="Pesquisar por nome ou código..."
+                        class="pl-12 w-full bg-gray-50 border-none rounded-2xl py-2.5 text-sm focus:ring-2 focus:ring-blue-500 shadow-inner"
+                        onkeyup="aplicarFiltros()">
+                </div>
+
+                <button onclick="toggleVencimento(this)"
+                    class="vencimento-btn bg-gray-100 text-gray-500 px-4 rounded-2xl hover:bg-amber-100 hover:text-amber-600 transition-all flex items-center gap-2 text-xs font-bold uppercase">
+                    <i class="fas fa-clock"></i> <span class="hidden md:inline">Vencimento</span>
+                </button>
+
+                <button onclick="abrirModalEstoque()"
+                    class="bg-blue-600 text-white w-11 h-11 flex items-center justify-center rounded-2xl hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all active:scale-95">
+                    <i class="fas fa-plus"></i>
+                </button>
+            </div>
+        </div>
+
+        <div class="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+            <button onclick="filterCategoria('all', this)"
+                class="categoria-btn active px-6 py-2.5 rounded-xl text-xs font-black whitespace-nowrap transition-all">
+                TODAS
+            </button>
+            {% for categoria in categorias %}
+            <button onclick="filterCategoria('{{ categoria.id }}', this)"
+                class="categoria-btn bg-gray-100 text-gray-400 px-6 py-2.5 rounded-xl text-xs font-black whitespace-nowrap hover:bg-gray-200 transition-all">
+                {{ categoria.nome_categoria|upper }}
+            </button>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="flex-1 bg-white rounded-[2.5rem] shadow-2xl border border-gray-100 overflow-hidden flex flex-col">
+        <div class="overflow-y-auto flex-1 custom-scrollbar">
+            <table class="w-full text-left border-collapse">
+                <thead class="sticky top-0 bg-white z-10 shadow-sm">
+                    <tr class="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] border-b border-gray-50">
+                        <th class="p-6">Produto / Detalhes</th>
+                        <th class="p-6">Categoria</th>
+                        <th class="p-6 text-center">Quantidade</th>
+                        <th class="p-6">Validade</th>
+                        <th class="p-6">Status</th>
+                    </tr>
+                </thead>
+                <tbody id="estoqueTable">
+                    {% for item in estoque %}
+                    <tr class="estoque-item border-b border-gray-50 hover:bg-blue-50/30 transition-colors group"
+                        data-name="{{ item.produtos.nome_produto|lower }}"
+                        data-code="{{ item.produtos.codigo }}"
+                        data-categoria="{{ item.produtos.categoria.id }}"
+                        data-validade="{{ item.data_validade|date:'Y-m-d' }}">
+
+                        <td class="p-6">
+                            <div class="flex items-center gap-4">
+                                <div class="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center font-mono text-[10px] font-bold text-gray-400 group-hover:bg-blue-100 group-hover:text-blue-600 transition-colors">
+                                    #{{ item.produtos.codigo }}
+                                </div>
+                                <div class="flex flex-col">
+                                    <span class="font-bold text-gray-800 group-hover:text-blue-600 transition-colors">{{ item.produtos.nome_produto }}</span>
+                                    <span class="text-[10px] text-gray-400 font-mono uppercase">Lote: {{ item.lote }} | Fornec: R$ {{ item.preco_fornecedor }}</span>
+                                </div>
+                            </div>
+                        </td>
+
+                        <td class="p-6 text-xs font-bold text-gray-500 uppercase">
+                            {{ item.produtos.categoria.nome_categoria }}
+                        </td>
+
+                        <td class="p-6 text-center">
+                            <span class="{% if item.quantidade < 5 %}text-red-500 animate-pulse{% else %}text-blue-600{% endif %} font-black text-lg">
+                                {{ item.quantidade }}
+                            </span>
+                        </td>
+
+                        <td class="p-6">
+                            <span class="text-xs font-bold text-gray-700 font-mono">
+                                {{ item.data_validade|date:"d/m/Y" }}
+                            </span>
+                        </td>
+
+                        <td class="p-6">
+                            <div id="status-{{ forloop.counter }}" class="text-[9px] font-black uppercase px-3 py-1 rounded-full w-fit">
+                                ...
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="p-20 text-center text-gray-300">
+                            <i class="fas fa-box-open text-5xl mb-4 opacity-20"></i>
+                            <p class="italic font-bold">Estoque vazio ou não encontrado.</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div id="modalEstoque" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+    <div class="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl overflow-hidden transform transition-all">
+        <div class="p-6 border-b flex justify-between items-center bg-gray-50">
+            <div>
+                <h3 class="text-lg font-black text-gray-800 uppercase leading-none">Nova Entrada</h3>
+                <span class="text-xs text-gray-400 font-bold uppercase">Abastecer Inventário</span>
+            </div>
+            <button onclick="fecharModalEstoque()" class="text-gray-400 hover:text-red-500 transition-colors">
+                <i class="fas fa-times-circle text-2xl"></i>
+            </button>
+        </div>
+
+        <form method="POST" action="{% url 'estoque' %}" class="p-6 space-y-4">
+            {% csrf_token %}
+            <div>
+                <label class="block text-[10px] font-black text-gray-400 uppercase mb-1 ml-2">Produto</label>
+                <select name="produtos" class="w-full bg-gray-50 border-none rounded-2xl py-3 text-sm focus:ring-2 focus:ring-blue-500">
+                    {% for p in todos_produtos %}
+                    <option value="{{ p.id }}">{{ p.nome_produto }} (#{{ p.codigo }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-[10px] font-black text-gray-400 uppercase mb-1 ml-2">Quantidade</label>
+                    <input type="number" name="quantidade" required class="w-full bg-gray-50 border-none rounded-2xl py-3 text-sm focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-black text-gray-400 uppercase mb-1 ml-2">Lote</label>
+                    <input type="number" name="lote" value="1" class="w-full bg-gray-50 border-none rounded-2xl py-3 text-sm focus:ring-2 focus:ring-blue-500">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-[10px] font-black text-gray-400 uppercase mb-1 ml-2">Custo Unitário</label>
+                    <input type="text" name="preco_fornecedor" placeholder="0,00" class="w-full bg-gray-50 border-none rounded-2xl py-3 text-sm focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-black text-gray-400 uppercase mb-1 ml-2">Vencimento</label>
+                    <input type="date" name="data_validade" required class="w-full bg-gray-50 border-none rounded-2xl py-3 text-sm focus:ring-2 focus:ring-blue-500">
+                </div>
+            </div>
+
+            <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-2xl shadow-lg shadow-blue-200 transition-all uppercase tracking-widest text-xs mt-4">
+                Confirmar Entrada
+            </button>
+        </form>
+    </div>
+</div>
+
+<style>
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+    .categoria-btn.active { background: #2563eb; color: white; shadow: 0 4px 12px rgba(37, 99, 235, 0.3); }
+    .vencimento-btn.active { background: #f59e0b; color: white; }
+</style>
+
+<script>
+let categoriaAtual = "all";
+let filtroVencimento = false;
+
+function filterCategoria(id, btn) {
+    categoriaAtual = id;
+    document.querySelectorAll('.categoria-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    aplicarFiltros();
+}
+
+function toggleVencimento(btn) {
+    filtroVencimento = !filtroVencimento;
+    btn.classList.toggle('active', filtroVencimento);
+    aplicarFiltros();
+}
+
+function aplicarFiltros() {
+    const termo = document.getElementById("searchUnificado").value.toLowerCase();
+    const hoje = new Date();
+
+    document.querySelectorAll(".estoque-item").forEach((item) => {
+        const itemNome = item.dataset.name;
+        const itemCodigo = item.dataset.code;
+        const itemCategoria = item.dataset.categoria;
+        const itemValidade = new Date(item.dataset.validade + "T00:00:00");
+        const statusBadge = item.querySelector('[id^="status-"]');
+
+        let mostrar = true;
+
+        // Filtro Nome + Código
+        if (termo && !itemNome.includes(termo) && !itemCodigo.includes(termo)) mostrar = false;
+
+        // Filtro Categoria
+        if (categoriaAtual !== "all" && itemCategoria !== categoriaAtual) mostrar = false;
+
+        // Lógica de Vencimento
+        const diffDias = Math.ceil((itemValidade - hoje) / (1000 * 60 * 60 * 24));
+        if (filtroVencimento && diffDias > 7) mostrar = false;
+
+        // Atualizar Status Badge
+        if (diffDias < 0) {
+            statusBadge.innerText = "Vencido";
+            statusBadge.className = "text-[9px] font-black uppercase px-3 py-1 rounded-full w-fit bg-red-100 text-red-600";
+        } else if (diffDias <= 7) {
+            statusBadge.innerText = "Crítico";
+            statusBadge.className = "text-[9px] font-black uppercase px-3 py-1 rounded-full w-fit bg-amber-100 text-amber-600";
+        } else {
+            statusBadge.innerText = "OK";
+            statusBadge.className = "text-[9px] font-black uppercase px-3 py-1 rounded-full w-fit bg-green-100 text-green-600 font-mono";
+        }
+
+        item.style.display = mostrar ? "table-row" : "none";
+    });
+}
+
+function abrirModalEstoque() {
+    document.getElementById('modalEstoque').classList.remove('hidden');
+}
+
+function fecharModalEstoque() {
+    document.getElementById('modalEstoque').classList.add('hidden');
+}
+
+document.addEventListener('DOMContentLoaded', aplicarFiltros);
+</script>
+{% endblock %}

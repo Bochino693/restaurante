@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cardápio Digital</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <style>
+        .category-scroll::-webkit-scrollbar { display: none; }
+        .product-card:active { transform: scale(0.98); }
+        /* Estilo da animação do Toast */
+        #toast-container div { animation: slideIn 0.3s ease-out forwards; }
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 font-sans" hx-boost="true">
+
+    <div id="toast-container" class="fixed top-4 right-4 z-[100] space-y-2 pointer-events-none"></div>
+
+    <header class="bg-white shadow-sm sticky top-0 z-50">
+        <div class="max-w-2xl mx-auto px-4 py-4 flex justify-between items-center">
+            <div class="flex flex-col">
+                <h1 class="text-xl font-black text-gray-800 tracking-tighter italic">DELIVERY<span class="text-orange-500">PRO</span></h1>
+                <p id="status-loja" class="text-[10px] font-bold uppercase tracking-widest"></p>
+            </div>
+            <button onclick="toggleCart()" class="relative p-2 bg-orange-100 text-orange-600 rounded-2xl">
+                <i class="fas fa-shopping-basket text-xl"></i>
+                <span id="cart-count" class="absolute -top-1 -right-1 bg-orange-600 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full border-2 border-white">0</span>
+            </button>
+        </div>
+
+        <div class="max-w-2xl mx-auto px-4 pb-3 overflow-x-auto category-scroll flex gap-4">
+            <a href="#inicio" class="whitespace-nowrap bg-orange-500 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-md shadow-orange-200">Início</a>
+            {% for categoria in categorias %}
+            <a href="#cat-{{ categoria.id }}" class="whitespace-nowrap bg-white text-gray-500 border border-gray-100 px-4 py-2 rounded-xl text-sm font-bold hover:bg-orange-50 transition-all">
+                {{ categoria.nome_categoria }}
+            </a>
+            {% endfor %}
+        </div>
+    </header>
+
+    <main class="max-w-2xl mx-auto px-4 py-6 pb-24">
+        {% block content %}{% endblock %}
+    </main>
+
+    <div id="cart-drawer" class="fixed inset-x-0 bottom-0 bg-white border-t rounded-t-[2.5rem] shadow-2xl z-[60] transform translate-y-full transition-transform duration-300 max-w-2xl mx-auto">
+        <div class="p-8">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-xl font-black text-gray-800 uppercase tracking-tighter">Meu Pedido</h2>
+                <button onclick="toggleCart()" class="text-gray-400 text-2xl"><i class="fas fa-times"></i></button>
+            </div>
+
+            <div id="cart-items" class="space-y-4 mb-8 max-h-60 overflow-y-auto">
+                <p class="text-center text-gray-400 italic py-4">Seu carrinho está vazio...</p>
+            </div>
+
+            <div class="border-t pt-4">
+                <div class="flex justify-between items-center mb-6">
+                    <span class="text-gray-500 font-bold uppercase text-xs">Total do Pedido</span>
+                    <span id="cart-total" class="text-2xl font-black text-gray-800">R$ 0,00</span>
+                </div>
+
+                <div id="container-finalizar" class="space-y-3"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let carrinho = [];
+
+        function showToast(nome) {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = "bg-green-600 text-white px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 pointer-events-auto font-bold text-sm";
+            toast.innerHTML = `<i class="fas fa-check-circle"></i> ${nome} adicionado!`;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateY(-20px)';
+                toast.style.transition = 'all 0.5s ease';
+                setTimeout(() => toast.remove(), 500);
+            }, 2500);
+        }
+
+        function toggleCart() {
+            const drawer = document.getElementById('cart-drawer');
+            drawer.classList.toggle('translate-y-full');
+        }
+
+        function adicionarAoCarrinho(id, nome, preco) {
+            carrinho.push({id, nome, preco: parseFloat(preco)});
+            atualizarCarrinhoUI();
+            showToast(nome);
+        }
+
+        function atualizarCarrinhoUI() {
+            const container = document.getElementById('cart-items');
+            const totalEl = document.getElementById('cart-total');
+            const countEl = document.getElementById('cart-count');
+
+            countEl.innerText = carrinho.length;
+
+            if (carrinho.length === 0) {
+                container.innerHTML = '<p class="text-center text-gray-400 italic py-4">Vazio...</p>';
+                totalEl.innerText = 'R$ 0,00';
+                return;
+            }
+
+            container.innerHTML = carrinho.map((item, index) => `
+                <div class="flex justify-between items-center bg-gray-50 p-4 rounded-2xl">
+                    <div>
+                        <p class="font-bold text-gray-800 text-sm">${item.nome}</p>
+                        <p class="text-orange-500 font-black text-xs">R$ ${item.preco.toFixed(2)}</p>
+                    </div>
+                    <button onclick="removerItem(${index})" class="text-red-400 p-2"><i class="fas fa-trash"></i></button>
+                </div>
+            `).join('');
+
+            const total = carrinho.reduce((sum, item) => sum + item.preco, 0);
+            totalEl.innerText = `R$ ${total.toFixed(2)}`;
+        }
+
+        function removerItem(index) {
+            carrinho.splice(index, 1);
+            atualizarCarrinhoUI();
+        }
+
+        function checkOpen() {
+            const agora = new Date();
+            const hora = agora.getHours();
+            const dia = agora.getDay();
+            const statusEl = document.getElementById('status-loja');
+            const containerBtn = document.getElementById('container-finalizar');
+
+            // Seg(1) a Sáb(6) | Horas: 11 às 16 (até 15:59)
+            const isDiaUtil = dia >= 1 && dia <= 6;
+            const isHorario = hora >= 11 && hora < 16;
+            const isOpen = isDiaUtil && isHorario;
+
+            if (isOpen) {
+                statusEl.className = "text-[10px] text-green-500 font-bold uppercase tracking-widest";
+                statusEl.innerHTML = '<i class="fas fa-circle text-[6px] mr-1"></i> Aberto Agora';
+
+                containerBtn.innerHTML = `
+                    <button onclick="finalizarPedido('PIX')" class="w-full bg-blue-600 text-white py-4 rounded-[1.5rem] font-black uppercase tracking-widest hover:bg-blue-700 shadow-lg shadow-blue-100 transition-all flex items-center justify-center gap-3">
+                        <i class="fas fa-qrcode text-xl"></i> Pagar via PIX
+                    </button>
+                    <button onclick="finalizarPedido('WHATSAPP')" class="w-full bg-green-500 text-white py-4 rounded-[1.5rem] font-black uppercase tracking-widest hover:bg-green-600 shadow-lg shadow-green-100 transition-all flex items-center justify-center gap-3">
+                        <i class="fab fa-whatsapp text-xl"></i> Finalizar no WhatsApp
+                    </button>`;
+            } else {
+                statusEl.className = "text-[10px] text-red-500 font-bold uppercase tracking-widest";
+                statusEl.innerHTML = '<i class="fas fa-times-circle text-[6px] mr-1"></i> Fechado no Momento';
+
+                containerBtn.innerHTML = `
+                    <div class="bg-gray-100 text-gray-400 py-4 rounded-[1.5rem] font-bold text-center text-xs uppercase px-4">
+                        Pedidos: Seg a Sáb (11h às 16h). <br>
+                        <span class="text-[10px] lowercase italic">Monte seu carrinho para mais tarde!</span>
+                    </div>`;
+            }
+        }
+
+        function finalizarPedido(metodo) {
+            if (carrinho.length === 0) return alert("Seu carrinho está vazio!");
+
+            let msg = `*Novo Pedido (${metodo})*\n\n`;
+            carrinho.forEach(item => {
+                msg += `• ${item.nome} - R$ ${item.preco.toFixed(2)}\n`;
+            });
+            msg += `\n*Total: ${document.getElementById('cart-total').innerText}*`;
+
+            if(metodo === 'PIX') msg += `\n\n_Desejo receber a chave PIX para pagamento._`;
+
+            const fone = "5511999999999"; // COLOQUE SEU NÚMERO AQUI
+            window.open(`https://wa.me/${fone}?text=${encodeURIComponent(msg)}`);
+        }
+
+        checkOpen();
+        setInterval(checkOpen, 60000);
+    </script>
+</body>
+</html>

@@ -1,0 +1,488 @@
+{% extends 'base.html' %}
+
+{% block title %} PDV Profissional {% endblock %}
+
+{% block content %}
+<div class="flex flex-col lg:flex-row h-[calc(100vh-80px)] gap-4 overflow-hidden">
+
+    <div class="lg:w-2/3 xl:w-3/4 flex flex-col h-full">
+        <div class="bg-white p-3 rounded-2xl shadow-sm mb-4 border border-gray-100">
+            <div class="relative mb-3">
+                <i class="fas fa-search absolute left-4 top-3.5 text-gray-400"></i>
+                <input id="searchUnificado" type="text" placeholder="Pesquise por nome ou código do produto..."
+                    class="pl-12 w-full bg-gray-50 border-none rounded-2xl py-3 text-sm focus:ring-2 focus:ring-blue-500 shadow-inner"
+                    onkeyup="filtrar()">
+            </div>
+
+            <div class="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+                <button onclick="filtrarCategoria('all', this)" class="categoria-btn active px-5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all">
+                    Todas
+                </button>
+                {% for categoria in categorias %}
+                <button onclick="filtrarCategoria('{{ categoria.id }}', this)"
+                    class="categoria-btn bg-gray-100 text-gray-500 px-5 py-2 rounded-xl text-xs font-bold whitespace-nowrap hover:bg-gray-200 transition-all">
+                    {{ categoria.nome_categoria }}
+                </button>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="flex-1 overflow-y-auto pr-2 custom-scrollbar">
+            <div id="produtosGrid" class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
+                {% for produto in produtos %}
+                <div class="produto-card bg-white rounded-3xl shadow-sm border border-transparent hover:border-blue-50 transition-all group overflow-hidden"
+                    data-name="{{ produto.nome_produto|lower }}"
+                    data-code="{{ produto.codigo }}"
+                    data-categoria="{{ produto.categoria.id }}">
+
+                    <div class="aspect-video bg-gray-50 flex items-center justify-center relative">
+                        {% if produto.image_produto %}
+                            <img src="{{ produto.image_produto.url }}" class="object-cover w-full h-full">
+                        {% else %}
+                            <i class="fas fa-box text-gray-200 text-3xl"></i>
+                        {% endif %}
+
+                        {% if produto.categoria.id == 1 or produto.categoria.nome_categoria|lower == 'marmitex' %}
+                        <button onclick="abrirModalAdicionais('{{ produto.id }}', '{{ produto.nome_produto }}', '{{ produto.preco|stringformat:'.2f' }}')"
+                            class="absolute top-2 right-2 bg-white/90 backdrop-blur p-2 rounded-full shadow-md text-orange-500 hover:scale-110 transition-transform z-10">
+                            <i class="fas fa-plus-circle"></i>
+                        </button>
+                        {% endif %}
+                    </div>
+
+                    <div class="p-4 cursor-pointer" onclick="addProduto('{{ produto.id }}', '{{ produto.nome_produto }}', '{{ produto.preco|stringformat:'.2f' }}')">
+                        <div class="flex justify-between items-start mb-1">
+                            <h3 class="text-sm font-bold text-gray-800 leading-tight">{{ produto.nome_produto }}</h3>
+                            <span class="text-[10px] bg-gray-100 px-2 py-0.5 rounded-md text-gray-400 font-mono">#{{ produto.codigo }}</span>
+                        </div>
+                        <span class="text-blue-600 font-black text-lg">R$ {{ produto.preco }}</span>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <div class="lg:w-1/3 xl:w-1/4 flex flex-col h-full bg-white rounded-[2rem] shadow-2xl border border-gray-100 overflow-hidden">
+        <div class="p-5 bg-blue-600 text-white flex justify-between items-center">
+            <h2 class="font-bold flex items-center gap-2">
+                <i class="fas fa-shopping-basket"></i> CARRINHO
+            </h2>
+            <span id="cartCount" class="bg-blue-400 text-[10px] px-2 py-1 rounded-full font-bold">0 ITENS</span>
+        </div>
+
+        <div id="carrinhoItens" class="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+            <div class="text-center py-20 text-gray-300" id="emptyCart">
+                <i class="fas fa-ghost text-5xl mb-4 opacity-20"></i>
+                <p class="text-sm italic">Seu carrinho está vazio</p>
+            </div>
+        </div>
+
+        <div class="p-6 bg-gray-50 border-t border-dashed border-gray-300 space-y-4">
+            <div class="space-y-2">
+                <div class="flex justify-between text-xs text-gray-500 font-bold uppercase tracking-wider">
+                    <span>Subtotal</span>
+                    <span id="subtotalValue">R$ 0,00</span>
+                </div>
+
+                <div class="flex justify-between items-center bg-white p-2 rounded-xl border border-gray-200">
+                    <span class="text-xs text-gray-400 font-bold uppercase">Desconto (R$)</span>
+                    <input type="text" id="inputDesconto" value="0,00"
+                        class="w-24 text-right border-none p-0 text-sm font-black text-red-500 focus:ring-0"
+                        oninput="mascaraMoeda(this)">
+                </div>
+            </div>
+
+            <div class="flex justify-between items-center bg-gray-900 p-4 rounded-2xl text-white">
+                <span class="text-xs font-bold">TOTAL</span>
+                <span id="totalFinal" class="text-2xl font-black font-mono">R$ 0,00</span>
+            </div>
+
+            <div class="grid grid-cols-3 gap-2">
+                <button onclick="setMetodo('dinheiro', this)" class="metodo-btn border rounded-xl py-2 text-[10px] font-black uppercase transition-all">Dinheiro</button>
+                <button onclick="setMetodo('pix', this)" class="metodo-btn border rounded-xl py-2 text-[10px] font-black uppercase transition-all">PIX</button>
+                <button onclick="setMetodo('cartao', this)" class="metodo-btn border rounded-xl py-2 text-[10px] font-black uppercase transition-all">Cartão</button>
+            </div>
+
+            <button onclick="finalizarVenda()"
+                class="w-full bg-green-500 hover:bg-green-600 text-white font-black py-4 rounded-2xl shadow-lg active:scale-95 transition-all text-sm uppercase tracking-widest">
+                Finalizar Pedido
+            </button>
+        </div>
+    </div>
+</div>
+
+<div id="modalAdicionais" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+    <div class="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl overflow-hidden">
+        <div class="p-6 border-b flex justify-between items-center">
+            <div>
+                <h3 id="modalProdNome" class="text-lg font-black text-gray-800 uppercase leading-none">Nome do Produto</h3>
+                <span class="text-xs text-gray-400">Escolha seus adicionais</span>
+            </div>
+            <button onclick="fecharModal()" class="text-gray-400 hover:text-red-500 transition-colors">
+                <i class="fas fa-times-circle text-2xl"></i>
+            </button>
+        </div>
+
+        <div class="p-6 space-y-4 max-h-[50vh] overflow-y-auto custom-scrollbar">
+            <label class="flex justify-between items-center p-3 bg-gray-50 rounded-2xl cursor-pointer hover:bg-blue-50 transition-colors">
+                <div class="flex items-center gap-3">
+                    <input type="checkbox" class="add-check w-5 h-5 rounded-lg text-blue-600" data-nome="Ovo Extra" data-preco="2.00">
+                    <span class="text-sm font-bold text-gray-700">Ovo Extra</span>
+                </div>
+                <span class="text-xs font-mono font-bold text-blue-600">+ R$ 2,00</span>
+            </label>
+            <label class="flex justify-between items-center p-3 bg-gray-50 rounded-2xl cursor-pointer hover:bg-blue-50 transition-colors">
+                <div class="flex items-center gap-3">
+                    <input type="checkbox" class="add-check w-5 h-5 rounded-lg text-blue-600" data-nome="Bacon" data-preco="4.50">
+                    <span class="text-sm font-bold text-gray-700">Bacon</span>
+                </div>
+                <span class="text-xs font-mono font-bold text-blue-600">+ R$ 4,50</span>
+            </label>
+        </div>
+
+        <div class="p-6 bg-gray-50">
+            <button id="btnConfirmarAdicional" class="w-full bg-blue-600 text-white font-black py-4 rounded-2xl shadow-lg shadow-blue-200 uppercase tracking-tighter">
+                Adicionar ao Carrinho
+            </button>
+        </div>
+    </div>
+</div>
+
+<div id="modalSucesso" class="hidden fixed inset-0 bg-gray-900/80 backdrop-blur-md z-[110] flex items-center justify-center p-4">
+    <div id="sucessoCard" class="bg-white w-full max-w-sm rounded-[3rem] shadow-2xl overflow-hidden transform transition-all scale-95 opacity-0 duration-300">
+        <div class="p-8 text-center">
+            <div class="w-20 h-20 bg-green-100 text-green-500 rounded-full flex items-center justify-center mx-auto mb-6">
+                <i class="fas fa-check text-3xl animate-bounce"></i>
+            </div>
+
+            <h3 class="text-2xl font-black text-gray-800 mb-2">Pedido Finalizado!</h3>
+            <p class="text-gray-500 text-sm mb-6">O comprovante foi enviado para a fila de impressão.</p>
+
+            <div class="bg-gray-50 rounded-2xl p-4 mb-6 border border-dashed border-gray-200 text-left">
+                <div class="flex justify-between text-xs mb-1">
+                    <span class="text-gray-400 font-bold uppercase">Total:</span>
+                    <span id="resumoTotal" class="font-black text-gray-800 font-mono">R$ 0,00</span>
+                </div>
+                <div class="flex justify-between text-xs">
+                    <span class="text-gray-400 font-bold uppercase">Método:</span>
+                    <span id="resumoMetodo" class="font-black text-blue-600 uppercase">---</span>
+                </div>
+            </div>
+
+            <button onclick="fecharModalSucesso()"
+                class="w-full bg-gray-900 hover:bg-black text-white font-black py-4 rounded-2xl transition-all active:scale-95 shadow-xl">
+                NOVA VENDA
+            </button>
+        </div>
+    </div>
+</div>
+
+<div id="modalAlerta" class="hidden fixed inset-0 bg-gray-900/60 backdrop-blur-sm z-[120] flex items-center justify-center p-4">
+    <div id="alertaCard" class="bg-white w-full max-w-xs rounded-[2.5rem] shadow-2xl overflow-hidden transform transition-all scale-95 opacity-0 duration-200">
+        <div class="p-6 text-center">
+            <div id="alertaIcone" class="w-16 h-16 bg-amber-100 text-amber-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                <i class="fas fa-exclamation-triangle text-2xl"></i>
+            </div>
+
+            <h3 id="alertaTitulo" class="text-xl font-black text-gray-800 mb-2">Atenção!</h3>
+            <p id="alertaMensagem" class="text-gray-500 text-sm mb-6 px-2">Mensagem de aviso aqui.</p>
+
+            <button onclick="fecharModalAlerta()"
+                class="w-full bg-amber-500 hover:bg-amber-600 text-white font-black py-3 rounded-xl transition-all active:scale-95 shadow-lg shadow-amber-100">
+                ENTENDI
+            </button>
+        </div>
+    </div>
+</div>
+
+<style>
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+    .categoria-btn.active { background: #2563eb; color: white; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3); }
+    .metodo-btn.selected { background: #2563eb; border-color: #2563eb; color: white; box-shadow: 0 4px 10px rgba(37,99,235,0.2); }
+</style>
+
+<script>
+let carrinho = [];
+let metodoPagamento = '';
+
+// FORMATADOR BRL
+const formatar = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
+
+// MÁSCARA MONETÁRIA
+function mascaraMoeda(input) {
+    let value = input.value.replace(/\D/g, '');
+    value = (value / 100).toFixed(2) + '';
+    value = value.replace(".", ",");
+    value = value.replace(/(\d)(\d{3})(\d{3}),/g, "$1.$2.$3,");
+    value = value.replace(/(\d)(\d{3}),/g, "$1.$2,");
+    input.value = value;
+    atualizarTotais();
+}
+
+// BUSCA UNIFICADA
+function filtrar() {
+    const termo = document.getElementById('searchUnificado').value.toLowerCase();
+    document.querySelectorAll('.produto-card').forEach(card => {
+        const matches = card.dataset.name.includes(termo) || card.dataset.code.includes(termo);
+        card.style.display = matches ? 'block' : 'none';
+    });
+}
+
+function filtrarCategoria(catId, btnElement) {
+    document.querySelectorAll('.categoria-btn').forEach(btn => btn.classList.remove('active', 'bg-blue-600', 'text-white'));
+
+    // Fallback caso não passe o btnElement
+    const el = btnElement || event.currentTarget;
+    if (el) el.classList.add('active');
+
+    document.querySelectorAll('.produto-card').forEach(card => {
+        card.style.display = (catId === 'all' || card.dataset.categoria === catId) ? 'block' : 'none';
+    });
+}
+
+// LÓGICA DO CARRINHO COM ADICIONAIS
+function addProduto(id, nome, preco, adicionais = []) {
+    const addKey = adicionais.map(a => a.nome).sort().join('|');
+    const uniqueKey = `${id}-${addKey}`;
+
+    const itemExistente = carrinho.find(item => item.key === uniqueKey);
+
+    if (itemExistente) {
+        itemExistente.qtd++;
+    } else {
+        carrinho.push({
+            key: uniqueKey,
+            id: id,
+            nome: nome,
+            precoBase: parseFloat(preco),
+            adicionais: adicionais,
+            qtd: 1
+        });
+    }
+    renderCarrinho();
+}
+
+function renderCarrinho() {
+    const container = document.getElementById('carrinhoItens');
+    document.getElementById('cartCount').innerText = `${carrinho.length} ITENS`;
+
+    if (carrinho.length === 0) {
+        container.innerHTML = `<div class="text-center py-20 text-gray-300" id="emptyCart"><p class="text-sm italic">Seu carrinho está vazio</p></div>`;
+    } else {
+        container.innerHTML = carrinho.map((item, index) => {
+            const precoAdicionais = item.adicionais.reduce((acc, a) => acc + parseFloat(a.preco), 0);
+            const precoTotalItem = (item.precoBase + precoAdicionais) * item.qtd;
+
+            return `
+            <div class="bg-white p-4 rounded-[1.5rem] border border-gray-100 shadow-sm">
+                <div class="flex justify-between items-start mb-2">
+                    <div class="flex-1">
+                        <h4 class="text-xs font-black text-gray-800 uppercase leading-tight">${item.nome}</h4>
+                        ${item.adicionais.length ? `<p class="text-[9px] text-orange-500 font-bold tracking-tight">${item.adicionais.map(a => '+ '+a.nome).join(', ')}</p>` : ''}
+                    </div>
+                    <span class="text-xs font-mono font-black text-blue-600 ml-2">${formatar(precoTotalItem)}</span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center gap-4 bg-gray-50 rounded-xl px-3 py-1 border border-gray-100">
+                        <button onclick="alterQtd(${index}, -1)" class="text-red-500 font-black">-</button>
+                        <span class="text-xs font-mono font-black">${item.qtd}</span>
+                        <button onclick="alterQtd(${index}, 1)" class="text-green-600 font-black">+</button>
+                    </div>
+                    <button onclick="removerItem(${index})" class="text-[10px] text-gray-300 hover:text-red-500 uppercase font-bold">Excluir</button>
+                </div>
+            </div>`;
+        }).join('');
+    }
+    atualizarTotais();
+}
+
+function alterQtd(index, delta) {
+    carrinho[index].qtd += delta;
+    if (carrinho[index].qtd <= 0) carrinho.splice(index, 1);
+    renderCarrinho();
+}
+
+function removerItem(index) {
+    carrinho.splice(index, 1);
+    renderCarrinho();
+}
+
+function atualizarTotais() {
+    const subtotal = carrinho.reduce((acc, item) => {
+        const pAdd = item.adicionais.reduce((a, b) => a + parseFloat(b.preco), 0);
+        return acc + ((item.precoBase + pAdd) * item.qtd);
+    }, 0);
+
+    const descRaw = document.getElementById('inputDesconto').value.replace(/[^\d]/g, '');
+    const desconto = parseFloat(descRaw) / 100 || 0;
+    const total = Math.max(0, subtotal - desconto);
+
+    document.getElementById('subtotalValue').innerText = formatar(subtotal);
+    document.getElementById('totalFinal').innerText = formatar(total);
+}
+
+// LÓGICA DO MODAL ADICIONAIS
+function abrirModalAdicionais(id, nome, preco) {
+    const modal = document.getElementById('modalAdicionais');
+    document.getElementById('modalProdNome').innerText = nome;
+    modal.classList.remove('hidden');
+
+    document.querySelectorAll('.add-check').forEach(c => c.checked = false);
+
+    document.getElementById('btnConfirmarAdicional').onclick = () => {
+        const selecionados = [];
+        document.querySelectorAll('.add-check:checked').forEach(c => {
+            selecionados.push({ nome: c.dataset.nome, preco: c.dataset.preco });
+        });
+        addProduto(id, nome, preco, selecionados);
+        fecharModal();
+    };
+}
+
+function fecharModal() {
+    document.getElementById('modalAdicionais').classList.add('hidden');
+}
+
+// LÓGICA DOS BOTÕES DE PAGAMENTO (Corrigido para usar elemento explícito)
+function setMetodo(met, btnElement) {
+    metodoPagamento = met;
+    document.querySelectorAll('.metodo-btn').forEach(b => b.classList.remove('selected', 'bg-blue-600', 'text-white'));
+
+    const el = btnElement || event.currentTarget;
+    if (el) el.classList.add('selected', 'bg-blue-600', 'text-white');
+}
+
+// LÓGICA DO MODAL DE SUCESSO
+function mostrarSucesso(total, metodo) {
+    const modal = document.getElementById('modalSucesso');
+    const card = document.getElementById('sucessoCard');
+
+    document.getElementById('resumoTotal').innerText = total;
+    document.getElementById('resumoMetodo').innerText = metodo;
+
+    modal.classList.remove('hidden');
+    setTimeout(() => {
+        card.classList.remove('scale-95', 'opacity-0');
+        card.classList.add('scale-100', 'opacity-100');
+    }, 50);
+}
+
+function fecharModalSucesso() {
+    const modal = document.getElementById('modalSucesso');
+    const card = document.getElementById('sucessoCard');
+
+    card.classList.remove('scale-100', 'opacity-100');
+    card.classList.add('scale-95', 'opacity-0');
+
+    setTimeout(() => {
+        modal.classList.add('hidden');
+        // Reset do PDV
+        carrinho = [];
+        metodoPagamento = '';
+        document.getElementById('inputDesconto').value = "0,00";
+        document.querySelectorAll('.metodo-btn').forEach(b => b.classList.remove('selected', 'bg-blue-600', 'text-white'));
+        renderCarrinho();
+    }, 300);
+}
+
+// LÓGICA DO MODAL DE ALERTA (Corrigido com setTimeout correto e IDs independentes)
+function mostrarAlerta(titulo, mensagem, tipo = 'aviso') {
+    const modal = document.getElementById('modalAlerta');
+    const card = document.getElementById('alertaCard');
+    const iconeArea = document.getElementById('alertaIcone');
+
+    document.getElementById('alertaTitulo').innerText = titulo;
+    document.getElementById('alertaMensagem').innerText = mensagem;
+
+    if(tipo === 'erro') {
+        iconeArea.className = "w-16 h-16 bg-red-100 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4";
+        iconeArea.innerHTML = '<i class="fas fa-times text-2xl"></i>';
+    } else {
+        iconeArea.className = "w-16 h-16 bg-amber-100 text-amber-500 rounded-full flex items-center justify-center mx-auto mb-4";
+        iconeArea.innerHTML = '<i class="fas fa-exclamation-triangle text-2xl"></i>';
+    }
+
+    modal.classList.remove('hidden');
+    setTimeout(() => {
+        card.classList.remove('scale-95', 'opacity-0');
+        card.classList.add('scale-100', 'opacity-100');
+    }, 50);
+}
+
+function fecharModalAlerta() {
+    const modal = document.getElementById('modalAlerta');
+    const card = document.getElementById('alertaCard');
+
+    card.classList.remove('scale-100', 'opacity-100');
+    card.classList.add('scale-95', 'opacity-0');
+
+    setTimeout(() => {
+        modal.classList.add('hidden');
+    }, 200);
+}
+
+// FINALIZAR VENDA
+async function finalizarVenda() {
+    if(carrinho.length === 0) {
+        mostrarAlerta("Carrinho Vazio", "Adicione pelo menos um item para continuar.", "aviso");
+        return;
+    }
+
+    if(!metodoPagamento) {
+        mostrarAlerta("Pagamento Pendente", "Selecione uma forma de pagamento.", "aviso");
+        return;
+    }
+
+    // Captura o valor total limpando a string "R$ " e convertendo para número
+    const totalTexto = document.getElementById('totalFinal').innerText;
+    const totalValor = parseFloat(totalTexto.replace(/[^\d,]/g, '').replace(',', '.'));
+
+    // Dados para enviar ao Django
+    const dadosVenda = {
+        carrinho: carrinho,
+        total: totalValor,
+        metodo: metodoPagamento
+    };
+
+    try {
+        const response = await fetch('', { // Envia para a mesma URL da View
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken') // Função necessária para segurança do Django
+            },
+            body: JSON.stringify(dadosVenda)
+        });
+
+        const resultado = await response.json();
+
+        if (resultado.success) {
+            mostrarSucesso(formatar(totalValor), metodoPagamento.toUpperCase());
+        } else {
+            mostrarAlerta("Erro", "Não foi possível salvar o pedido: " + resultado.message, "erro");
+        }
+    } catch (error) {
+        mostrarAlerta("Erro de Conexão", "Verifique sua internet.", "erro");
+    }
+}
+
+// Função auxiliar para pegar o token CSRF do Django
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+</script>
+{% endblock %}

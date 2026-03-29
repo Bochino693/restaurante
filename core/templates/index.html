@@ -1,0 +1,58 @@
+{% extends 'base_index.html' %}
+
+{% block content %}
+<div class="space-y-10" id="catalogo-container">
+    {% for categoria in categorias %}
+    <section id="cat-{{ categoria.id }}">
+        <div class="flex items-center gap-4 mb-6">
+            <h2 class="text-lg font-black text-gray-800 uppercase tracking-tighter">{{ categoria.nome_categoria }}</h2>
+            <div class="h-[2px] flex-1 bg-gray-100"></div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {% for produto in categoria.produtos.all %}
+            <div class="product-card bg-white p-4 rounded-[2rem] shadow-sm border border-gray-100 flex gap-4 items-center transition-all hover:shadow-md">
+                <div class="w-24 h-24 rounded-2xl overflow-hidden bg-gray-100 flex-shrink-0">
+                    {% if produto.image_produto %}
+                        <img src="{{ produto.image_produto.url }}" class="w-full h-full object-cover">
+                    {% else %}
+                        <div class="w-full h-full flex items-center justify-center text-gray-300"><i class="fas fa-image text-2xl"></i></div>
+                    {% endif %}
+                </div>
+
+                <div class="flex-1">
+                    <h3 class="font-bold text-gray-800 leading-tight mb-1">{{ produto.nome_produto }}</h3>
+                    <p class="text-[10px] text-gray-400 line-clamp-2 mb-2 italic">Ingredientes frescos selecionados pela casa.</p>
+
+                    <div class="flex justify-between items-center">
+                        <span class="text-orange-600 font-black">R$ {{ produto.preco }}</span>
+                        <button onclick="adicionarAoCarrinho('{{ produto.id }}', '{{ produto.nome_produto }}', '{{ produto.preco }}')"
+                                class="btn-add w-8 h-8 bg-orange-500 text-white rounded-xl flex items-center justify-center shadow-lg shadow-orange-200 active:scale-90 transition-all">
+                            <i class="fas fa-plus text-xs"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+    {% endfor %}
+</div>
+
+<script>
+    // Pequeno ajuste para mudar o estilo dos botões se estiver fechado
+    function checkCatalogStyle() {
+        const agora = new Date();
+        const hora = agora.getHours();
+        const dia = agora.getDay();
+        const isOpen = (dia >= 1 && dia <= 6) && (hora >= 11 && hora < 16);
+
+        if (!isOpen) {
+            document.querySelectorAll('.btn-add').forEach(btn => {
+                btn.classList.replace('bg-orange-500', 'bg-gray-400');
+            });
+        }
+    }
+    checkCatalogStyle();
+</script>
+{% endblock %}

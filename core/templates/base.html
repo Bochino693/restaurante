@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Sistema Restaurante{% endblock %}</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        /* Animação de pulso para notificações novas */
+        .pulse-notify {
+            animation: pulse-red 2s infinite;
+        }
+        @keyframes pulse-red {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans" hx-boost="true">
+
+<div class="fixed left-6 bottom-10 flex flex-col gap-4 z-50">
+
+    {% if user.is_staff %}
+    <div class="relative group">
+        <a href="/admin"
+           target="_blank"
+           class="flex items-center justify-center w-14 h-14 bg-indigo-600 text-white rounded-full shadow-2xl hover:bg-indigo-700 hover:scale-110 transition-all duration-300">
+            <i class="fas fa-user-shield text-xl"></i>
+        </a>
+        <span class="absolute left-16 top-1/2 -translate-y-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none shadow-lg">
+            Painel Admin
+        </span>
+    </div>
+    {% endif %}
+
+    <div class="relative group">
+        <a href="{% url 'pedidos' %}"
+           class="flex items-center justify-center w-14 h-14 bg-white text-orange-500 rounded-full shadow-2xl hover:bg-orange-50 hover:scale-110 transition-all duration-300 border border-gray-100 {% if pedidos_pendentes_count > 0 %}pulse-notify{% endif %}">
+            <i class="fas fa-bell text-xl"></i>
+        </a>
+
+        {% if pedidos_pendentes_count > 0 %}
+        <span class="absolute -top-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-red-600 text-white text-[11px] font-black border-2 border-white shadow-sm">
+            {{ pedidos_pendentes_count }}
+        </span>
+        {% endif %}
+
+        <span class="absolute left-16 top-1/2 -translate-y-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none shadow-lg">
+            {{ pedidos_pendentes_count }} Pedidos Pendentes
+        </span>
+    </div>
+
+</div>
+
+<header class="bg-white shadow-sm border-b sticky top-0 z-40">
+    <div class="flex items-center justify-between px-6 py-3">
+        <div class="flex items-center gap-4">
+            <button onclick="toggleMenu()" class="text-gray-500 hover:text-gray-800 text-2xl transition-colors">
+                <i class="fas fa-bars"></i>
+            </button>
+            <div class="flex flex-col">
+                <span class="text-xs font-bold text-blue-600 uppercase tracking-widest">Premium</span>
+                <h1 class="text-xl font-black text-gray-800 leading-none">Restaurante Admin</h1>
+            </div>
+        </div>
+
+       <div class="hidden md:flex items-center gap-8 text-sm font-medium text-gray-500">
+            {% with url_name=request.resolver_match.url_name %}
+                <a href="{% url 'caixa' %}"
+                   class="flex items-center gap-2 transition-all {% if url_name == 'caixa' %}text-blue-600 font-black border-b-2 border-blue-600 pb-1{% else %}hover:text-blue-600{% endif %}">
+                    <i class="fas fa-cash-register"></i> Caixa
+                </a>
+
+                <a href="{% url 'estoque' %}"
+                   class="flex items-center gap-2 transition-all {% if url_name == 'estoque' %}text-blue-600 font-black border-b-2 border-blue-600 pb-1{% else %}hover:text-blue-600{% endif %}">
+                    <i class="fas fa-boxes"></i> Estoque
+                </a>
+
+                <a href="{% url 'pedidos' %}"
+                   class="flex items-center gap-2 transition-all {% if url_name == 'pedidos' %}text-blue-600 font-black border-b-2 border-blue-600 pb-1{% else %}hover:text-blue-600{% endif %}">
+                    <i class="fas fa-concierge-bell"></i> Pedidos
+                </a>
+            {% endwith %}
+        </div>
+
+        <div class="flex items-center gap-3">
+            <span class="text-sm font-semibold text-gray-700">{{ user.username }}</span>
+            <div class="w-8 h-8 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-bold text-xs border border-blue-200">
+                {{ user.username|slice:":1"|upper }}
+            </div>
+        </div>
+    </div>
+</header>
+
+<aside id="sidebar"
+       class="fixed top-0 left-0 h-full w-72 bg-gray-900 shadow-2xl transform -translate-x-full transition-transform duration-300 z-[60]">
+    <div class="p-8">
+        <div class="flex justify-between items-center mb-10">
+            <h2 class="font-black text-2xl text-white uppercase tracking-tighter">Navegação</h2>
+            <button onclick="toggleMenu()" class="text-gray-400 hover:text-white text-xl">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <nav class="flex flex-col gap-2">
+            {% with url_name=request.resolver_match.url_name %}
+
+                <a href="{% url 'caixa' %}"
+                   class="flex items-center gap-4 p-3 rounded-xl transition-all {% if url_name == 'caixa' %}bg-blue-600 text-white shadow-lg shadow-blue-900/50 font-bold{% else %}text-gray-300 hover:bg-gray-800{% endif %}">
+                    <i class="fas fa-cash-register w-6"></i> PDV / Caixa
+                </a>
+
+                <a href="{% url 'estoque' %}"
+                   class="flex items-center gap-4 p-3 rounded-xl transition-all {% if url_name == 'estoque' %}bg-blue-600 text-white shadow-lg shadow-blue-900/50 font-bold{% else %}text-gray-300 hover:bg-gray-800{% endif %}">
+                    <i class="fas fa-truck-loading w-6"></i> Estoque
+                </a>
+
+                <a href="{% url 'pedidos' %}" class="flex items-center gap-4 text-gray-300 hover:bg-gray-800 p-3 rounded-xl transition-all">
+                    <i class="fas fa-chart-line w-6"></i> Pedidos
+                </a>
+
+            {% endwith %}
+        </nav>
+    </div>
+</aside>
+
+<div id="overlay" onclick="toggleMenu()" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-[55]"></div>
+
+<main id="conteudo" class="p-6 transition-all">
+    {% block content %}{% endblock %}
+</main>
+
+<script>
+
+function toggleMenu() {
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('overlay');
+    sidebar.classList.toggle('-translate-x-full');
+    overlay.classList.toggle('hidden');
+}
+
+// Escuta o evento do HTMX após a troca de conteúdo
+document.body.addEventListener('htmx:afterOnLoad', function(evt) {
+    const currentPath = window.location.pathname;
+
+    document.querySelectorAll('nav a, header a').forEach(link => {
+        const isHeaderLink = link.closest('header');
+        const href = link.getAttribute('href');
+
+        if (isHeaderLink) {
+            // Limpa apenas as classes de destaque do Header, sem forçar cor cinza
+            link.classList.remove('text-blue-600', 'font-black', 'border-b-2', 'border-blue-600', 'pb-1');
+
+            // Se for o link atual, aplica o destaque azul e sublinhado
+            if (href === currentPath) {
+                link.classList.add('text-blue-600', 'font-black', 'border-b-2', 'border-blue-600', 'pb-1');
+            }
+        } else {
+            // Limpa as classes de destaque da Sidebar
+            link.classList.remove('bg-blue-600', 'text-white', 'shadow-lg', 'font-bold');
+            link.classList.add('text-gray-300'); // Mantém o padrão da sidebar escura
+
+            // Se for o link atual na sidebar
+            if (href === currentPath) {
+                link.classList.add('bg-blue-600', 'text-white', 'shadow-lg', 'font-bold');
+                link.classList.remove('text-gray-300');
+            }
+        }
+    });
+
+    // Fechar sidebar no mobile
+    const sidebar = document.getElementById('sidebar');
+    if (sidebar && !sidebar.classList.contains('-translate-x-full')) {
+        toggleMenu();
+    }
+});
+</script>
+
+<script src="https://unpkg.com/htmx.org@1.9.10"></script>
+
+</body>
+</html>
