@@ -69,23 +69,35 @@
         </div>
 
        <div class="hidden md:flex items-center gap-8 text-sm font-medium text-gray-500">
-            {% with url_name=request.resolver_match.url_name %}
-                <a href="{% url 'caixa' %}"
-                   class="flex items-center gap-2 transition-all {% if url_name == 'caixa' %}text-blue-600 font-black border-b-2 border-blue-600 pb-1{% else %}hover:text-blue-600{% endif %}">
-                    <i class="fas fa-cash-register"></i> Caixa
-                </a>
+        {% with url_name=request.resolver_match.url_name %}
+            <a href="{% url 'caixa' %}"
+               class="flex items-center gap-2 transition-all {% if url_name == 'caixa' %}text-blue-600 font-black border-b-2 border-blue-600 pb-1{% else %}hover:text-blue-600{% endif %}">
+                <i class="fas fa-cash-register"></i> Caixa
+            </a>
 
-                <a href="{% url 'estoque' %}"
-                   class="flex items-center gap-2 transition-all {% if url_name == 'estoque' %}text-blue-600 font-black border-b-2 border-blue-600 pb-1{% else %}hover:text-blue-600{% endif %}">
-                    <i class="fas fa-boxes"></i> Estoque
-                </a>
+            <a href="{% url 'estoque' %}"
+               class="flex items-center gap-2 transition-all {% if url_name == 'estoque' %}text-blue-600 font-black border-b-2 border-blue-600 pb-1{% else %}hover:text-blue-600{% endif %}">
+                <i class="fas fa-boxes"></i> Estoque
+            </a>
 
-                <a href="{% url 'pedidos' %}"
-                   class="flex items-center gap-2 transition-all {% if url_name == 'pedidos' %}text-blue-600 font-black border-b-2 border-blue-600 pb-1{% else %}hover:text-blue-600{% endif %}">
-                    <i class="fas fa-concierge-bell"></i> Pedidos
-                </a>
-            {% endwith %}
-        </div>
+            <a href="{% url 'pedidos' %}"
+               class="flex items-center gap-2 transition-all {% if url_name == 'pedidos' %}text-blue-600 font-black border-b-2 border-blue-600 pb-1{% else %}hover:text-blue-600{% endif %}">
+                <i class="fas fa-concierge-bell"></i> Pedidos
+            </a>
+
+            {% if user.is_staff %}
+            <a href="{% url 'vendas' %}"
+               class="flex items-center gap-2 transition-all {% if url_name == 'vendas' %}text-blue-600 font-black border-b-2 border-blue-600 pb-1{% else %}hover:text-blue-600{% endif %}">
+                <i class="fas fa-receipt"></i> Vendas
+            </a>
+
+            <a href="{% url 'dashboards' %}"
+               class="flex items-center gap-2 transition-all {% if url_name == 'dashboards' %}text-blue-600 font-black border-b-2 border-blue-600 pb-1{% else %}hover:text-blue-600{% endif %}">
+                <i class="fas fa-chart-pie"></i> Dashboards
+            </a>
+            {% endif %}
+        {% endwith %}
+    </div>
 
         <div class="flex items-center gap-3">
             <span class="text-sm font-semibold text-gray-700">{{ user.username }}</span>
@@ -107,24 +119,39 @@
         </div>
 
         <nav class="flex flex-col gap-2">
-            {% with url_name=request.resolver_match.url_name %}
+    {% with url_name=request.resolver_match.url_name %}
 
-                <a href="{% url 'caixa' %}"
-                   class="flex items-center gap-4 p-3 rounded-xl transition-all {% if url_name == 'caixa' %}bg-blue-600 text-white shadow-lg shadow-blue-900/50 font-bold{% else %}text-gray-300 hover:bg-gray-800{% endif %}">
-                    <i class="fas fa-cash-register w-6"></i> PDV / Caixa
-                </a>
+        <a href="{% url 'caixa' %}"
+           class="flex items-center gap-4 p-3 rounded-xl transition-all {% if url_name == 'caixa' %}bg-blue-600 text-white shadow-lg shadow-blue-900/50 font-bold{% else %}text-gray-300 hover:bg-gray-800{% endif %}">
+            <i class="fas fa-cash-register w-6"></i> PDV / Caixa
+        </a>
 
-                <a href="{% url 'estoque' %}"
-                   class="flex items-center gap-4 p-3 rounded-xl transition-all {% if url_name == 'estoque' %}bg-blue-600 text-white shadow-lg shadow-blue-900/50 font-bold{% else %}text-gray-300 hover:bg-gray-800{% endif %}">
-                    <i class="fas fa-truck-loading w-6"></i> Estoque
-                </a>
+        <a href="{% url 'estoque' %}"
+           class="flex items-center gap-4 p-3 rounded-xl transition-all {% if url_name == 'estoque' %}bg-blue-600 text-white shadow-lg shadow-blue-900/50 font-bold{% else %}text-gray-300 hover:bg-gray-800{% endif %}">
+            <i class="fas fa-truck-loading w-6"></i> Estoque
+        </a>
 
-                <a href="{% url 'pedidos' %}" class="flex items-center gap-4 text-gray-300 hover:bg-gray-800 p-3 rounded-xl transition-all">
-                    <i class="fas fa-chart-line w-6"></i> Pedidos
-                </a>
+        <a href="{% url 'pedidos' %}"
+           class="flex items-center gap-4 p-3 rounded-xl transition-all {% if url_name == 'pedidos' %}bg-blue-600 text-white shadow-lg shadow-blue-900/50 font-bold{% else %}text-gray-300 hover:bg-gray-800{% endif %}">
+            <i class="fas fa-concierge-bell w-6"></i> Pedidos
+        </a>
 
-            {% endwith %}
-        </nav>
+        {% if user.is_staff %}
+        <div class="mt-6 mb-2 px-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest">Gestão e Relatórios</div>
+
+        <a href="{% url 'vendas' %}"
+           class="flex items-center gap-4 p-3 rounded-xl transition-all {% if url_name == 'vendas' %}bg-blue-600 text-white shadow-lg shadow-blue-900/50 font-bold{% else %}text-gray-300 hover:bg-gray-800{% endif %}">
+            <i class="fas fa-receipt w-6"></i> Histórico de Vendas
+        </a>
+
+        <a href="{% url 'dashboards' %}"
+           class="flex items-center gap-4 p-3 rounded-xl transition-all {% if url_name == 'dashboards' %}bg-blue-600 text-white shadow-lg shadow-blue-900/50 font-bold{% else %}text-gray-300 hover:bg-gray-800{% endif %}">
+            <i class="fas fa-chart-pie w-6"></i> Dashboards
+        </a>
+        {% endif %}
+
+    {% endwith %}
+</nav>
     </div>
 </aside>
 

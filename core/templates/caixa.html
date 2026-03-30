@@ -42,11 +42,15 @@
                             <i class="fas fa-box text-gray-200 text-3xl"></i>
                         {% endif %}
 
-                        {% if produto.categoria.id == 1 or produto.categoria.nome_categoria|lower == 'marmitex' %}
-                        <button onclick="abrirModalAdicionais('{{ produto.id }}', '{{ produto.nome_produto }}', '{{ produto.preco|stringformat:'.2f' }}')"
+                        {% if produto.adicionais_disponiveis.all %}
+                            <button onclick="abrirModalAdicionais(
+                                '{{ produto.id }}',
+                                '{{ produto.nome_produto }}',
+                                '{{ produto.preco|stringformat:'.2f' }}'
+                            )"
                             class="absolute top-2 right-2 bg-white/90 backdrop-blur p-2 rounded-full shadow-md text-orange-500 hover:scale-110 transition-transform z-10">
                             <i class="fas fa-plus-circle"></i>
-                        </button>
+                            </button>
                         {% endif %}
                     </div>
 
@@ -124,7 +128,8 @@
             </button>
         </div>
 
-        <div class="p-6 space-y-4 max-h-[50vh] overflow-y-auto custom-scrollbar">
+        <div id="listaAdicionais"
+            class="p-6 space-y-4 max-h-[50vh] overflow-y-auto custom-scrollbar">
             <label class="flex justify-between items-center p-3 bg-gray-50 rounded-2xl cursor-pointer hover:bg-blue-50 transition-colors">
                 <div class="flex items-center gap-3">
                     <input type="checkbox" class="add-check w-5 h-5 rounded-lg text-blue-600" data-nome="Ovo Extra" data-preco="2.00">
@@ -326,20 +331,54 @@ function atualizarTotais() {
 
 // LÓGICA DO MODAL ADICIONAIS
 function abrirModalAdicionais(id, nome, preco) {
-    const modal = document.getElementById('modalAdicionais');
-    document.getElementById('modalProdNome').innerText = nome;
-    modal.classList.remove('hidden');
 
-    document.querySelectorAll('.add-check').forEach(c => c.checked = false);
+    fetch(`/produto/${id}/adicionais/`)
+    .then(res => res.json())
+    .then(data => {
 
-    document.getElementById('btnConfirmarAdicional').onclick = () => {
-        const selecionados = [];
-        document.querySelectorAll('.add-check:checked').forEach(c => {
-            selecionados.push({ nome: c.dataset.nome, preco: c.dataset.preco });
-        });
-        addProduto(id, nome, preco, selecionados);
-        fecharModal();
-    };
+        const container = document.getElementById("listaAdicionais");
+
+        container.innerHTML = data.map(add => `
+        <label class="flex justify-between items-center p-3 bg-gray-50 rounded-2xl cursor-pointer hover:bg-blue-50 transition-colors">
+            <div class="flex items-center gap-3">
+                <input type="checkbox"
+                    class="add-check w-5 h-5 rounded-lg text-blue-600"
+                    data-nome="${add.nome}"
+                    data-preco="${add.preco}">
+                <span class="text-sm font-bold text-gray-700">${add.nome}</span>
+            </div>
+            <span class="text-xs font-mono font-bold text-blue-600">
+                + R$ ${add.preco}
+            </span>
+        </label>
+        `).join("");
+
+        document.getElementById('modalProdNome').innerText = nome;
+
+        document.getElementById('btnConfirmarAdicional').onclick = () => {
+
+            const selecionados = [];
+
+            document.querySelectorAll('.add-check:checked')
+            .forEach(c => {
+
+                selecionados.push({
+                    nome: c.dataset.nome,
+                    preco: c.dataset.preco
+                });
+
+            });
+
+            addProduto(id, nome, preco, selecionados);
+
+            fecharModal();
+
+        };
+
+        document.getElementById("modalAdicionais").classList.remove("hidden");
+
+    });
+
 }
 
 function fecharModal() {

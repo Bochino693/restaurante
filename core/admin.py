@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.utils.html import format_html
-from .models import CategoriaProdutos, Produtos, EstoqueProdutos, ItensPedido, Pedidos
+from .models import CategoriaProdutos, Produtos, EstoqueProdutos, ItensPedido, Pedidos, Adicional, PratoDoDia
 
 
 # Configurações de exibição de imagem miniatura
@@ -83,3 +83,48 @@ class PedidosAdmin(admin.ModelAdmin):
         return obj.itens.count()
 
     quantidade_itens.short_description = 'Qtd Itens'
+
+
+@admin.register(Adicional)
+class AdicionalAdmin(admin.ModelAdmin):
+
+    list_display = (
+        "nome",
+        "preco",
+        "ativo",
+    )
+
+    list_filter = (
+        "ativo",
+    )
+
+    search_fields = (
+        "nome",
+    )
+
+    filter_horizontal = (
+        "produtos",
+    )
+
+
+@admin.register(PratoDoDia)
+class PratoDoDiaAdmin(admin.ModelAdmin):
+
+    list_display = (
+        "produto",
+        "dia_semana",
+        "ativo",
+    )
+
+    list_filter = (
+        "dia_semana",
+        "ativo",
+    )
+
+    search_fields = (
+        "produto__nome_produto",
+    )
+
+    ordering = (
+        "dia_semana",
+    )

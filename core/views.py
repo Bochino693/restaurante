@@ -1,8 +1,8 @@
 from datetime import date
 
-from django.db.models import Sum
+from django.db.models import Sum, Count, Prefetch
 from django.shortcuts import render, get_object_or_404
-from .models import Produtos, EstoqueProdutos, CategoriaProdutos, Pedidos, ItensPedido
+from .models import Produtos, EstoqueProdutos, CategoriaProdutos, Pedidos, ItensPedido, PratoDoDia, Adicional
 from django.views.generic import View
 import json
 from django.db import transaction
@@ -11,15 +11,38 @@ from django.utils import timezone
 
 
 class CardapioClienteView(View):
-
     def get(self, request):
+        # 1. Preparamos o filtro de produtos ativos para usar dentro das categorias
+        produtos_ativos = Produtos.objects.filter(ativo=True).prefetch_related("adicionais_disponiveis")
 
-        categorias = CategoriaProdutos.objects.prefetch_related(
-            'produtos'
-        ).filter(ativo=True)
+        # 2. Filtra categorias que possuem produtos ativos e já traz os produtos filtrados
+        categorias = CategoriaProdutos.objects.filter(
+            ativo=True,
+            produtos__ativo=True
+        ).annotate(
+            total_produtos=Count('produtos')
+        ).filter(
+            total_produtos__gt=0
+        ).prefetch_related(
+            Prefetch("produtos", queryset=produtos_ativos)  # GARANTE que só produtos ativos venham no loop
+        ).distinct()
 
-        return render(request, 'index.html', {
-            'categorias': categorias
+        # 3. Prato do dia
+        dia_hoje = timezone.localdate().weekday()
+        pratos_do_dia = PratoDoDia.objects.filter(
+            dia_semana=dia_hoje,
+            ativo=True,
+            produto__ativo=True
+        ).select_related("produto")
+
+        # 4. Lógica de horário (Segunda a Sábado | 11h às 16h)
+        agora = timezone.localtime()
+        loja_aberta = 0 <= agora.weekday() <= 5 and 11 <= agora.hour < 16
+
+        return render(request, "index.html", {
+            "categorias": categorias,
+            "pratos_do_dia": pratos_do_dia,
+            "loja_aberta_server": loja_aberta
         })
 
 
@@ -79,6 +102,22 @@ class CaixaView(View):
             return JsonResponse({'success': False, 'message': str(e)}, status=500)
 
 
+def adicionais_produto(request, produto_id):
+    produto = get_object_or_404(Produtos, id=produto_id)
+
+    adicionais = produto.adicionais_disponiveis.filter(ativo=True)
+
+    data = [
+        {
+            "nome": adicional.nome,
+            "preco": str(adicional.preco)
+        }
+        for adicional in adicionais
+    ]
+
+    return JsonResponse(data, safe=False)
+
+
 class EstoqueView(View):
 
     def get(self, request):
@@ -100,7 +139,6 @@ class EstoqueView(View):
 class PedidosView(View):
 
     def get(self, request):
-
         hoje = timezone.localdate()
 
         pedidos = (
@@ -110,14 +148,14 @@ class PedidosView(View):
         )
 
         total_dia = (
-            Pedidos.objects.filter(
-                criado_em__date=hoje
-            )
-            .exclude(
-                status=Pedidos.StatusPedido.CANCELADO
-            )
-            .aggregate(total=Sum('total'))
-            ['total'] or 0
+                Pedidos.objects.filter(
+                    criado_em__date=hoje
+                )
+                .exclude(
+                    status=Pedidos.StatusPedido.CANCELADO
+                )
+                .aggregate(total=Sum('total'))
+                ['total'] or 0
         )
 
         return render(request, 'pedidos.html', {
@@ -125,3 +163,30 @@ class PedidosView(View):
             'total_dia': f"{total_dia:.2f}".replace('.', ','),
             'status_options': Pedidos.StatusPedido.choices
         })
+
+
+class VendasView(View):
+
+    def get(self, request):
+        pedidos = Pedidos.objects.all()
+
+        context = {
+            'pedidos': pedidos,
+        }
+
+        return render(request, 'vendas.html', context)
+
+
+class DashboardView(View):
+
+    def get(self, request):
+        pedidos = Pedidos.objects.all()
+
+        context = {
+            'pedidos': pedidos
+        }
+
+        return render(request, 'dashboard.html', context)
+
+
+

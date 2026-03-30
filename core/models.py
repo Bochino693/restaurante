@@ -42,6 +42,48 @@ class Produtos(Prime):
         verbose_name_plural = "Produtos"
 
 
+class Adicional(models.Model):
+    nome = models.CharField(max_length=120)
+    preco = models.DecimalField(max_digits=9, decimal_places=2)
+
+    produtos = models.ManyToManyField(
+        Produtos,
+        related_name="adicionais_disponiveis"
+    )
+
+    ativo = models.BooleanField(default=True)
+
+    def __str__(self):
+        return self.nome
+
+
+class PratoDoDia(models.Model):
+
+    DIAS_SEMANA = (
+        (0, "Segunda-feira"),
+        (1, "Terça-feira"),
+        (2, "Quarta-feira"),
+        (3, "Quinta-feira"),
+        (4, "Sexta-feira"),
+        (5, "Sábado"),
+        (6, "Domingo"),
+    )
+
+    produto = models.ForeignKey(
+        "Produtos",
+        on_delete=models.CASCADE,
+        related_name="agenda_prato_dia"
+    )
+
+    dia_semana = models.IntegerField(
+        choices=DIAS_SEMANA
+    )
+
+    ativo = models.BooleanField(default=True)
+
+    def __str__(self):
+        return f"{self.get_dia_semana_display()} - {self.produto.nome_produto}"
+
 class EstoqueProdutos(Prime):
     produtos = models.ForeignKey(Produtos, on_delete=models.CASCADE, related_name='produto_estoque')
     data_validade = models.DateField(verbose_name="Data de Validade")

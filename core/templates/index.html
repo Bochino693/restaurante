@@ -1,22 +1,113 @@
 {% extends 'base_index.html' %}
 
 {% block content %}
+{% if pratos_do_dia %}
+
+<section class="mb-10">
+
+    <div class="flex items-center gap-4 mb-6">
+
+        <h2 class="text-lg font-black text-orange-600 uppercase">
+            🍽️ Prato do Dia
+        </h2>
+
+        <div class="h-[2px] flex-1 bg-orange-200"></div>
+
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+        {% for item in pratos_do_dia %}
+        {% with produto=item.produto %}
+
+        <div class="bg-orange-50 p-4 rounded-[2rem] shadow-sm border border-orange-100 flex gap-4 items-center">
+
+            <img
+            src="{{ produto.image_produto.url }}"
+            class="w-24 h-24 rounded-2xl object-cover">
+
+            <div class="flex-1">
+
+                <h3 class="font-bold">
+                    {{ produto.nome_produto }}
+                </h3>
+
+                <span class="text-orange-600 font-black">
+
+                    R$ {{ produto.preco }}
+
+                </span>
+
+                <div class="mt-2">
+
+                    <button
+
+                    {% if produto.adicionais_disponiveis.exists %}
+
+                    onclick="abrirModalAdicionais(
+                        '{{ produto.id }}',
+                        '{{ produto.nome_produto }}',
+                        '{{ produto.preco }}'
+                    )"
+
+                    {% else %}
+
+                    onclick="adicionarAoCarrinho(
+                        '{{ produto.id }}',
+                        '{{ produto.nome_produto }}',
+                        '{{ produto.preco }}'
+                    )"
+
+                    {% endif %}
+
+                    class="btn-add w-8 h-8 bg-orange-500 text-white rounded-xl flex items-center justify-center shadow-lg">
+
+                        <i class="fas fa-plus text-xs"></i>
+
+                    </button>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        {% endwith %}
+        {% endfor %}
+
+    </div>
+
+</section>
+
+{% endif %}
+
+
 <div class="space-y-10" id="catalogo-container">
     {% for categoria in categorias %}
-    <section id="cat-{{ categoria.id }}">
+    <section id="cat-{{ categoria.id }}" class="categoria-section">
+
         <div class="flex items-center gap-4 mb-6">
-            <h2 class="text-lg font-black text-gray-800 uppercase tracking-tighter">{{ categoria.nome_categoria }}</h2>
+            <h2 class="text-lg font-black text-gray-800 uppercase tracking-tighter">
+                {{ categoria.nome_categoria }}
+            </h2>
             <div class="h-[2px] flex-1 bg-gray-100"></div>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             {% for produto in categoria.produtos.all %}
-            <div class="product-card bg-white p-4 rounded-[2rem] shadow-sm border border-gray-100 flex gap-4 items-center transition-all hover:shadow-md">
+
+            <div class="product-card bg-white p-4 rounded-[2rem] shadow-sm border border-gray-100 flex gap-4 items-center transition-all hover:shadow-md"
+                 data-categoria="{{ categoria.id }}"
+                 data-name="{{ produto.nome_produto|lower }}"
+                 data-code="{{ produto.codigo }}">
+
                 <div class="w-24 h-24 rounded-2xl overflow-hidden bg-gray-100 flex-shrink-0">
                     {% if produto.image_produto %}
-                        <img src="{{ produto.image_produto.url }}" class="w-full h-full object-cover">
+                        <img src="{{ produto.image_produto.url }}" class="w-full h-full object-cover" alt="{{ produto.nome_produto }}">
                     {% else %}
-                        <div class="w-full h-full flex items-center justify-center text-gray-300"><i class="fas fa-image text-2xl"></i></div>
+                        <div class="w-full h-full flex items-center justify-center text-gray-300">
+                            <i class="fas fa-image text-2xl"></i>
+                        </div>
                     {% endif %}
                 </div>
 
@@ -26,8 +117,14 @@
 
                     <div class="flex justify-between items-center">
                         <span class="text-orange-600 font-black">R$ {{ produto.preco }}</span>
-                        <button onclick="adicionarAoCarrinho('{{ produto.id }}', '{{ produto.nome_produto }}', '{{ produto.preco }}')"
-                                class="btn-add w-8 h-8 bg-orange-500 text-white rounded-xl flex items-center justify-center shadow-lg shadow-orange-200 active:scale-90 transition-all">
+
+                        <button
+                        {% if produto.adicionais_disponiveis.exists %}
+                            onclick="abrirModalAdicionais('{{ produto.id }}', '{{ produto.nome_produto }}', '{{ produto.preco }}')"
+                        {% else %}
+                            onclick="adicionarAoCarrinho('{{ produto.id }}', '{{ produto.nome_produto }}', '{{ produto.preco }}')"
+                        {% endif %}
+                        class="btn-add w-8 h-8 bg-orange-500 text-white rounded-xl flex items-center justify-center shadow-lg shadow-orange-200 active:scale-90 transition-all">
                             <i class="fas fa-plus text-xs"></i>
                         </button>
                     </div>
@@ -40,19 +137,173 @@
 </div>
 
 <script>
-    // Pequeno ajuste para mudar o estilo dos botões se estiver fechado
-    function checkCatalogStyle() {
-        const agora = new Date();
-        const hora = agora.getHours();
-        const dia = agora.getDay();
-        const isOpen = (dia >= 1 && dia <= 6) && (hora >= 11 && hora < 16);
 
-        if (!isOpen) {
-            document.querySelectorAll('.btn-add').forEach(btn => {
-                btn.classList.replace('bg-orange-500', 'bg-gray-400');
-            });
+// Pegamos a variável do servidor ou fallback para o navegador
+let lojaAberta = {{ loja_aberta_server|yesno:"true,false" }};
+let carrinho = JSON.parse(localStorage.getItem('carrinho_delivery')) || [];
+
+// Função para atualizar o cabeçalho e botões baseada no horário
+function atualizarInterfaceHorario() {
+    const statusEl = document.getElementById("status-loja");
+    const containerBtn = document.getElementById("container-finalizar");
+    const botoesAdd = document.querySelectorAll(".btn-add");
+
+    if (lojaAberta) {
+        statusEl.className = "text-[11px] text-green-500 font-bold uppercase tracking-widest flex items-center gap-1 mt-1";
+        statusEl.innerHTML = '<i class="fas fa-circle text-[8px] animate-pulse"></i> Aberto <span class="text-gray-400 normal-case tracking-normal ml-1">(até 16h)</span>';
+
+        if(containerBtn) {
+            containerBtn.innerHTML = `
+                <button onclick="finalizarPedido('PIX')" class="w-full bg-blue-600 text-white py-4 rounded-[1.5rem] font-black uppercase shadow-lg shadow-blue-200 active:scale-95 transition-all">Pagar com PIX</button>
+                <button onclick="finalizarPedido('WHATSAPP')" class="w-full bg-green-500 text-white py-4 mt-3 rounded-[1.5rem] font-black uppercase shadow-lg shadow-green-200 active:scale-95 transition-all">Enviar WhatsApp</button>
+            `;
         }
+
+        botoesAdd.forEach(btn => {
+            btn.classList.remove("bg-gray-400", "cursor-not-allowed");
+            btn.classList.add("bg-orange-500");
+            btn.disabled = false;
+        });
+    } else {
+        statusEl.className = "text-[11px] text-red-500 font-bold uppercase tracking-widest flex items-center gap-1 mt-1";
+        statusEl.innerHTML = '<i class="fas fa-times-circle text-[10px]"></i> Fechado <span class="text-gray-400 normal-case tracking-normal ml-1">(Abre Seg às 11h)</span>';
+
+        if(containerBtn) {
+            containerBtn.innerHTML = `<button onclick="mostrarModalLojaFechada()" class="w-full bg-gray-200 text-gray-400 py-4 rounded-[1.5rem] font-black uppercase cursor-not-allowed">Loja fechada</button>`;
+        }
+
+        botoesAdd.forEach(btn => {
+            btn.classList.remove("bg-orange-500");
+            btn.classList.add("bg-gray-400", "cursor-not-allowed");
+            btn.disabled = true;
+        });
     }
-    checkCatalogStyle();
+}
+
+// Chame essa função assim que a página carregar
+document.addEventListener("DOMContentLoaded", () => {
+    atualizarInterfaceHorario();
+    atualizarCarrinhoUI(); // Certifique-se que essa função existe no seu base_index
+});
+
+
+
+
+// Funções de Modal de Adicionais (Específicas desta página)
+let produtoSelecionado = null;
+let adicionaisCarregados = [];
+
+async function abrirModalAdicionais(id, nome, preco) {
+    if (!lojaAberta) return mostrarModalLojaFechada();
+
+    produtoSelecionado = { id, nome, preco, adicionais: [] };
+    document.getElementById("modal-produto-nome").innerText = nome;
+    const container = document.getElementById("lista-adicionais");
+    container.innerHTML = "<p class='text-sm text-gray-500'>Carregando...</p>";
+    document.getElementById("modal-adicionais").classList.remove("hidden");
+
+    try {
+        const response = await fetch(`/produto/${id}/adicionais/`);
+        adicionaisCarregados = await response.json();
+        container.innerHTML = "";
+        adicionaisCarregados.forEach((a, index) => {
+            container.innerHTML += `
+            <label class="flex justify-between items-center p-2 hover:bg-orange-50 rounded-lg cursor-pointer">
+                <span class="text-gray-700">${a.nome} <span class="text-xs text-orange-600">(+ R$ ${a.preco})</span></span>
+                <input type="checkbox" value="${index}" class="w-5 h-5 text-orange-500 rounded">
+            </label>`;
+        });
+    } catch (e) { container.innerHTML = "Erro ao carregar."; }
+}
+
+function confirmarAdicionais() {
+    // Pega todos os checkboxes marcados
+    const checkboxes = document.querySelectorAll("#lista-adicionais input:checked");
+
+    // Mapeia os adicionais reais da lista que carregamos do banco
+    produtoSelecionado.adicionais = Array.from(checkboxes).map(c => {
+        const addInfo = adicionaisCarregados[c.value];
+        return {
+            nome: addInfo.nome,
+            preco: parseFloat(addInfo.preco)
+        };
+    });
+
+    // Envia para o carrinho
+    adicionarAoCarrinho(
+        produtoSelecionado.id,
+        produtoSelecionado.nome,
+        produtoSelecionado.preco,
+        produtoSelecionado.adicionais
+    );
+
+    fecharModal();
+}
+
+function adicionarAoCarrinho(id, nome, preco, adicionais = []) {
+    if (typeof lojaAberta !== 'undefined' && !lojaAberta) {
+        return mostrarModalLojaFechada();
+    }
+
+    // Calcula o preço total do item (Produto + Adicionais)
+    const precoBase = parseFloat(preco);
+    const precoAdicionais = adicionais.reduce((sum, a) => sum + a.preco, 0);
+    const precoFinalItem = precoBase + precoAdicionais;
+
+    const novoItem = {
+        produto_id: id,
+        nome: nome,
+        preco_unitario: precoFinalItem, // Valor já somado
+        quantidade: 1,
+        adicionais: adicionais // Lista para detalhamento no WhatsApp/Pedido
+    };
+
+    carrinho.push(novoItem);
+    localStorage.setItem('carrinho_delivery', JSON.stringify(carrinho));
+
+    // Atualiza a UI (essa função deve estar no seu base_index)
+    if (typeof atualizarCarrinhoUI === "function") {
+        atualizarCarrinhoUI();
+    }
+
+    mostrarAvisoSucesso(`${nome} adicionado!`);
+}
+
+function fecharModal() {
+    document.getElementById("modal-adicionais").classList.add("hidden");
+}
+
+function mostrarAvisoSucesso(msg) {
+    const toast = document.createElement("div");
+    toast.className = "fixed bottom-24 left-1/2 -translate-x-1/2 bg-green-600 text-white px-6 py-3 rounded-2xl z-[100] animate-bounce font-bold";
+    toast.innerHTML = `🛒 ${msg}`;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 2500);
+}
+
 </script>
+
+
+<div id="modal-adicionais" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 transition-opacity">
+    <div class="bg-white rounded-3xl p-6 w-[90%] max-w-[350px] relative shadow-2xl">
+
+        <button onclick="fecharModal()" class="absolute top-4 right-4 w-8 h-8 flex items-center justify-center bg-gray-100 rounded-full text-gray-500 hover:bg-gray-200 transition-colors">
+            <i class="fas fa-times"></i>
+        </button>
+
+        <h2 id="modal-produto-nome" class="font-black text-xl text-gray-800 mb-4 pr-8 leading-tight"></h2>
+
+        <div id="lista-adicionais" class="space-y-2 mb-6 max-h-[40vh] overflow-y-auto pr-2">
+            </div>
+
+        <div class="flex gap-3 mt-4">
+            <button onclick="fecharModal()" class="flex-1 bg-gray-100 text-gray-600 p-3 rounded-2xl font-bold hover:bg-gray-200 transition-colors">
+                Cancelar
+            </button>
+            <button onclick="confirmarAdicionais()" class="flex-1 bg-orange-500 text-white p-3 rounded-2xl font-bold shadow-lg shadow-orange-200 active:scale-95 transition-all">
+                Adicionar
+            </button>
+        </div>
+    </div>
+</div>
 {% endblock %}
