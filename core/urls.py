@@ -1,6 +1,9 @@
 from django.contrib import admin
 from django.urls import path, include
-from .views import CaixaView, EstoqueView, PedidosView, CardapioClienteView, adicionais_produto, VendasView, DashboardView
+from .views import (CaixaView, EstoqueView,
+                    PedidosView, CardapioClienteView,
+                    adicionais_produto, VendasView, DashboardView,
+                    LoginView, LogoutView )
 
 urlpatterns = [
     path('', CardapioClienteView.as_view(), name='cardapio'),
@@ -13,5 +16,9 @@ urlpatterns = [
     ),
 
     path('vendas/', VendasView.as_view(), name='vendas'),
-    path('dashboards/', DashboardView.as_view(), name='dashboards')
+    path('dashboards/', DashboardView.as_view(), name='dashboards'),
+
+
+    path("logout/", LogoutView.as_view(), name="logout"),
+    path('login/', LoginView.as_view(), name='login'),
 ]

@@ -148,6 +148,11 @@
            class="flex items-center gap-4 p-3 rounded-xl transition-all {% if url_name == 'dashboards' %}bg-blue-600 text-white shadow-lg shadow-blue-900/50 font-bold{% else %}text-gray-300 hover:bg-gray-800{% endif %}">
             <i class="fas fa-chart-pie w-6"></i> Dashboards
         </a>
+
+        <a href="{% url 'logout' %}"
+           class="px-4 py-2 rounded-xl bg-red-50 text-red-500 font-bold hover:bg-red-100 transition-all">
+            <i class="fas fa-sign-out-alt mr-1"></i> Sair
+        </a>
         {% endif %}
 
     {% endwith %}

@@ -8,6 +8,7 @@ import json
 from django.db import transaction
 from django.http import JsonResponse
 from django.utils import timezone
+from django.contrib.auth.mixins import LoginRequiredMixin
 
 
 class CardapioClienteView(View):
@@ -46,7 +47,8 @@ class CardapioClienteView(View):
         })
 
 
-class CaixaView(View):
+class CaixaView(LoginRequiredMixin, View):
+    login_url = "login"
     def get(self, request):
         produtos = Produtos.objects.all()
         categorias = CategoriaProdutos.objects.all()
@@ -118,7 +120,8 @@ def adicionais_produto(request, produto_id):
     return JsonResponse(data, safe=False)
 
 
-class EstoqueView(View):
+class EstoqueView(LoginRequiredMixin, View):
+    login_url = "login"
 
     def get(self, request):
         estoque = EstoqueProdutos.objects.select_related(
@@ -136,7 +139,8 @@ class EstoqueView(View):
         return render(request, 'estoque.html', context)
 
 
-class PedidosView(View):
+class PedidosView(LoginRequiredMixin, View):
+    login_url = "login"
 
     def get(self, request):
         hoje = timezone.localdate()
@@ -165,7 +169,8 @@ class PedidosView(View):
         })
 
 
-class VendasView(View):
+class VendasView(LoginRequiredMixin, View):
+    login_url = "login"
 
     def get(self, request):
         pedidos = Pedidos.objects.all()
@@ -188,5 +193,55 @@ class DashboardView(View):
 
         return render(request, 'dashboard.html', context)
 
+from django.shortcuts import render, redirect
+from django.views import View
+from django.contrib.auth import authenticate, login
+from django.contrib.auth.models import User
+from django.contrib import messages
+
+
+class LoginView(View):
+    template_name = "login.html"
+
+    def get(self, request):
+        if request.user.is_authenticated:
+            return redirect("pedidos")  # ou outra tela inicial
+        return render(request, self.template_name)
+
+    def post(self, request):
+        identificador = request.POST.get("identificador", "").strip()
+        senha = request.POST.get("senha", "").strip()
+
+        if not identificador or not senha:
+            messages.error(request, "Preencha usuário/e-mail e senha.")
+            return render(request, self.template_name)
+
+        username_para_login = identificador
+
+        # Se digitou email, tenta localizar o username correspondente
+        if "@" in identificador:
+            try:
+                user_obj = User.objects.get(email__iexact=identificador)
+                username_para_login = user_obj.username
+            except User.DoesNotExist:
+                messages.error(request, "Usuário não encontrado.")
+                return render(request, self.template_name)
+
+        user = authenticate(request, username=username_para_login, password=senha)
+
+        if user is not None:
+            login(request, user)
+            return redirect("pedidos")  # troque para a rota inicial do painel
+        else:
+            messages.error(request, "Login ou senha inválidos.")
+            return render(request, self.template_name)
+
+from django.contrib.auth import logout
+
+
+class LogoutView(View):
+    def get(self, request):
+        logout(request)
+        return redirect("login")
 
 
