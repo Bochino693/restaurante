@@ -56,6 +56,10 @@ class Adicional(models.Model):
     def __str__(self):
         return self.nome
 
+    class Meta:
+        verbose_name = "Adicional"
+        verbose_name_plural = "Adicionais"
+
 
 class PratoDoDia(models.Model):
 
@@ -111,6 +115,9 @@ class ItensPedido(Prime):
     # Este campo salvará os adicionais selecionados no PDV
     # Ex: [{"nome": "Ovo Extra", "preco": "2.00"}]
     adicionais = models.JSONField(default=list, blank=True)
+
+    def __str__(self):
+        return self.produto.nome_produto
 
     class Meta:
         verbose_name = "Item de Pedido"

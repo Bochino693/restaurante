@@ -30,39 +30,62 @@
         <div class="flex-1 overflow-y-auto pr-2 custom-scrollbar">
             <div id="produtosGrid" class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
                 {% for produto in produtos %}
-                <div class="produto-card bg-white rounded-3xl shadow-sm border border-transparent hover:border-blue-50 transition-all group overflow-hidden"
-                    data-name="{{ produto.nome_produto|lower }}"
-                    data-code="{{ produto.codigo }}"
-                    data-categoria="{{ produto.categoria.id }}">
+            <div class="produto-card bg-white rounded-3xl shadow-sm border border-transparent hover:border-blue-50 transition-all group overflow-hidden"
+                data-name="{{ produto.nome_produto|lower }}"
+                data-code="{{ produto.codigo }}"
+                data-categoria="{{ produto.categoria.id }}">
 
-                    <div class="aspect-video bg-gray-50 flex items-center justify-center relative">
-                        {% if produto.image_produto %}
-                            <img src="{{ produto.image_produto.url }}" class="object-cover w-full h-full">
-                        {% else %}
-                            <i class="fas fa-box text-gray-200 text-3xl"></i>
-                        {% endif %}
+                <div class="aspect-video bg-gray-50 flex items-center justify-center relative">
+                    {% if produto.image_produto and produto.image_produto.name %}
+                        <img src="{{ produto.image_produto.url }}" class="object-cover w-full h-full">
+                    {% else %}
+                        <i class="fas fa-box text-gray-200 text-3xl"></i>
+                    {% endif %}
 
-                        {% if produto.adicionais_disponiveis.all %}
-                            <button onclick="abrirModalAdicionais(
+                    {% if produto.adicionais_disponiveis.exists %}
+                        <button
+                            onclick="event.stopPropagation(); abrirModalAdicionais(
                                 '{{ produto.id }}',
-                                '{{ produto.nome_produto }}',
+                                '{{ produto.nome_produto|escapejs }}',
                                 '{{ produto.preco|stringformat:'.2f' }}'
                             )"
                             class="absolute top-2 right-2 bg-white/90 backdrop-blur p-2 rounded-full shadow-md text-orange-500 hover:scale-110 transition-transform z-10">
                             <i class="fas fa-plus-circle"></i>
-                            </button>
-                        {% endif %}
+                        </button>
+                    {% endif %}
+                </div>
+
+                <div class="p-4 cursor-pointer"
+                    {% if produto.adicionais_disponiveis.exists %}
+                        onclick="abrirModalAdicionais(
+                            '{{ produto.id }}',
+                            '{{ produto.nome_produto|escapejs }}',
+                            '{{ produto.preco|stringformat:'.2f' }}'
+                        )"
+                    {% else %}
+                        onclick="addProduto(
+                            '{{ produto.id }}',
+                            '{{ produto.nome_produto|escapejs }}',
+                            '{{ produto.preco|stringformat:'.2f' }}'
+                        )"
+                    {% endif %}>
+                    <div class="flex justify-between items-start mb-1">
+                        <h3 class="text-sm font-bold text-gray-800 leading-tight">{{ produto.nome_produto }}</h3>
+                        <span class="text-[10px] bg-gray-100 px-2 py-0.5 rounded-md text-gray-400 font-mono">#{{ produto.codigo }}</span>
                     </div>
 
-                    <div class="p-4 cursor-pointer" onclick="addProduto('{{ produto.id }}', '{{ produto.nome_produto }}', '{{ produto.preco|stringformat:'.2f' }}')">
-                        <div class="flex justify-between items-start mb-1">
-                            <h3 class="text-sm font-bold text-gray-800 leading-tight">{{ produto.nome_produto }}</h3>
-                            <span class="text-[10px] bg-gray-100 px-2 py-0.5 rounded-md text-gray-400 font-mono">#{{ produto.codigo }}</span>
-                        </div>
+                    <div class="flex items-center justify-between gap-2">
                         <span class="text-blue-600 font-black text-lg">R$ {{ produto.preco }}</span>
+
+                        {% if produto.adicionais_disponiveis.exists %}
+                            <span class="text-[10px] font-bold uppercase tracking-wide text-orange-500 bg-orange-50 px-2 py-1 rounded-lg">
+                                com adicionais
+                            </span>
+                        {% endif %}
                     </div>
                 </div>
-                {% endfor %}
+            </div>
+            {% endfor %}
             </div>
         </div>
     </div>
@@ -331,55 +354,53 @@ function atualizarTotais() {
 
 // LÓGICA DO MODAL ADICIONAIS
 function abrirModalAdicionais(id, nome, preco) {
-
     fetch(`/produto/${id}/adicionais/`)
     .then(res => res.json())
     .then(data => {
-
         const container = document.getElementById("listaAdicionais");
-
-        container.innerHTML = data.map(add => `
-        <label class="flex justify-between items-center p-3 bg-gray-50 rounded-2xl cursor-pointer hover:bg-blue-50 transition-colors">
-            <div class="flex items-center gap-3">
-                <input type="checkbox"
-                    class="add-check w-5 h-5 rounded-lg text-blue-600"
-                    data-nome="${add.nome}"
-                    data-preco="${add.preco}">
-                <span class="text-sm font-bold text-gray-700">${add.nome}</span>
-            </div>
-            <span class="text-xs font-mono font-bold text-blue-600">
-                + R$ ${add.preco}
-            </span>
-        </label>
-        `).join("");
-
         document.getElementById('modalProdNome').innerText = nome;
 
-        document.getElementById('btnConfirmarAdicional').onclick = () => {
+        if (!data || data.length === 0) {
+            addProduto(id, nome, preco, []);
+            return;
+        }
 
+        container.innerHTML = data.map(add => `
+            <label class="flex justify-between items-center p-3 bg-gray-50 rounded-2xl cursor-pointer hover:bg-blue-50 transition-colors">
+                <div class="flex items-center gap-3">
+                    <input type="checkbox"
+                        class="add-check w-5 h-5 rounded-lg text-blue-600"
+                        data-nome="${add.nome}"
+                        data-preco="${add.preco}">
+                    <span class="text-sm font-bold text-gray-700">${add.nome}</span>
+                </div>
+                <span class="text-xs font-mono font-bold text-blue-600">
+                    + R$ ${add.preco}
+                </span>
+            </label>
+        `).join("");
+
+        document.getElementById('btnConfirmarAdicional').onclick = () => {
             const selecionados = [];
 
-            document.querySelectorAll('.add-check:checked')
-            .forEach(c => {
-
+            document.querySelectorAll('.add-check:checked').forEach(c => {
                 selecionados.push({
                     nome: c.dataset.nome,
                     preco: c.dataset.preco
                 });
-
             });
 
             addProduto(id, nome, preco, selecionados);
-
             fecharModal();
-
         };
 
         document.getElementById("modalAdicionais").classList.remove("hidden");
-
+    })
+    .catch(() => {
+        mostrarAlerta("Erro", "Não foi possível carregar os adicionais.", "erro");
     });
-
 }
+
 
 function fecharModal() {
     document.getElementById('modalAdicionais').classList.add('hidden');

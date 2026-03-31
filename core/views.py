@@ -43,13 +43,13 @@ class CardapioClienteView(View):
             "loja_aberta_server": loja_aberta
         })
 
-
 class CaixaView(LoginRequiredMixin, View):
     login_url = "login"
 
     def get(self, request):
-        produtos = Produtos.objects.all()
+        produtos = Produtos.objects.select_related("categoria").prefetch_related("adicionais_disponiveis").all()
         categorias = CategoriaProdutos.objects.all()
+
         return render(request, 'caixa.html', {
             'produtos': produtos,
             'categorias': categorias,
