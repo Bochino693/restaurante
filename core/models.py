@@ -62,7 +62,6 @@ class Adicional(models.Model):
 
 
 class PratoDoDia(models.Model):
-
     DIAS_SEMANA = (
         (0, "Segunda-feira"),
         (1, "Terça-feira"),
@@ -87,6 +86,7 @@ class PratoDoDia(models.Model):
 
     def __str__(self):
         return f"{self.get_dia_semana_display()} - {self.produto.nome_produto}"
+
 
 class EstoqueProdutos(Prime):
     produtos = models.ForeignKey(Produtos, on_delete=models.CASCADE, related_name='produto_estoque')
@@ -163,3 +163,21 @@ class Pedidos(Prime):
 
     def __str__(self):
         return f"Pedido #{self.id} - {self.status}"
+
+
+class ProdutosMaisClick(Prime):
+    produto = models.ForeignKey(Produtos, related_name='clicks_produtos', on_delete=models.CASCADE)
+    quantidade = models.IntegerField(default=0)
+
+    class Meta:
+        verbose_name = "Produto mais clicado"
+        verbose_name_plural = "Produtos mais clicados"
+
+
+class PratoDiaMaisClick(Prime):
+    prato = models.ForeignKey(PratoDoDia, related_name='clicks_pratos', on_delete=models.CASCADE)
+    quantidade = models.IntegerField(default=0)
+
+    class Meta:
+        verbose_name = "Prato do dia mais clicado"
+        verbose_name_plural = "Pratos do dia mais clicados"

@@ -1,10 +1,210 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Title</title>
-</head>
-<body>
+{% extends "base.html" %}
 
-</body>
-</html>
+{% block title %}Histórico de Vendas{% endblock %}
+
+{% block content %}
+
+<div class="max-w-7xl mx-auto space-y-6">
+
+    <!-- Cabeçalho -->
+    <div class="flex items-center justify-between">
+        <div>
+            <h2 class="text-2xl font-black text-gray-800">
+                <i class="fas fa-receipt text-blue-600"></i>
+                Histórico de Vendas
+            </h2>
+            <p class="text-sm text-gray-500">
+                Pedidos finalizados e cancelados
+            </p>
+        </div>
+    </div>
+
+
+    <!-- Cards resumo -->
+    <div class="grid md:grid-cols-2 gap-6">
+
+        <!-- Finalizados -->
+        <div class="bg-white rounded-2xl shadow p-6 border-l-8 border-green-500">
+            <p class="text-gray-500 text-sm">Total Finalizados</p>
+
+            <h3 class="text-3xl font-black text-green-600">
+                R$ {{ total_finalizados }}
+            </h3>
+
+            <p class="text-xs text-gray-400 mt-1">
+                {{ pedidos_finalizados|length }} pedidos
+            </p>
+        </div>
+
+
+        <!-- Cancelados -->
+        <div class="bg-white rounded-2xl shadow p-6 border-l-8 border-red-500">
+            <p class="text-gray-500 text-sm">Total Cancelados</p>
+
+            <h3 class="text-3xl font-black text-red-600">
+                R$ {{ total_cancelados }}
+            </h3>
+
+            <p class="text-xs text-gray-400 mt-1">
+                {{ pedidos_cancelados|length }} pedidos
+            </p>
+        </div>
+
+    </div>
+
+
+    <!-- Pedidos Finalizados -->
+    <div class="bg-white rounded-2xl shadow">
+
+        <div class="border-b px-6 py-4 flex items-center justify-between">
+            <h3 class="font-black text-green-600">
+                <i class="fas fa-check-circle"></i>
+                Pedidos Finalizados
+            </h3>
+        </div>
+
+
+        <div class="divide-y">
+
+            {% for pedido in pedidos_finalizados %}
+
+            <div class="p-6 hover:bg-gray-50 transition">
+
+                <!-- topo -->
+                <div class="flex justify-between items-center">
+
+                    <div>
+                        <span class="font-bold text-gray-800">
+                            Pedido #{{ pedido.id }}
+                        </span>
+
+                        <p class="text-xs text-gray-400">
+                            {{ pedido.criado_em }}
+                        </p>
+                    </div>
+
+
+                    <span class="font-black text-green-600">
+                        R$ {{ pedido.total }}
+                    </span>
+
+                </div>
+
+
+                <!-- itens -->
+                <div class="mt-4 space-y-2">
+
+                    {% for item in pedido.itens.all %}
+
+                    <div class="flex justify-between text-sm">
+
+                        <span>
+                            {{ item.quantidade }}x
+                            {{ item.produto.nome_produto }}
+                        </span>
+
+                        <span class="font-semibold">
+                            R$ {{ item.subtotal }}
+                        </span>
+
+                    </div>
+
+                    {% endfor %}
+
+                </div>
+
+            </div>
+
+            {% empty %}
+
+            <div class="p-6 text-gray-400 text-center">
+                Nenhum pedido finalizado
+            </div>
+
+            {% endfor %}
+
+        </div>
+
+    </div>
+
+
+
+    <!-- Pedidos Cancelados -->
+    <div class="bg-white rounded-2xl shadow">
+
+        <div class="border-b px-6 py-4 flex items-center justify-between">
+            <h3 class="font-black text-red-600">
+                <i class="fas fa-times-circle"></i>
+                Pedidos Cancelados
+            </h3>
+        </div>
+
+
+        <div class="divide-y">
+
+            {% for pedido in pedidos_cancelados %}
+
+            <div class="p-6 hover:bg-gray-50 transition">
+
+                <div class="flex justify-between items-center">
+
+                    <div>
+
+                        <span class="font-bold text-gray-800">
+                            Pedido #{{ pedido.id }}
+                        </span>
+
+                        <p class="text-xs text-gray-400">
+                            {{ pedido.criado_em }}
+                        </p>
+
+                    </div>
+
+
+                    <span class="font-black text-red-600">
+                        R$ {{ pedido.total }}
+                    </span>
+
+                </div>
+
+
+                <!-- itens -->
+                <div class="mt-4 space-y-2">
+
+                    {% for item in pedido.itens.all %}
+
+                    <div class="flex justify-between text-sm">
+
+                        <span>
+                            {{ item.quantidade }}x
+                            {{ item.produto.nome_produto }}
+                        </span>
+
+                        <span class="font-semibold">
+                            R$ {{ item.subtotal }}
+                        </span>
+
+                    </div>
+
+                    {% endfor %}
+
+                </div>
+
+            </div>
+
+            {% empty %}
+
+            <div class="p-6 text-gray-400 text-center">
+                Nenhum pedido cancelado
+            </div>
+
+            {% endfor %}
+
+        </div>
+
+    </div>
+
+
+</div>
+
+{% endblock %}

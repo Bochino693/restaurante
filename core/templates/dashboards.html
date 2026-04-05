@@ -1,10 +1,356 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Title</title>
-</head>
-<body>
+{% extends "base.html" %}
+{% load static %}
 
-</body>
-</html>
+{% block title %}
+Analytics PDV
+{% endblock %}
+
+{% block content %}
+
+<div class="flex flex-col gap-6 h-[calc(100vh-80px)] overflow-hidden">
+
+<!-- HEADER -->
+
+<div class="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-100">
+
+<div class="flex flex-wrap items-center justify-between gap-4">
+
+<div>
+
+<h1 class="text-xl font-black uppercase tracking-tight text-gray-800 flex gap-2 items-center">
+<i class="fas fa-chart-line text-indigo-600"></i>
+Analytics PDV
+</h1>
+
+<span class="text-xs text-gray-400 font-semibold">
+Indicadores estratégicos do sistema
+</span>
+
+</div>
+
+
+<!-- FILTROS -->
+
+<div class="flex gap-2">
+
+<input type="date"
+class="bg-gray-50 px-4 py-2 rounded-xl text-xs font-bold shadow-inner">
+
+<input type="date"
+class="bg-gray-50 px-4 py-2 rounded-xl text-xs font-bold shadow-inner">
+
+<button
+class="bg-indigo-600 text-white px-5 rounded-xl text-xs font-black uppercase shadow-lg shadow-indigo-200 hover:bg-indigo-700">
+
+Aplicar
+
+</button>
+
+</div>
+
+</div>
+
+</div>
+
+
+
+<!-- KPIs -->
+
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+
+<div class="kpi-card">
+
+<span>Receita total</span>
+
+<h2>R$ {{ receita_total }}</h2>
+
+</div>
+
+
+<div class="kpi-card">
+
+<span>Total pedidos</span>
+
+<h2>{{ total_pedidos }}</h2>
+
+</div>
+
+
+<div class="kpi-card">
+
+<span>Ticket médio</span>
+
+<h2>R$ {{ ticket_medio|floatformat:2 }}</h2>
+
+</div>
+
+
+<div class="kpi-card">
+
+<span>Produtos vendidos</span>
+
+<h2>{{ mais_vendidos|length }}</h2>
+
+</div>
+
+</div>
+
+
+
+<!-- GRID GRÁFICOS -->
+
+<div class="grid grid-cols-1 xl:grid-cols-2 gap-6 flex-1 overflow-hidden">
+
+<!-- vendas mensais -->
+
+<div class="card-chart">
+
+<h3>Vendas mensais</h3>
+
+<canvas id="chartMes"></canvas>
+
+</div>
+
+
+<!-- pedidos status -->
+
+<div class="card-chart">
+
+<h3>Status pedidos</h3>
+
+<canvas id="chartStatus"></canvas>
+
+</div>
+
+
+<!-- mais vendidos -->
+
+<div class="card-chart">
+
+<h3>Top produtos vendidos</h3>
+
+<canvas id="chartVendidos"></canvas>
+
+</div>
+
+
+<!-- mais clicados -->
+
+<div class="card-chart">
+
+<h3>Produtos mais clicados</h3>
+
+<canvas id="chartClick"></canvas>
+
+</div>
+
+</div>
+
+
+
+<!-- LISTAS INTELIGENTES -->
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+<div class="list-card">
+
+<h4>🔥 Ranking vendas</h4>
+
+<ul>
+
+{% for item in mais_vendidos %}
+
+<li>
+
+{{ item.produto__nome_produto }}
+
+<span>{{ item.total }}</span>
+
+</li>
+
+{% endfor %}
+
+</ul>
+
+</div>
+
+
+
+<div class="list-card">
+
+<h4>👆 Ranking cliques</h4>
+
+<ul>
+
+{% for item in produtos_click %}
+
+<li>
+
+{{ item.produto.nome_produto }}
+
+<span>{{ item.quantidade }}</span>
+
+</li>
+
+{% endfor %}
+
+</ul>
+
+</div>
+
+
+</div>
+
+</div>
+
+
+
+<style>
+
+.kpi-card{
+
+background:white;
+
+padding:20px;
+
+border-radius:1.8rem;
+
+box-shadow:0 8px 25px rgba(0,0,0,.05);
+
+transition:.25s;
+
+}
+
+
+.kpi-card:hover{
+
+transform:translateY(-5px);
+
+}
+
+
+.kpi-card span{
+
+font-size:10px;
+
+font-weight:800;
+
+color:#94a3b8;
+
+text-transform:uppercase;
+
+}
+
+
+.kpi-card h2{
+
+font-size:26px;
+
+font-weight:900;
+
+color:#1e293b;
+
+margin-top:6px;
+
+}
+
+
+
+.card-chart{
+
+background:white;
+
+padding:25px;
+
+border-radius:2rem;
+
+box-shadow:0 10px 40px rgba(0,0,0,.05);
+
+height:100%;
+
+}
+
+
+.card-chart h3{
+
+font-size:12px;
+
+font-weight:900;
+
+text-transform:uppercase;
+
+color:#64748b;
+
+margin-bottom:10px;
+
+}
+
+
+
+.list-card{
+
+background:white;
+
+padding:25px;
+
+border-radius:2rem;
+
+box-shadow:0 10px 40px rgba(0,0,0,.05);
+
+}
+
+
+.list-card ul{
+
+list-style:none;
+
+padding:0;
+
+margin:0;
+
+}
+
+
+.list-card li{
+
+display:flex;
+
+justify-content:space-between;
+
+padding:12px 0;
+
+border-bottom:1px solid #f1f5f9;
+
+font-weight:700;
+
+font-size:13px;
+
+}
+
+
+.list-card span{
+
+background:#eef2ff;
+
+padding:4px 10px;
+
+border-radius:999px;
+
+font-size:11px;
+
+}
+
+
+</style>
+
+
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+
+/* pronto para conexão com backend */
+
+</script>
+
+{% endblock %}

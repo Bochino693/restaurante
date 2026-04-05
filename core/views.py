@@ -151,22 +151,99 @@ class PedidosView(LoginRequiredMixin, View):
             'total_dia': f"{total_dia:.2f}".replace('.', ','),
             'status_options': Pedidos.StatusPedido.choices
         })
-
-
 class VendasView(LoginRequiredMixin, View):
-    login_url = "login"
 
-    def get(self, request):
-        pedidos = Pedidos.objects.all()
-        return render(request, 'vendas.html', {'pedidos': pedidos})
+    template_name = "vendas.html"
+    login_url = "login"  # ajuste se sua url de login tiver outro nome
+
+    def get(self, request, *args, **kwargs):
+
+        pedidos_finalizados = Pedidos.objects.filter(
+            status=Pedidos.StatusPedido.FINALIZADO
+        ).prefetch_related('itens__produto')
+
+        pedidos_cancelados = Pedidos.objects.filter(
+            status=Pedidos.StatusPedido.CANCELADO
+        ).prefetch_related('itens__produto')
 
 
-class DashboardView(LoginRequiredMixin, View):
-    login_url = "login"
+        total_finalizados = pedidos_finalizados.aggregate(
+            total=Sum('total')
+        )['total'] or 0
 
-    def get(self, request):
-        pedidos = Pedidos.objects.all()
-        return render(request, 'dashboard.html', {'pedidos': pedidos})
+
+        total_cancelados = pedidos_cancelados.aggregate(
+            total=Sum('total')
+        )['total'] or 0
+
+
+        context = {
+
+            "pedidos_finalizados": pedidos_finalizados,
+            "pedidos_cancelados": pedidos_cancelados,
+            "total_finalizados": total_finalizados,
+            "total_cancelados": total_cancelados,
+
+        }
+
+        return render(request, self.template_name, context)
+
+
+from .models import (
+    ProdutosMaisClick,
+    PratoDiaMaisClick,
+)
+from django.views.generic import TemplateView
+from django.utils.timezone import now
+
+class DashboardAnalyticsView(LoginRequiredMixin, TemplateView):
+    template_name = "dashboards.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        hoje = now()
+
+        # Produtos mais clicados
+        context["produtos_click"] = (
+            ProdutosMaisClick.objects.select_related("produto")
+            .order_by("-quantidade")[:5]
+        )
+
+        # Pratos do dia mais clicados
+        context["pratos_click"] = (
+            PratoDiaMaisClick.objects.select_related("prato")
+            .order_by("-quantidade")[:5]
+        )
+
+        # Produtos mais vendidos
+        context["mais_vendidos"] = (
+            ItensPedido.objects.values("produto__nome_produto")
+            .annotate(total=Sum("quantidade"))
+            .order_by("-total")[:5]
+        )
+
+        # Receita total
+        context["receita_total"] = (
+            Pedidos.objects.aggregate(total=Sum("total"))["total"] or 0
+        )
+
+        # Total pedidos
+        context["total_pedidos"] = Pedidos.objects.count()
+
+        # Ticket médio
+        pedidos = Pedidos.objects.aggregate(
+            media=Sum("total") / Count("id")
+        )
+        context["ticket_medio"] = pedidos["media"] or 0
+
+        # Pedidos por status
+        context["pedidos_status"] = (
+            Pedidos.objects.values("status")
+            .annotate(total=Count("id"))
+        )
+
+        return context
 
 
 class LoginView(View):
