@@ -349,9 +349,8 @@ function resetarBotao() {
 }
 
 formStatus.addEventListener('submit', function(e) {
-    e.preventDefault(); // Impede o recarregamento padrão da página
+    e.preventDefault();
 
-    // Estado: Carregando
     btnConfirmar.disabled = true;
     btnConfirmar.classList.add('opacity-80', 'cursor-not-allowed');
     btnConfirmar.innerHTML = '<i class="fas fa-spinner fa-spin text-lg"></i> Processando...';
@@ -362,33 +361,41 @@ formStatus.addEventListener('submit', function(e) {
         method: 'POST',
         body: formData,
         headers: {
-            'X-Requested-With': 'XMLHttpRequest' // Diz ao Django que é uma chamada AJAX
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
         }
     })
-    .then(response => {
-        if (!response.ok) throw new Error('Erro na requisição');
-        return response.json();
+    .then(async response => {
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.mensagem || 'Erro desconhecido');
+        }
+
+        return data;
     })
     .then(data => {
-        // Estado: Sucesso
+
         btnConfirmar.classList.remove('bg-green-500', 'shadow-green-500/30');
         btnConfirmar.classList.add('bg-blue-500', 'shadow-blue-500/30');
+
         btnConfirmar.innerHTML = '<i class="fas fa-check-circle text-lg"></i> Sucesso!';
 
-        // Recarrega a página após 800ms para mostrar a lista atualizada
         setTimeout(() => window.location.reload(), 800);
+
     })
     .catch(error => {
-        // Estado: Falha
+
         btnConfirmar.classList.remove('bg-green-500', 'shadow-green-500/30');
         btnConfirmar.classList.add('bg-red-500', 'shadow-red-500/30');
-        btnConfirmar.innerHTML = '<i class="fas fa-times-circle text-lg"></i> Falha ao atualizar';
 
-        // Retorna o botão ao estado normal após 2.5 segundos para tentar novamente
+        btnConfirmar.innerHTML = `<i class="fas fa-times-circle text-lg"></i> ${error.message}`;
+
         setTimeout(() => {
             resetarBotao();
             btnConfirmar.disabled = false;
         }, 2500);
+
     });
 });
 </script>
