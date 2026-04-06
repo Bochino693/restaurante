@@ -151,6 +151,9 @@ class PedidosView(LoginRequiredMixin, View):
             'total_dia': f"{total_dia:.2f}".replace('.', ','),
             'status_options': Pedidos.StatusPedido.choices
         })
+
+
+
 class VendasView(LoginRequiredMixin, View):
 
     template_name = "vendas.html"
