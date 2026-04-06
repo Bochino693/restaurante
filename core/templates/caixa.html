@@ -326,6 +326,7 @@ function aplicarFiltros() {
 
 // LÓGICA DO CARRINHO COM ADICIONAIS
 function addProduto(id, nome, preco, adicionais = []) {
+
     const addKey = adicionais.map(a => a.nome).sort().join('|');
     const uniqueKey = `${id}-${addKey}`;
 
@@ -343,7 +344,11 @@ function addProduto(id, nome, preco, adicionais = []) {
             qtd: 1
         });
     }
+
     renderCarrinho();
+
+    // 🔥 fecha modal automaticamente se estiver aberto
+    fecharModal();
 }
 
 function renderCarrinho() {
