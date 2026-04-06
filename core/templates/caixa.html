@@ -455,9 +455,18 @@ function abrirModalAdicionais(id, nome, preco) {
 }
 
 function fecharModal() {
-    document.getElementById('modalAdicionais').classList.add('hidden');
-}
+    const modal = document.getElementById('modalAdicionais');
 
+    modal.classList.add('hidden');
+
+    // limpa checkboxes
+    document.querySelectorAll('.add-check').forEach(el => {
+        el.checked = false;
+    });
+
+    // remove callback antigo
+    document.getElementById('btnConfirmarAdicional').onclick = null;
+}
 // LÓGICA DOS BOTÕES DE PAGAMENTO
 function setMetodo(met, btnElement) {
     metodoPagamento = met;
