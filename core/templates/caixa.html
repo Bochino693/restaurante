@@ -18,14 +18,12 @@
                 <button onclick="filtrarCategoria('all', this)" class="categoria-btn active px-5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all">
                     Todas
                 </button>
-
                 {% if pratos_do_dia %}
                 <button onclick="filtrarCategoria('pratos-dia', this)"
                     class="categoria-btn bg-orange-100 text-orange-600 px-5 py-2 rounded-xl text-xs font-bold whitespace-nowrap hover:bg-orange-200 transition-all">
                     Pratos do Dia
                 </button>
                 {% endif %}
-
                 {% for categoria in categorias %}
                 <button onclick="filtrarCategoria('{{ categoria.id }}', this)"
                     class="categoria-btn bg-gray-100 text-gray-500 px-5 py-2 rounded-xl text-xs font-bold whitespace-nowrap hover:bg-gray-200 transition-all">
@@ -36,7 +34,6 @@
         </div>
 
         <div class="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-5">
-
             {% if pratos_do_dia %}
             <div id="secaoPratosDia" class="space-y-3">
                 <div class="flex items-center justify-between">
@@ -44,39 +41,26 @@
                         <h2 class="text-sm font-black uppercase tracking-wide text-orange-600 flex items-center gap-2">
                             <i class="fas fa-utensils"></i> Pratos do Dia
                         </h2>
-                        <p class="text-xs text-gray-400 font-semibold">Mais visíveis e prontos para lançar</p>
                     </div>
-                    <span class="bg-orange-100 text-orange-600 text-[10px] px-3 py-1 rounded-full font-black uppercase">
-                        Hoje
-                    </span>
                 </div>
 
                 <div id="pratosDiaGrid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                     {% for prato in pratos_do_dia %}
-                    <div class="prato-dia-card bg-gradient-to-br from-orange-50 to-amber-50 rounded-3xl shadow-sm border border-orange-200 hover:border-orange-300 transition-all group overflow-hidden"
-                        data-name="{{ prato.produto.nome_produto|lower }}"
-                        data-code="{{ prato.produto.codigo }}"
-                        data-categoria="{{ prato.produto.categoria.id }}"
-                        data-prato-dia="true">
+                    <div class="prato-dia-card bg-gradient-to-br from-orange-50 to-amber-50 rounded-3xl shadow-sm border border-orange-200 hover:border-orange-300 transition-all group overflow-hidden">
 
-                        <div class="aspect-video bg-orange-100 flex items-center justify-center relative">
-                            {% if prato.produto.image_produto and prato.produto.image_produto.name %}
+                        <div class="aspect-video bg-orange-100 flex items-center justify-center relative cursor-pointer"
+                            onclick="{% if prato.produto.adicionais_disponiveis.exists %}abrirModalAdicionais('{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}'){% else %}addProduto('{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}'){% endif %}">
+
+                            {% if prato.produto.image_produto %}
                                 <img src="{{ prato.produto.image_produto.url }}" class="object-cover w-full h-full">
                             {% else %}
                                 <i class="fas fa-utensils text-orange-300 text-3xl"></i>
                             {% endif %}
 
-                            <div class="absolute top-2 left-2 bg-orange-500 text-white text-[10px] px-3 py-1 rounded-full font-black uppercase tracking-wide shadow">
-                                Hoje
-                            </div>
+                            <div class="absolute top-2 left-2 bg-orange-500 text-white text-[10px] px-3 py-1 rounded-full font-black uppercase tracking-wide shadow">Hoje</div>
 
                             {% if prato.produto.adicionais_disponiveis.exists %}
-                                <button
-                                    onclick="event.stopPropagation(); abrirModalAdicionais(
-                                        '{{ prato.produto.id }}',
-                                        '{{ prato.produto.nome_produto|escapejs }}',
-                                        '{{ prato.produto.preco|stringformat:'.2f' }}'
-                                    )"
+                                <button onclick="event.stopPropagation(); abrirModalAdicionais('{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}')"
                                     class="absolute top-2 right-2 bg-white/90 backdrop-blur p-2 rounded-full shadow-md text-orange-500 hover:scale-110 transition-transform z-10">
                                     <i class="fas fa-plus-circle"></i>
                                 </button>
@@ -84,39 +68,13 @@
                         </div>
 
                         <div class="p-4 cursor-pointer"
-                            {% if prato.produto.adicionais_disponiveis.exists %}
-                                onclick="abrirModalAdicionais(
-                                    '{{ prato.produto.id }}',
-                                    '{{ prato.produto.nome_produto|escapejs }}',
-                                    '{{ prato.produto.preco|stringformat:'.2f' }}'
-                                )"
-                            {% else %}
-                                onclick="addProduto(
-                                    '{{ prato.produto.id }}',
-                                    '{{ prato.produto.nome_produto|escapejs }}',
-                                    '{{ prato.produto.preco|stringformat:'.2f' }}'
-                                )"
-                            {% endif %}>
-
+                            onclick="{% if prato.produto.adicionais_disponiveis.exists %}abrirModalAdicionais('{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}'){% else %}addProduto('{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}'){% endif %}">
                             <div class="flex justify-between items-start mb-1 gap-2">
                                 <h3 class="text-sm font-black text-gray-800 leading-tight">{{ prato.produto.nome_produto }}</h3>
-                                <span class="text-[10px] bg-white px-2 py-0.5 rounded-md text-orange-500 font-mono border border-orange-200">
-                                    #{{ prato.produto.codigo }}
-                                </span>
+                                <span class="text-[10px] bg-white px-2 py-0.5 rounded-md text-orange-500 font-mono border border-orange-200">#{{ prato.produto.codigo }}</span>
                             </div>
-
                             <div class="flex items-center justify-between gap-2">
                                 <span class="text-orange-600 font-black text-lg">R$ {{ prato.produto.preco }}</span>
-
-                                {% if prato.produto.adicionais_disponiveis.exists %}
-                                    <span class="text-[10px] font-black uppercase tracking-wide text-orange-500 bg-white px-2 py-1 rounded-lg border border-orange-200">
-                                        com adicionais
-                                    </span>
-                                {% else %}
-                                    <span class="text-[10px] font-black uppercase tracking-wide text-orange-600 bg-white px-2 py-1 rounded-lg border border-orange-200">
-                                        prato do dia
-                                    </span>
-                                {% endif %}
                             </div>
                         </div>
                     </div>
@@ -126,37 +84,25 @@
             {% endif %}
 
             <div class="space-y-3">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <h2 class="text-sm font-black uppercase tracking-wide text-gray-700 flex items-center gap-2">
-                            <i class="fas fa-box-open"></i> Produtos
-                        </h2>
-                        <p class="text-xs text-gray-400 font-semibold">Todos os itens disponíveis no PDV</p>
-                    </div>
-                </div>
+                <h2 class="text-sm font-black uppercase tracking-wide text-gray-700 flex items-center gap-2">
+                    <i class="fas fa-box-open"></i> Produtos
+                </h2>
 
                 <div id="produtosGrid" class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
                     {% for produto in produtos %}
-                    <div class="produto-card bg-white rounded-3xl shadow-sm border border-transparent hover:border-blue-50 transition-all group overflow-hidden"
-                        data-name="{{ produto.nome_produto|lower }}"
-                        data-code="{{ produto.codigo }}"
-                        data-categoria="{{ produto.categoria.id }}"
-                        data-prato-dia="false">
+                    <div class="produto-card bg-white rounded-3xl shadow-sm border border-transparent hover:border-blue-50 transition-all group overflow-hidden">
 
-                        <div class="aspect-video bg-gray-50 flex items-center justify-center relative">
-                            {% if produto.image_produto and produto.image_produto.name %}
+                        <div class="aspect-video bg-gray-50 flex items-center justify-center relative cursor-pointer"
+                            onclick="{% if produto.adicionais_disponiveis.exists %}abrirModalAdicionais('{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}'){% else %}addProduto('{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}'){% endif %}">
+
+                            {% if produto.image_produto %}
                                 <img src="{{ produto.image_produto.url }}" class="object-cover w-full h-full">
                             {% else %}
                                 <i class="fas fa-box text-gray-200 text-3xl"></i>
                             {% endif %}
 
                             {% if produto.adicionais_disponiveis.exists %}
-                                <button
-                                    onclick="event.stopPropagation(); abrirModalAdicionais(
-                                        '{{ produto.id }}',
-                                        '{{ produto.nome_produto|escapejs }}',
-                                        '{{ produto.preco|stringformat:'.2f' }}'
-                                    )"
+                                <button onclick="event.stopPropagation(); abrirModalAdicionais('{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}')"
                                     class="absolute top-2 right-2 bg-white/90 backdrop-blur p-2 rounded-full shadow-md text-orange-500 hover:scale-110 transition-transform z-10">
                                     <i class="fas fa-plus-circle"></i>
                                 </button>
@@ -164,47 +110,23 @@
                         </div>
 
                         <div class="p-4 cursor-pointer"
-                            {% if produto.adicionais_disponiveis.exists %}
-                                onclick="abrirModalAdicionais(
-                                    '{{ produto.id }}',
-                                    '{{ produto.nome_produto|escapejs }}',
-                                    '{{ produto.preco|stringformat:'.2f' }}'
-                                )"
-                            {% else %}
-                                onclick="addProduto(
-                                    '{{ produto.id }}',
-                                    '{{ produto.nome_produto|escapejs }}',
-                                    '{{ produto.preco|stringformat:'.2f' }}'
-                                )"
-                            {% endif %}>
+                            onclick="{% if produto.adicionais_disponiveis.exists %}abrirModalAdicionais('{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}'){% else %}addProduto('{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}'){% endif %}">
                             <div class="flex justify-between items-start mb-1">
                                 <h3 class="text-sm font-bold text-gray-800 leading-tight">{{ produto.nome_produto }}</h3>
                                 <span class="text-[10px] bg-gray-100 px-2 py-0.5 rounded-md text-gray-400 font-mono">#{{ produto.codigo }}</span>
                             </div>
-
-                            <div class="flex items-center justify-between gap-2">
-                                <span class="text-blue-600 font-black text-lg">R$ {{ produto.preco }}</span>
-
-                                {% if produto.adicionais_disponiveis.exists %}
-                                    <span class="text-[10px] font-bold uppercase tracking-wide text-orange-500 bg-orange-50 px-2 py-1 rounded-lg">
-                                        com adicionais
-                                    </span>
-                                {% endif %}
-                            </div>
+                            <span class="text-blue-600 font-black text-lg">R$ {{ produto.preco }}</span>
                         </div>
                     </div>
                     {% endfor %}
                 </div>
             </div>
-
         </div>
     </div>
 
     <div class="lg:w-1/3 xl:w-1/4 flex flex-col h-full bg-white rounded-[2rem] shadow-2xl border border-gray-100 overflow-hidden">
         <div class="p-5 bg-blue-600 text-white flex justify-between items-center">
-            <h2 class="font-bold flex items-center gap-2">
-                <i class="fas fa-shopping-basket"></i> CARRINHO
-            </h2>
+            <h2 class="font-bold flex items-center gap-2"><i class="fas fa-shopping-basket"></i> CARRINHO</h2>
             <span id="cartCount" class="bg-blue-400 text-[10px] px-2 py-1 rounded-full font-bold">0 ITENS</span>
         </div>
 
@@ -216,33 +138,11 @@
         </div>
 
         <div class="p-6 bg-gray-50 border-t border-dashed border-gray-300 space-y-4">
-            <div class="space-y-2">
-                <div class="flex justify-between text-xs text-gray-500 font-bold uppercase tracking-wider">
-                    <span>Subtotal</span>
-                    <span id="subtotalValue">R$ 0,00</span>
-                </div>
-
-                <div class="flex justify-between items-center bg-white p-2 rounded-xl border border-gray-200">
-                    <span class="text-xs text-gray-400 font-bold uppercase">Desconto (R$)</span>
-                    <input type="text" id="inputDesconto" value="0,00"
-                        class="w-24 text-right border-none p-0 text-sm font-black text-red-500 focus:ring-0"
-                        oninput="mascaraMoeda(this)">
-                </div>
-            </div>
-
             <div class="flex justify-between items-center bg-gray-900 p-4 rounded-2xl text-white">
                 <span class="text-xs font-bold">TOTAL</span>
                 <span id="totalFinal" class="text-2xl font-black font-mono">R$ 0,00</span>
             </div>
-
-            <div class="grid grid-cols-3 gap-2">
-                <button onclick="setMetodo('dinheiro', this)" class="metodo-btn border rounded-xl py-2 text-[10px] font-black uppercase transition-all">Dinheiro</button>
-                <button onclick="setMetodo('pix', this)" class="metodo-btn border rounded-xl py-2 text-[10px] font-black uppercase transition-all">PIX</button>
-                <button onclick="setMetodo('cartao', this)" class="metodo-btn border rounded-xl py-2 text-[10px] font-black uppercase transition-all">Cartão</button>
-            </div>
-
-            <button onclick="finalizarVenda()"
-                class="w-full bg-green-500 hover:bg-green-600 text-white font-black py-4 rounded-2xl shadow-lg active:scale-95 transition-all text-sm uppercase tracking-widest">
+            <button onclick="finalizarVenda()" class="w-full bg-green-500 hover:bg-green-600 text-white font-black py-4 rounded-2xl shadow-lg transition-all text-sm uppercase tracking-widest">
                 Finalizar Pedido
             </button>
         </div>
