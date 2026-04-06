@@ -5,62 +5,98 @@
 {% block content %}
 <div class="flex flex-col h-[calc(100vh-80px)] gap-4 overflow-hidden relative">
 
-    <div class="bg-white p-4 rounded-[2rem] shadow-sm border border-gray-100">
-        <div class="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+    <div class="bg-white p-5 rounded-[2rem] shadow-sm border border-gray-100">
 
-            <div class="flex flex-col md:flex-row items-center gap-4">
-                <h1 class="text-xl font-black text-gray-800 uppercase tracking-tight flex items-center gap-2 whitespace-nowrap">
-                    <i class="fas fa-receipt text-orange-500"></i> Relatório
-                </h1>
+<div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
 
-               <div class="flex flex-wrap gap-2">
+<!-- LADO ESQUERDO -->
+<div class="flex flex-col gap-3 w-full">
 
-                <button onclick="setPeriodo('hoje')" class="btnPeriodo ativo">
-                Hoje
-                </button>
+<div class="flex items-center gap-4 flex-wrap">
 
-                <button onclick="setPeriodo('semana')" class="btnPeriodo">
-                Semana
-                </button>
+<h1 class="text-xl font-black text-gray-800 uppercase tracking-tight flex items-center gap-2 whitespace-nowrap">
+<i class="fas fa-receipt text-orange-500"></i>
+Relatório
+</h1>
 
-                <button onclick="setPeriodo('quinzena')" class="btnPeriodo">
-                Quinzena
-                </button>
+<div class="flex flex-wrap gap-2">
 
-                <button onclick="setPeriodo('mes')" class="btnPeriodo">
-                Mês
-                </button>
+<button onclick="setPeriodo(event,'hoje')" class="btnPeriodo ativo">
+Hoje
+</button>
 
-                <button onclick="setPeriodo('todos')" class="btnPeriodo">
-                Todos
-                </button>
+<button onclick="setPeriodo(event,'semana')" class="btnPeriodo">
+Semana
+</button>
 
-                </div>
+<button onclick="setPeriodo(event,'quinzena')" class="btnPeriodo">
+Quinzena
+</button>
 
-                    <div class="relative flex-1 min-w-[180px]">
-                        <i class="fas fa-wallet absolute left-4 top-3.5 text-gray-400 text-sm"></i>
-                        <div class="flex gap-2 flex-wrap">
+<button onclick="setPeriodo(event,'mes')" class="btnPeriodo">
+Mês
+</button>
 
-                        <button onclick="togglePagamento('DINHEIRO')" class="btnPagamento">
-                        Dinheiro
-                        </button>
+<button onclick="setPeriodo(event,'todos')" class="btnPeriodo">
+Todos
+</button>
 
-                        <button onclick="togglePagamento('PIX')" class="btnPagamento">
-                        Pix
-                        </button>
+</div>
 
-                        <button onclick="togglePagamento('CARTAO')" class="btnPagamento">
-                        Cartão
-                        </button>
+</div>
 
-                        <button onclick="togglePagamento('MISTO')" class="btnPagamento">
-                        Misto
-                        </button>
 
-                        </div>
-                    </div>
-                </div>
-            </div>
+<div class="flex flex-wrap gap-2">
+
+<button onclick="togglePagamento(event,'DINHEIRO')" class="btnPagamento">
+Dinheiro
+</button>
+
+<button onclick="togglePagamento(event,'PIX')" class="btnPagamento">
+Pix
+</button>
+
+<button onclick="togglePagamento(event,'CARTAO')" class="btnPagamento">
+Cartão
+</button>
+
+<button onclick="togglePagamento(event,'MISTO')" class="btnPagamento">
+Misto
+</button>
+
+</div>
+
+</div>
+
+
+<!-- LADO DIREITO -->
+<div class="flex flex-wrap items-center gap-2">
+
+<div class="bg-green-50 text-green-600 px-4 py-2 rounded-2xl flex flex-col shadow-sm border border-green-100">
+<span class="text-[9px] font-black uppercase">Dinheiro</span>
+<span class="font-black text-sm leading-none">R$ {{ total_dinheiro|default:"0,00" }}</span>
+</div>
+
+<div class="bg-teal-50 text-teal-600 px-4 py-2 rounded-2xl flex flex-col shadow-sm border border-teal-100">
+<span class="text-[9px] font-black uppercase">Pix</span>
+<span class="font-black text-sm leading-none">R$ {{ total_pix|default:"0,00" }}</span>
+</div>
+
+<div class="bg-blue-50 text-blue-600 px-4 py-2 rounded-2xl flex flex-col shadow-sm border border-blue-100">
+<span class="text-[9px] font-black uppercase">Cartão</span>
+<span class="font-black text-sm leading-none">R$ {{ total_cartao|default:"0,00" }}</span>
+</div>
+
+<div class="bg-orange-100 text-orange-600 px-5 py-2 rounded-2xl flex flex-col shadow-sm border border-orange-200">
+<span class="text-[10px] font-black uppercase">Total Hoje</span>
+<span class="font-black text-lg leading-none">R$ {{ total_dia|default:"0,00" }}</span>
+</div>
+
+</div>
+
+</div>
+
+</div>
 
             <div class="flex flex-wrap items-center gap-2">
                 <div class="bg-green-50 text-green-600 px-4 py-2 rounded-2xl flex flex-col justify-center shadow-sm border border-green-100">
@@ -293,12 +329,12 @@ let periodoAtual = "hoje";
 
 let pagamentosSelecionados = new Set();
 
-function setPeriodo(periodo){
+function setPeriodo(event, periodo){
 
 document.querySelectorAll(".btnPeriodo")
 .forEach(btn=>btn.classList.remove("ativo"));
 
-event.target.classList.add("ativo");
+event.currentTarget.classList.add("ativo");
 
 periodoAtual = periodo;
 
@@ -306,19 +342,19 @@ filtrarPedidos();
 
 }
 
-function togglePagamento(tipo){
+function togglePagamento(event, tipo){
 
 if(pagamentosSelecionados.has(tipo)){
 
 pagamentosSelecionados.delete(tipo);
 
-event.target.classList.remove("ativo");
+event.currentTarget.classList.remove("ativo");
 
 }else{
 
 pagamentosSelecionados.add(tipo);
 
-event.target.classList.add("ativo");
+event.currentTarget.classList.add("ativo");
 
 }
 
