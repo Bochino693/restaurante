@@ -43,16 +43,43 @@ class CardapioClienteView(View):
             "loja_aberta_server": loja_aberta
         })
 
+
 class CaixaView(LoginRequiredMixin, View):
     login_url = "login"
 
     def get(self, request):
-        produtos = Produtos.objects.select_related("categoria").prefetch_related("adicionais_disponiveis").all()
-        categorias = CategoriaProdutos.objects.all()
+        produtos = (
+            Produtos.objects
+            .select_related("categoria")
+            .prefetch_related("adicionais_disponiveis")
+            .filter(ativo=True)
+            .order_by("nome_produto")
+        )
+
+        categorias = (
+            CategoriaProdutos.objects
+            .filter(ativo=True, produtos__ativo=True)
+            .distinct()
+            .order_by("nome_categoria")
+        )
+
+        dia_hoje = timezone.localdate().weekday()
+        pratos_do_dia = (
+            PratoDoDia.objects
+            .filter(
+                dia_semana=dia_hoje,
+                ativo=True,
+                produto__ativo=True
+            )
+            .select_related("produto", "produto__categoria")
+            .prefetch_related("produto__adicionais_disponiveis")
+            .order_by("produto__nome_produto")
+        )
 
         return render(request, 'caixa.html', {
             'produtos': produtos,
             'categorias': categorias,
+            'pratos_do_dia': pratos_do_dia,
         })
 
     def post(self, request):
