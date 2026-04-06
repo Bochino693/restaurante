@@ -346,9 +346,6 @@ function addProduto(id, nome, preco, adicionais = []) {
     }
 
     renderCarrinho();
-
-    // 🔥 fecha modal automaticamente se estiver aberto
-    fecharModal();
 }
 
 function renderCarrinho() {
@@ -438,7 +435,9 @@ function abrirModalAdicionais(id, nome, preco) {
             </label>
         `).join("");
 
-        document.getElementById('btnConfirmarAdicional').onclick = () => {
+        const btnConfirmar = document.getElementById('btnConfirmarAdicional');
+
+        btnConfirmar.onclick = () => {
             const selecionados = [];
 
             document.querySelectorAll('.add-check:checked').forEach(c => {
@@ -449,7 +448,9 @@ function abrirModalAdicionais(id, nome, preco) {
             });
 
             addProduto(id, nome, preco, selecionados);
-            fecharModal();
+
+            // força fechamento imediato e seguro
+            document.getElementById("modalAdicionais").classList.add("hidden");
         };
 
         document.getElementById("modalAdicionais").classList.remove("hidden");
