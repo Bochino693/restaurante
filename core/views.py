@@ -83,44 +83,94 @@ class CaixaView(LoginRequiredMixin, View):
         })
 
     def post(self, request):
+
         try:
+
             data = json.loads(request.body)
-            carrinho = data.get('carrinho', [])
-            total_pedido = data.get('total', 0)
+
+            carrinho = data.get("carrinho", [])
+            subtotal = data.get("subtotal", 0)
+            desconto = data.get("desconto", 0)
+            total = data.get("total", 0)
+
+            metodo_pagamento = data.get("metodo_pagamento")
+            tipo_entrega = data.get("tipo_entrega")
+
+            endereco = data.get("endereco", {})
+            cep = endereco.get("cep")
+            rua = endereco.get("rua")
+            numero = endereco.get("numero")
 
             if not carrinho:
-                return JsonResponse({'success': False, 'message': 'Carrinho vazio'}, status=400)
+                return JsonResponse(
+                    {"success": False, "message": "Carrinho vazio"},
+                    status=400
+                )
 
             with transaction.atomic():
-                novo_pedido = Pedidos.objects.create(total=total_pedido)
-                itens_para_adicionar = []
+
+                pedido = Pedidos.objects.create(
+                    subtotal=subtotal,
+                    desconto=desconto,
+                    total=total,
+                    metodo_pagamento=metodo_pagamento,
+                    tipo_entrega=tipo_entrega,
+                    cep=cep,
+                    rua=rua,
+                    numero=numero,
+                    data=timezone.now()
+                )
+
+                itens = []
 
                 for item in carrinho:
-                    produto_obj = Produtos.objects.get(id=item['id'])
 
-                    preco_base = float(item['precoBase'])
-                    soma_adicionais = sum(float(a['preco']) for a in item.get('adicionais', []))
-                    preco_unitario_final = preco_base + soma_adicionais
-                    subtotal_item = preco_unitario_final * int(item['qtd'])
+                    produto = Produtos.objects.get(id=item["id"])
+
+                    preco_base = float(item["precoBase"])
+
+                    adicionais = item.get("adicionais", [])
+
+                    soma_adicionais = sum(
+                        float(a["preco"])
+                        for a in adicionais
+                    )
+
+                    preco_unitario = preco_base + soma_adicionais
+
+                    subtotal_item = preco_unitario * int(item["qtd"])
 
                     item_pedido = ItensPedido.objects.create(
-                        produto=produto_obj,
-                        quantidade=item['qtd'],
-                        preco_unitario=preco_unitario_final,
+                        pedido=pedido,
+                        produto=produto,
+                        quantidade=item["qtd"],
+                        preco_unitario=preco_unitario,
                         subtotal=subtotal_item,
-                        adicionais=item.get('adicionais', [])
+                        adicionais=adicionais
                     )
-                    itens_para_adicionar.append(item_pedido)
 
-                novo_pedido.itens.set(itens_para_adicionar)
-                novo_pedido.save()
+                    itens.append(item_pedido)
 
-            return JsonResponse({'success': True, 'pedido_id': novo_pedido.id})
+                pedido.save()
+
+            return JsonResponse({
+                "success": True,
+                "pedido_id": pedido.id
+            })
 
         except Produtos.DoesNotExist:
-            return JsonResponse({'success': False, 'message': 'Produto não encontrado'}, status=404)
+
+            return JsonResponse({
+                "success": False,
+                "message": "Produto não encontrado"
+            }, status=404)
+
         except Exception as e:
-            return JsonResponse({'success': False, 'message': str(e)}, status=500)
+
+            return JsonResponse({
+                "success": False,
+                "message": str(e)
+            }, status=500)
 
 
 def adicionais_produto(request, produto_id):

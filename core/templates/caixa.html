@@ -137,11 +137,80 @@
             </div>
         </div>
 
+        <div class="flex items-center gap-3 bg-white border rounded-2xl p-3">
+            <span class="text-xs font-bold text-gray-400 uppercase">
+                Desconto
+            </span>
+
+            <input
+                id="inputDesconto"
+                type="text"
+                value="0,00"
+                onkeyup="mascaraMoeda(this)"
+                class="ml-auto text-right font-mono font-black text-gray-700 outline-none w-24"
+            >
+        </div>
+
         <div class="p-6 bg-gray-50 border-t border-dashed border-gray-300 space-y-4">
             <div class="flex justify-between items-center bg-gray-900 p-4 rounded-2xl text-white">
                 <span class="text-xs font-bold">TOTAL</span>
                 <span id="totalFinal" class="text-2xl font-black font-mono">R$ 0,00</span>
             </div>
+            <div class="grid grid-cols-2 gap-3">
+            <button onclick="setEntrega(true, this)"
+            class="entrega-btn selected border rounded-2xl p-4 flex flex-col items-center gap-2">
+
+            <span class="text-2xl">🏍️</span>
+            Entrega
+
+            </button>
+
+            <button onclick="setEntrega(false, this)"
+            class="entrega-btn border rounded-2xl p-4 flex flex-col items-center gap-2">
+
+            <span class="text-2xl">🏪</span>
+            Retirada
+
+            </button>
+
+            </div>
+
+            <div id="enderecoBox" class="space-y-2">
+
+            <input id="cep"
+            placeholder="CEP"
+            onblur="buscarCep()"
+            class="w-full border rounded-xl p-3">
+
+            <input id="rua"
+            placeholder="Rua"
+            class="w-full border rounded-xl p-3">
+
+            <input id="numero"
+            placeholder="Número"
+            class="w-full border rounded-xl p-3">
+
+            </div>
+
+            <div class="grid grid-cols-3 gap-2">
+
+            <button onclick="setMetodo('pix', this)"
+            class="metodo-btn border rounded-xl py-3 font-black text-xs">
+            PIX
+            </button>
+
+            <button onclick="setMetodo('cartao', this)"
+            class="metodo-btn border rounded-xl py-3 font-black text-xs">
+            Cartão
+            </button>
+
+            <button onclick="setMetodo('dinheiro', this)"
+            class="metodo-btn border rounded-xl py-3 font-black text-xs">
+            Dinheiro
+            </button>
+
+            </div>
+
             <button onclick="finalizarVenda()" class="w-full bg-green-500 hover:bg-green-600 text-white font-black py-4 rounded-2xl shadow-lg transition-all text-sm uppercase tracking-widest">
                 Finalizar Pedido
             </button>
@@ -394,17 +463,25 @@ function removerItem(index) {
 }
 
 function atualizarTotais() {
+
     const subtotal = carrinho.reduce((acc, item) => {
         const pAdd = item.adicionais.reduce((a, b) => a + parseFloat(b.preco), 0);
         return acc + ((item.precoBase + pAdd) * item.qtd);
     }, 0);
 
     const descRaw = document.getElementById('inputDesconto').value.replace(/[^\d]/g, '');
+
     const desconto = parseFloat(descRaw) / 100 || 0;
+
     const total = Math.max(0, subtotal - desconto);
 
-    document.getElementById('subtotalValue').innerText = formatar(subtotal);
     document.getElementById('totalFinal').innerText = formatar(total);
+
+    return {
+        subtotal,
+        desconto,
+        total
+    };
 }
 
 // LÓGICA DO MODAL ADICIONAIS
@@ -550,49 +627,130 @@ function fecharModalAlerta() {
     }, 200);
 }
 
-// FINALIZAR VENDA
+let tipoEntrega = true;
+
+function setEntrega(valor, btn){
+
+tipoEntrega = valor;
+
+document.querySelectorAll('.entrega-btn')
+.forEach(b => b.classList.remove('selected','bg-blue-600','text-white'));
+
+btn.classList.add('selected','bg-blue-600','text-white');
+
+document.getElementById('enderecoBox').style.display =
+valor ? 'block' : 'none';
+
+}
+
+async function buscarCep(){
+
+const cep =
+document.getElementById('cep').value.replace(/\D/g,'');
+
+if(cep.length !== 8) return;
+
+const res =
+await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+
+const data = await res.json();
+
+if(!data.erro){
+
+document.getElementById('rua').value =
+data.logradouro;
+
+}
+
+}
+
+
 async function finalizarVenda() {
+
     if (carrinho.length === 0) {
-        mostrarAlerta("Carrinho Vazio", "Adicione pelo menos um item para continuar.", "aviso");
+        mostrarAlerta("Carrinho Vazio", "Adicione pelo menos um item.", "aviso");
         return;
     }
 
     if (!metodoPagamento) {
-        mostrarAlerta("Pagamento Pendente", "Selecione uma forma de pagamento.", "aviso");
+        mostrarAlerta("Pagamento", "Selecione um método.", "aviso");
         return;
     }
 
-    const totalTexto = document.getElementById('totalFinal').innerText;
-    const totalValor = parseFloat(totalTexto.replace(/[^\d,]/g, '').replace(',', '.'));
+    const valores = atualizarTotais();
 
     const dadosVenda = {
+
         carrinho: carrinho,
-        total: totalValor,
-        metodo: metodoPagamento
+
+        subtotal: valores.subtotal,
+        desconto: valores.desconto,
+        total: valores.total,
+
+        metodo_pagamento: metodoPagamento,
+
+        tipo_entrega: tipoEntrega ? "entrega" : "retirada",
+
+        endereco: {
+
+            cep: document.getElementById('cep').value,
+
+            rua: document.getElementById('rua').value,
+
+            numero: document.getElementById('numero').value
+
+        }
+
     };
 
     try {
+
         const response = await fetch('', {
+
             method: 'POST',
+
             headers: {
+
                 'Content-Type': 'application/json',
+
                 'X-CSRFToken': getCookie('csrftoken')
+
             },
+
             body: JSON.stringify(dadosVenda)
+
         });
 
         const resultado = await response.json();
 
         if (resultado.success) {
-            mostrarSucesso(formatar(totalValor), metodoPagamento.toUpperCase());
-        } else {
-            mostrarAlerta("Erro", "Não foi possível salvar o pedido: " + resultado.message, "erro");
-        }
-    } catch (error) {
-        mostrarAlerta("Erro de Conexão", "Verifique sua internet.", "erro");
-    }
-}
 
+            mostrarSucesso(
+                formatar(valores.total),
+                metodoPagamento.toUpperCase()
+            );
+
+        } else {
+
+            mostrarAlerta(
+                "Erro",
+                resultado.message,
+                "erro"
+            );
+
+        }
+
+    } catch (error) {
+
+        mostrarAlerta(
+            "Erro conexão",
+            "Servidor indisponível.",
+            "erro"
+        );
+
+    }
+
+}
 // Função auxiliar para pegar o token CSRF do Django
 function getCookie(name) {
     let cookieValue = null;
