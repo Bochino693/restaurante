@@ -252,7 +252,10 @@ const inputConfirmacao = document.getElementById('inputConfirmacao');
 const btnConfirmar = document.getElementById('btnConfirmarStatus');
 
 function abrirModalStatus(pedidoId, statusAtual, formaPagamento) {
-    formStatus.action = `/avancar_status/${pedidoId}/`;
+    // 1. Gera a URL correta usando o nome da rota definido no urls.py
+    // Usamos o ID '0' como placeholder e substituímos pelo ID real do pedido
+    const urlBase = "{% url 'avancar_status' 0 %}".replace('0', pedidoId);
+    formStatus.action = urlBase;
 
     const indexAtual = STATUS_FLUXO.findIndex(s => s.key === statusAtual);
     const indexProximo = indexAtual + 1;
