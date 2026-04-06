@@ -1,0 +1,78 @@
+{% extends 'base.html' %} {% block title %}Gestão de Pratos do Dia{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto">
+    <div class="flex justify-between items-center mb-8">
+        <div>
+            <h2 class="text-3xl font-black text-gray-800">Pratos do Dia</h2>
+            <p class="text-gray-500 mt-1">Configure o cardápio da semana visível para os clientes.</p>
+        </div>
+    </div>
+
+    {% if messages %}
+        <div class="mb-6">
+            {% for message in messages %}
+                <div class="p-4 rounded-xl text-sm font-semibold {% if message.tags == 'success' %}bg-green-100 text-green-700{% elif message.tags == 'warning' %}bg-yellow-100 text-yellow-700{% else %}bg-red-100 text-red-700{% endif %}">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+        {% for dia in agenda %}
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 flex flex-col h-full">
+            <h3 class="text-lg font-bold text-gray-800 mb-4 pb-2 border-b">{{ dia.nome_dia }}</h3>
+            
+            <ul class="flex-1 space-y-3 mb-6">
+                {% for prato_dia in dia.pratos %}
+                <li class="flex items-center justify-between bg-gray-50 p-3 rounded-lg border border-gray-100">
+                    <div class="flex items-center gap-3">
+                        {% if prato_dia.produto.image_produto %}
+                        <img src="{{ prato_dia.produto.image_produto.url }}" alt="{{ prato_dia.produto.nome_produto }}" class="w-10 h-10 rounded-md object-cover">
+                        {% else %}
+                        <div class="w-10 h-10 rounded-md bg-gray-200 flex items-center justify-center text-gray-500">
+                            <i class="fas fa-utensils"></i>
+                        </div>
+                        {% endif %}
+                        <div>
+                            <p class="text-sm font-bold text-gray-800">{{ prato_dia.produto.nome_produto }}</p>
+                            <p class="text-xs text-gray-500">R$ {{ prato_dia.produto.preco }}</p>
+                        </div>
+                    </div>
+                    
+                    <form action="{% url 'remover_prato_dia' prato_dia.id %}" method="POST" onsubmit="return confirm('Tem certeza que deseja remover este prato?');">
+                        {% csrf_token %}
+                        <button type="submit" class="text-red-400 hover:text-red-600 p-2 transition-colors">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                    </form>
+                </li>
+                {% empty %}
+                <li class="text-sm text-gray-400 text-center py-4 italic">Nenhum prato configurado para este dia.</li>
+                {% endfor %}
+            </ul>
+
+            <form action="{% url 'gerenciar_pratos_dia' %}" method="POST" class="mt-auto bg-gray-50 p-3 rounded-lg border border-gray-200">
+                {% csrf_token %}
+                <input type="hidden" name="dia_semana" value="{{ dia.num_dia }}">
+                <div class="flex flex-col gap-2">
+                    <label class="text-xs font-bold text-gray-600 uppercase tracking-wide">Adicionar Prato</label>
+                    <div class="flex gap-2">
+                        <select name="produto_id" required class="flex-1 rounded-lg border-gray-300 border p-2 text-sm focus:ring-blue-500 focus:border-blue-500 outline-none">
+                            <option value="">Selecione um produto...</option>
+                            {% for produto in produtos %}
+                            <option value="{{ produto.id }}">{{ produto.nome_produto }}</option>
+                            {% endfor %}
+                        </select>
+                        <button type="submit" class="bg-blue-600 text-white px-3 rounded-lg hover:bg-blue-700 font-bold transition-colors">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

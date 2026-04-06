@@ -249,6 +249,60 @@ class DashboardAnalyticsView(LoginRequiredMixin, TemplateView):
         return context
 
 
+class GerenciarPratosDiaView(LoginRequiredMixin, View):
+    login_url = "login"
+
+    def get(self, request):
+        dias_semana = PratoDoDia.DIAS_SEMANA
+        # Traz apenas produtos ativos. Se quiser filtrar só pela categoria "Pratos",
+        # mude para: Produtos.objects.filter(ativo=True, categoria__nome_categoria="Pratos")
+        produtos = Produtos.objects.filter(ativo=True).order_by('nome_produto')
+        pratos_cadastrados = PratoDoDia.objects.filter(ativo=True).select_related('produto')
+
+        agenda = []
+        for num_dia, nome_dia in dias_semana:
+            pratos_do_dia = pratos_cadastrados.filter(dia_semana=num_dia)
+            agenda.append({
+                'num_dia': num_dia,
+                'nome_dia': nome_dia,
+                'pratos': pratos_do_dia
+            })
+
+        return render(request, 'gerenciar_pratos_dia.html', {
+            'agenda': agenda,
+            'produtos': produtos
+        })
+
+    def post(self, request):
+        # View para adicionar um novo prato a um dia específico
+        dia_semana = request.POST.get('dia_semana')
+        produto_id = request.POST.get('produto_id')
+
+        if dia_semana and produto_id:
+            try:
+                produto = Produtos.objects.get(id=produto_id)
+                # Verifica se o prato já não está cadastrado neste dia para evitar duplicação
+                if not PratoDoDia.objects.filter(dia_semana=dia_semana, produto=produto, ativo=True).exists():
+                    PratoDoDia.objects.create(dia_semana=dia_semana, produto=produto, ativo=True)
+                    messages.success(request, 'Prato adicionado com sucesso!')
+                else:
+                    messages.warning(request, 'Este prato já está no cardápio deste dia.')
+            except Produtos.DoesNotExist:
+                messages.error(request, 'Produto não encontrado.')
+
+        return redirect('gerenciar_pratos_dia')
+
+
+class RemoverPratoDiaView(LoginRequiredMixin, View):
+    login_url = "login"
+
+    def post(self, request, pk):
+        prato_dia = get_object_or_404(PratoDoDia, pk=pk)
+        prato_dia.delete()  # ou prato_dia.ativo = False e depois prato_dia.save() se preferir soft delete
+        messages.success(request, 'Prato removido do dia com sucesso.')
+        return redirect('gerenciar_pratos_dia')
+
+
 class LoginView(View):
     template_name = "login.html"
 

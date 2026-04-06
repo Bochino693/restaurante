@@ -136,6 +136,11 @@
             <i class="fas fa-concierge-bell w-6"></i> Pedidos
         </a>
 
+        <a href="{% url 'gerenciar_pratos_dia' %}"
+           class="flex items-center gap-4 p-3 rounded-xl transition-all {% if request.resolver_match.url_name == 'gerenciar_pratos_dia' %}bg-blue-600 text-white shadow-lg shadow-blue-900/50 font-bold{% else %}text-gray-300 hover:bg-gray-800{% endif %}">
+            <i class="fas fa-calendar-day w-6"></i> Cardápio do Dia
+        </a>
+
         {% if user.is_staff %}
         <div class="mt-6 mb-2 px-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest">Gestão e Relatórios</div>
 

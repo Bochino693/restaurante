@@ -3,7 +3,7 @@ from django.urls import path, include
 from .views import (CaixaView, EstoqueView,
                     PedidosView, CardapioClienteView,
                     adicionais_produto, VendasView, DashboardAnalyticsView,
-                    LoginView, LogoutView)
+                    LoginView, LogoutView, GerenciarPratosDiaView, RemoverPratoDiaView)
 
 urlpatterns = [
     path('', CardapioClienteView.as_view(), name='cardapio'),
@@ -17,6 +17,8 @@ urlpatterns = [
 
     path('vendas/', VendasView.as_view(), name='vendas'),
     path('dashboards/', DashboardAnalyticsView.as_view(), name='dashboards'),
+    path('admin-cardapio/pratos-do-dia/', GerenciarPratosDiaView.as_view(), name='gerenciar_pratos_dia'),
+    path('admin-cardapio/pratos-do-dia/remover/<int:pk>/', RemoverPratoDiaView.as_view(), name='remover_prato_dia'),
 
 
     path("logout/", LogoutView.as_view(), name="logout"),
