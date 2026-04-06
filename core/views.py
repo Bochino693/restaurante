@@ -219,6 +219,18 @@ class VendasView(LoginRequiredMixin, View):
         return render(request, self.template_name, context)
 
 
+def avancar_status(request, pedido_id):
+    pedido = Pedidos.objects.get(id=pedido_id)
+
+    proximo = pedido.proximo_status()
+
+    if proximo:
+        pedido.status = proximo
+        pedido.save()
+
+    return redirect('historico_pedidos')
+
+
 from .models import (
     ProdutosMaisClick,
     PratoDiaMaisClick,

@@ -137,6 +137,32 @@ class Pedidos(Prime):
         FINALIZADO = 'FINALIZADO', 'Finalizado'
         CANCELADO = 'CANCELADO', 'Cancelado'
 
+    class FormaPagamento(models.TextChoices):
+        DINHEIRO = 'DINHEIRO', 'Dinheiro'
+        PIX = 'PIX', 'Pix'
+        CARTAO = 'CARTAO', 'Cartão'
+        MISTO = 'MISTO', 'Misto'
+
+    forma_pagamento = models.CharField(
+        max_length=20,
+        choices=FormaPagamento.choices,
+        default=FormaPagamento.PIX
+    )
+
+    def proximo_status(self):
+        fluxo = [
+            self.StatusPedido.PAGO,
+            self.StatusPedido.PREPARO,
+            self.StatusPedido.ENTREGA,
+            self.StatusPedido.FINALIZADO,
+        ]
+
+        try:
+            index = fluxo.index(self.status)
+            return fluxo[index + 1]
+        except (ValueError, IndexError):
+            return None
+
     itens = models.ManyToManyField(ItensPedido)
 
     # Novos campos de Status e Dados do Cliente
