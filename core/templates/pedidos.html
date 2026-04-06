@@ -101,7 +101,7 @@
                         {% if pedido.entrega %}
                             <span class="text-[9px] bg-indigo-100 text-indigo-600 px-2 py-1 rounded-lg font-bold">ENTREGA</span>
                         {% else %}
-                            <span class="text-[9px] bg-gray-100 text-gray-600 px-2 py-1 rounded-lg font-bold">BALCÃO</span>
+                            <span class="text-[9px] bg-gray-100 text-gray-600 px-2 py-1 rounded-lg font-bold">RETIRADA</span>
                         {% endif %}
 
                         {% if pedido.nome_cliente %}
@@ -229,14 +229,12 @@ function filtrarPedidos() {
         const matchPagamento = !pagamentoFiltro || card.dataset.pagamento === pagamentoFiltro;
 
         if (matchData && matchPagamento) {
-            // Manteve flex para não quebrar o layout interno e o mt-auto dos botões
             card.style.display = 'flex';
         } else {
             card.style.display = 'none';
         }
     });
 }
-
 
 // --- LÓGICA DO MODAL DE STATUS ---
 const STATUS_FLUXO = [
@@ -254,29 +252,27 @@ const inputConfirmacao = document.getElementById('inputConfirmacao');
 const btnConfirmar = document.getElementById('btnConfirmarStatus');
 
 function abrirModalStatus(pedidoId, statusAtual, formaPagamento) {
-    // 1. Configurar rota do formulário (Ajuste o '/avancar_status/' conforme seu urls.py se necessário)
     formStatus.action = `/avancar_status/${pedidoId}/`;
 
     const indexAtual = STATUS_FLUXO.findIndex(s => s.key === statusAtual);
     const indexProximo = indexAtual + 1;
     const proximoStatus = indexProximo < STATUS_FLUXO.length ? STATUS_FLUXO[indexProximo] : null;
 
-    if(!proximoStatus) return; // Se já finalizou, não deveria abrir
+    if(!proximoStatus) return;
 
-    // 2. Renderizar Timeline
     const timelineContainer = document.getElementById('statusTimeline');
     timelineContainer.innerHTML = '';
 
     STATUS_FLUXO.forEach((statusObj, index) => {
-        let colorClasses = "bg-gray-50 text-gray-300 border-gray-100 opacity-50"; // Passado
+        let colorClasses = "bg-gray-50 text-gray-300 border-gray-100 opacity-50";
         let iconAnim = "";
         let textScale = "text-sm";
 
         if (index === indexAtual) {
-            colorClasses = "bg-white text-gray-800 border-gray-200 shadow-sm"; // Atual
+            colorClasses = "bg-white text-gray-800 border-gray-200 shadow-sm";
             textScale = "font-bold text-sm";
         } else if (index === indexProximo) {
-            colorClasses = "bg-orange-50 text-orange-600 border-orange-200 shadow-md ring-2 ring-orange-100"; // Próximo (Destaque)
+            colorClasses = "bg-orange-50 text-orange-600 border-orange-200 shadow-md ring-2 ring-orange-100";
             iconAnim = "animate-pulse";
             textScale = "font-black text-lg";
         }
@@ -292,7 +288,6 @@ function abrirModalStatus(pedidoId, statusAtual, formaPagamento) {
         timelineContainer.appendChild(div);
     });
 
-    // 3. Regra de Negócio: Finalizado + Dinheiro = Digitar CONFIRMAR
     if (proximoStatus.key === 'FINALIZADO' && formaPagamento === 'DINHEIRO') {
         divDinheiro.classList.remove('hidden');
         inputConfirmacao.value = '';
@@ -300,12 +295,14 @@ function abrirModalStatus(pedidoId, statusAtual, formaPagamento) {
         btnConfirmar.classList.add('opacity-50', 'cursor-not-allowed');
     } else {
         divDinheiro.classList.add('hidden');
-        inputConfirmacao.value = 'IGNORAR'; // Preenche para passar na validação caso exista
+        inputConfirmacao.value = 'IGNORAR';
         btnConfirmar.disabled = false;
         btnConfirmar.classList.remove('opacity-50', 'cursor-not-allowed');
     }
 
-    // 4. Exibir Modal Suavemente
+    // Resetar o botão para o estado padrão caso tenha dado erro em uma tentativa anterior
+    resetarBotao();
+
     modal.classList.remove('hidden');
     modal.classList.add('flex');
     setTimeout(() => {
@@ -323,12 +320,10 @@ function fecharModal() {
     }, 300);
 }
 
-// Fechar ao clicar fora
 modal.addEventListener('click', function(e) {
     if(e.target === modal) fecharModal();
 });
 
-// Validação em Tempo Real do Input de Confirmação
 function validarConfirmacao() {
     const valor = inputConfirmacao.value.trim().toUpperCase();
     if (valor === 'CONFIRMAR') {
@@ -343,5 +338,55 @@ function validarConfirmacao() {
         inputConfirmacao.classList.add('border-orange-200');
     }
 }
+
+// --- LÓGICA DE SUBMISSÃO AJAX E ANIMAÇÃO DO BOTÃO ---
+function resetarBotao() {
+    btnConfirmar.className = "w-full bg-green-500 text-white font-black py-4 rounded-2xl shadow-lg shadow-green-500/30 hover:scale-[1.02] transition-all uppercase tracking-widest text-xs";
+    btnConfirmar.innerHTML = "Confirmar Avanço";
+}
+
+formStatus.addEventListener('submit', function(e) {
+    e.preventDefault(); // Impede o recarregamento padrão da página
+
+    // Estado: Carregando
+    btnConfirmar.disabled = true;
+    btnConfirmar.classList.add('opacity-80', 'cursor-not-allowed');
+    btnConfirmar.innerHTML = '<i class="fas fa-spinner fa-spin text-lg"></i> Processando...';
+
+    const formData = new FormData(this);
+
+    fetch(this.action, {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest' // Diz ao Django que é uma chamada AJAX
+        }
+    })
+    .then(response => {
+        if (!response.ok) throw new Error('Erro na requisição');
+        return response.json();
+    })
+    .then(data => {
+        // Estado: Sucesso
+        btnConfirmar.classList.remove('bg-green-500', 'shadow-green-500/30');
+        btnConfirmar.classList.add('bg-blue-500', 'shadow-blue-500/30');
+        btnConfirmar.innerHTML = '<i class="fas fa-check-circle text-lg"></i> Sucesso!';
+
+        // Recarrega a página após 800ms para mostrar a lista atualizada
+        setTimeout(() => window.location.reload(), 800);
+    })
+    .catch(error => {
+        // Estado: Falha
+        btnConfirmar.classList.remove('bg-green-500', 'shadow-green-500/30');
+        btnConfirmar.classList.add('bg-red-500', 'shadow-red-500/30');
+        btnConfirmar.innerHTML = '<i class="fas fa-times-circle text-lg"></i> Falha ao atualizar';
+
+        // Retorna o botão ao estado normal após 2.5 segundos para tentar novamente
+        setTimeout(() => {
+            resetarBotao();
+            btnConfirmar.disabled = false;
+        }, 2500);
+    });
+});
 </script>
 {% endblock %}

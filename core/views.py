@@ -234,14 +234,21 @@ def avancar_status(request, pedido_id):
         confirmacao = request.POST.get('confirmacao', '').strip().upper()
         if proximo == Pedidos.StatusPedido.FINALIZADO and pedido.forma_pagamento == Pedidos.FormaPagamento.DINHEIRO:
             if confirmacao != 'CONFIRMAR':
-                # Se burlarem o front-end e não enviarem a confirmação, cancela a ação
+                # Retorna erro caso tentem burlar a segurança
+                if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+                    return JsonResponse({'status': 'erro', 'mensagem': 'Confirmação inválida.'}, status=400)
                 return redirect('historico_pedidos')
 
         if proximo:
             pedido.status = proximo
             pedido.save()
 
+            # Resposta de Sucesso para o JavaScript
+            if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+                return JsonResponse({'status': 'sucesso', 'mensagem': 'Status avançado!'})
+
     return redirect('historico_pedidos')
+
 
 
 from .models import (
