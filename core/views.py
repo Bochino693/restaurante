@@ -167,19 +167,24 @@ class PedidosView(LoginRequiredMixin, View):
             .order_by('-criado_em')
         )
 
-        total_dia = (
-            Pedidos.objects.filter(criado_em__date=hoje)
-            .exclude(status=Pedidos.StatusPedido.CANCELADO)
-            .aggregate(total=Sum('total'))['total'] or 0
-        )
+        # Base de pedidos de hoje que não foram cancelados
+        pedidos_hoje = Pedidos.objects.filter(criado_em__date=hoje).exclude(status=Pedidos.StatusPedido.CANCELADO)
+
+        # Cálculo dos Totais
+        total_dia = pedidos_hoje.aggregate(total=Sum('total'))['total'] or 0
+        total_dinheiro = pedidos_hoje.filter(forma_pagamento=Pedidos.FormaPagamento.DINHEIRO).aggregate(total=Sum('total'))['total'] or 0
+        total_pix = pedidos_hoje.filter(forma_pagamento=Pedidos.FormaPagamento.PIX).aggregate(total=Sum('total'))['total'] or 0
+        total_cartao = pedidos_hoje.filter(forma_pagamento=Pedidos.FormaPagamento.CARTAO).aggregate(total=Sum('total'))['total'] or 0
 
         return render(request, 'pedidos.html', {
             'pedidos': pedidos,
             'total_dia': f"{total_dia:.2f}".replace('.', ','),
-            'status_options': Pedidos.StatusPedido.choices
+            'total_dinheiro': f"{total_dinheiro:.2f}".replace('.', ','),
+            'total_pix': f"{total_pix:.2f}".replace('.', ','),
+            'total_cartao': f"{total_cartao:.2f}".replace('.', ','),
+            'status_options': Pedidos.StatusPedido.choices,
+            'pagamento_options': Pedidos.FormaPagamento.choices
         })
-
-
 
 class VendasView(LoginRequiredMixin, View):
 
@@ -220,13 +225,21 @@ class VendasView(LoginRequiredMixin, View):
 
 
 def avancar_status(request, pedido_id):
-    pedido = Pedidos.objects.get(id=pedido_id)
+    pedido = get_object_or_404(Pedidos, id=pedido_id)
 
-    proximo = pedido.proximo_status()
+    if request.method == "POST":
+        proximo = pedido.proximo_status()
 
-    if proximo:
-        pedido.status = proximo
-        pedido.save()
+        # Verificação extra de segurança no backend
+        confirmacao = request.POST.get('confirmacao', '').strip().upper()
+        if proximo == Pedidos.StatusPedido.FINALIZADO and pedido.forma_pagamento == Pedidos.FormaPagamento.DINHEIRO:
+            if confirmacao != 'CONFIRMAR':
+                # Se burlarem o front-end e não enviarem a confirmação, cancela a ação
+                return redirect('historico_pedidos')
+
+        if proximo:
+            pedido.status = proximo
+            pedido.save()
 
     return redirect('historico_pedidos')
 
