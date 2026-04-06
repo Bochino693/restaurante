@@ -13,21 +13,51 @@
                     <i class="fas fa-receipt text-orange-500"></i> Relatório
                 </h1>
 
-                <div class="flex gap-2 w-full">
-                    <div class="relative flex-1 min-w-[150px]">
-                        <i class="fas fa-calendar absolute left-4 top-3.5 text-gray-400 text-sm"></i>
-                        <input id="filterDate" type="date" class="pl-10 w-full bg-gray-50 border-none rounded-2xl py-2.5 text-sm focus:ring-2 focus:ring-orange-500 shadow-inner" onchange="filtrarPedidos()">
-                    </div>
+               <div class="flex flex-wrap gap-2">
+
+                <button onclick="setPeriodo('hoje')" class="btnPeriodo ativo">
+                Hoje
+                </button>
+
+                <button onclick="setPeriodo('semana')" class="btnPeriodo">
+                Semana
+                </button>
+
+                <button onclick="setPeriodo('quinzena')" class="btnPeriodo">
+                Quinzena
+                </button>
+
+                <button onclick="setPeriodo('mes')" class="btnPeriodo">
+                Mês
+                </button>
+
+                <button onclick="setPeriodo('todos')" class="btnPeriodo">
+                Todos
+                </button>
+
+                </div>
 
                     <div class="relative flex-1 min-w-[180px]">
                         <i class="fas fa-wallet absolute left-4 top-3.5 text-gray-400 text-sm"></i>
-                        <select id="filterPagamento" class="pl-10 w-full bg-gray-50 border-none rounded-2xl py-2.5 text-sm focus:ring-2 focus:ring-orange-500 shadow-inner appearance-none text-gray-600 font-bold" onchange="filtrarPedidos()">
-                            <option value="">Todos os Pagamentos</option>
-                            <option value="DINHEIRO">Dinheiro</option>
-                            <option value="PIX">Pix</option>
-                            <option value="CARTAO">Cartão</option>
-                            <option value="MISTO">Misto</option>
-                        </select>
+                        <div class="flex gap-2 flex-wrap">
+
+                        <button onclick="togglePagamento('DINHEIRO')" class="btnPagamento">
+                        Dinheiro
+                        </button>
+
+                        <button onclick="togglePagamento('PIX')" class="btnPagamento">
+                        Pix
+                        </button>
+
+                        <button onclick="togglePagamento('CARTAO')" class="btnPagamento">
+                        Cartão
+                        </button>
+
+                        <button onclick="togglePagamento('MISTO')" class="btnPagamento">
+                        Misto
+                        </button>
+
+                        </div>
                     </div>
                 </div>
             </div>
@@ -215,27 +245,161 @@
 .custom-scrollbar::-webkit-scrollbar-thumb { background:#e2e8f0; border-radius:10px; }
 .pedido-card { animation:slideUp .4s ease forwards; }
 @keyframes slideUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+
+.btnPeriodo,
+.btnPagamento {
+
+background:#f3f4f6;
+color:#6b7280;
+
+padding:8px 18px;
+
+border-radius:999px;
+
+font-size:11px;
+
+font-weight:900;
+
+letter-spacing:.08em;
+
+transition:.2s;
+
+}
+
+.btnPeriodo:hover,
+.btnPagamento:hover {
+
+background:#fed7aa;
+
+color:#ea580c;
+
+}
+
+.btnPeriodo.ativo,
+.btnPagamento.ativo {
+
+background:#f97316;
+
+color:white;
+
+box-shadow:0 6px 18px rgba(249,115,22,.25);
+
+}
 </style>
 
 <script>
 // --- LÓGICA DE FILTROS ---
-function filtrarPedidos() {
-    const dataFiltro = document.getElementById('filterDate').value;
-    const pagamentoFiltro = document.getElementById('filterPagamento').value;
-    const cards = document.querySelectorAll('.pedido-card');
+let periodoAtual = "hoje";
 
-    cards.forEach(card => {
-        const matchData = !dataFiltro || card.dataset.data === dataFiltro;
-        const matchPagamento = !pagamentoFiltro || card.dataset.pagamento === pagamentoFiltro;
+let pagamentosSelecionados = new Set();
 
-        if (matchData && matchPagamento) {
-            card.style.display = 'flex';
-        } else {
-            card.style.display = 'none';
-        }
-    });
+function setPeriodo(periodo){
+
+document.querySelectorAll(".btnPeriodo")
+.forEach(btn=>btn.classList.remove("ativo"));
+
+event.target.classList.add("ativo");
+
+periodoAtual = periodo;
+
+filtrarPedidos();
+
 }
 
+function togglePagamento(tipo){
+
+if(pagamentosSelecionados.has(tipo)){
+
+pagamentosSelecionados.delete(tipo);
+
+event.target.classList.remove("ativo");
+
+}else{
+
+pagamentosSelecionados.add(tipo);
+
+event.target.classList.add("ativo");
+
+}
+
+filtrarPedidos();
+
+}
+
+function filtrarPedidos(){
+
+const hoje = new Date();
+
+const cards = document.querySelectorAll(".pedido-card");
+
+cards.forEach(card=>{
+
+const dataPedido = new Date(card.dataset.data);
+
+let matchPeriodo = true;
+
+switch(periodoAtual){
+
+case "hoje":
+
+matchPeriodo =
+dataPedido.toDateString() === hoje.toDateString();
+
+break;
+
+case "semana":
+
+const inicioSemana = new Date();
+
+inicioSemana.setDate(hoje.getDate()-7);
+
+matchPeriodo = dataPedido >= inicioSemana;
+
+break;
+
+case "quinzena":
+
+const inicioQuinzena = new Date();
+
+inicioQuinzena.setDate(hoje.getDate()-15);
+
+matchPeriodo = dataPedido >= inicioQuinzena;
+
+break;
+
+case "mes":
+
+matchPeriodo =
+dataPedido.getMonth() === hoje.getMonth() &&
+dataPedido.getFullYear() === hoje.getFullYear();
+
+break;
+
+case "todos":
+
+matchPeriodo = true;
+
+break;
+
+}
+
+let matchPagamento = true;
+
+if(pagamentosSelecionados.size > 0){
+
+matchPagamento =
+pagamentosSelecionados.has(card.dataset.pagamento);
+
+}
+
+card.style.display =
+matchPeriodo && matchPagamento
+? "flex"
+: "none";
+
+});
+
+}
 // --- LÓGICA DO MODAL DE STATUS ---
 const STATUS_FLUXO = [
     { key: 'PAGO', label: 'Pago', icon: 'fa-money-bill' },
