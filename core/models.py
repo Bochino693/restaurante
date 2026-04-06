@@ -146,7 +146,15 @@ class Pedidos(Prime):
         default=StatusPedido.PAGO
     )
 
+    nome_cliente = models.CharField(max_length=90, blank=True, null=True)
+    impresso = models.BooleanField(default=False)
+
+    entrega = models.BooleanField(default=False)
     cpf = models.CharField(max_length=14, blank=True, null=True)
+
+    rua = models.CharField(max_length=120, null=True, blank=True)
+    numero = models.CharField(max_length=50, null=True, blank=True)
+
     cep = models.CharField(max_length=9, blank=True, null=True)
 
     total = models.DecimalField(
