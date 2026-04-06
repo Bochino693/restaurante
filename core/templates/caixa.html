@@ -175,16 +175,17 @@
 
             </div>
 
-            <div id="enderecoBox" class="space-y-2">
+            <div id="enderecoBox" class="space-y-2 transition-all">
 
             <input id="cep"
-            placeholder="CEP"
-            onblur="buscarCep()"
-            class="w-full border rounded-xl p-3">
+                placeholder="CEP"
+                onblur="buscarCep()"
+                class="w-full border rounded-xl p-3">
 
             <input id="rua"
-            placeholder="Rua"
-            class="w-full border rounded-xl p-3">
+                placeholder="Rua"
+                oninput="limparCepSeRuaEditada()"
+                class="w-full border rounded-xl p-3">
 
             <input id="numero"
             placeholder="Número"
@@ -634,31 +635,172 @@ function setEntrega(valor, btn){
 tipoEntrega = valor;
 
 document.querySelectorAll('.entrega-btn')
-.forEach(b => b.classList.remove('selected','bg-blue-600','text-white'));
+.forEach(b => b.classList.remove(
+'selected',
+'bg-blue-600',
+'text-white'
+));
 
-btn.classList.add('selected','bg-blue-600','text-white');
+btn.classList.add(
+'selected',
+'bg-blue-600',
+'text-white'
+);
 
-document.getElementById('enderecoBox').style.display =
+const box =
+document.getElementById('enderecoBox');
+
+box.style.display =
 valor ? 'block' : 'none';
+
+if(!valor){
+
+document.getElementById('cep').value='';
+document.getElementById('rua').value='';
+document.getElementById('numero').value='';
 
 }
 
-async function buscarCep(){
+}
+
+
+function formatarCEP(input){
+
+let cep = input.value.replace(/\D/g,'');
+
+if(cep.length > 5)
+cep = cep.replace(/(\d{5})(\d)/,'$1-$2');
+
+input.value = cep;
+
+if(cep.replace(/\D/g,'').length === 8)
+buscarCepAuto();
+
+if(cep.length === 0){
+
+document.getElementById('rua').value = '';
+
+}
+
+}
+
+
+async function buscarCepAuto(){
 
 const cep =
 document.getElementById('cep').value.replace(/\D/g,'');
 
 if(cep.length !== 8) return;
 
+const ruaInput = document.getElementById('rua');
+
+ruaInput.value = "Buscando endereço...";
+
+try{
+
 const res =
 await fetch(`https://viacep.com.br/ws/${cep}/json/`);
 
 const data = await res.json();
 
-if(!data.erro){
+if(data.erro){
 
-document.getElementById('rua').value =
-data.logradouro;
+ruaInput.value = '';
+
+mostrarAlerta(
+"CEP inválido",
+"Não encontramos esse CEP",
+"erro"
+);
+
+return;
+
+}
+
+ruaInput.value =
+data.logradouro || '';
+
+}
+catch{
+
+ruaInput.value = '';
+
+mostrarAlerta(
+"Erro CEP",
+"Falha ao consultar CEP",
+"erro"
+);
+
+}
+
+}
+
+function formatarCEP(input){
+
+let cep = input.value.replace(/\D/g,'');
+
+if(cep.length > 5)
+cep = cep.replace(/(\d{5})(\d)/,'$1-$2');
+
+input.value = cep;
+
+if(cep.replace(/\D/g,'').length === 8)
+buscarCepAuto();
+
+if(cep.length === 0){
+
+document.getElementById('rua').value = '';
+
+}
+
+}
+
+
+async function buscarCepAuto(){
+
+const cep =
+document.getElementById('cep').value.replace(/\D/g,'');
+
+if(cep.length !== 8) return;
+
+const ruaInput = document.getElementById('rua');
+
+ruaInput.value = "Buscando endereço...";
+
+try{
+
+const res =
+await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+
+const data = await res.json();
+
+if(data.erro){
+
+ruaInput.value = '';
+
+mostrarAlerta(
+"CEP inválido",
+"Não encontramos esse CEP",
+"erro"
+);
+
+return;
+
+}
+
+ruaInput.value =
+data.logradouro || '';
+
+}
+catch{
+
+ruaInput.value = '';
+
+mostrarAlerta(
+"Erro CEP",
+"Falha ao consultar CEP",
+"erro"
+);
 
 }
 
@@ -666,6 +808,31 @@ data.logradouro;
 
 
 async function finalizarVenda() {
+
+if(tipoEntrega){
+
+const cep =
+document.getElementById('cep').value;
+
+const rua =
+document.getElementById('rua').value;
+
+const numero =
+document.getElementById('numero').value;
+
+if(!cep || !rua || !numero){
+
+mostrarAlerta(
+"Endereço incompleto",
+"Preencha CEP, rua e número.",
+"aviso"
+);
+
+return;
+
+}
+
+}
 
     if (carrinho.length === 0) {
         mostrarAlerta("Carrinho Vazio", "Adicione pelo menos um item.", "aviso");
