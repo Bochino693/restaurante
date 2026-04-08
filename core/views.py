@@ -83,18 +83,16 @@ class CaixaView(LoginRequiredMixin, View):
         })
 
     def post(self, request):
-
         try:
-
             data = json.loads(request.body)
 
             carrinho = data.get("carrinho", [])
-            subtotal = data.get("subtotal", 0)
-            desconto = data.get("desconto", 0)
             total = data.get("total", 0)
 
             metodo_pagamento = data.get("metodo_pagamento")
             tipo_entrega = data.get("tipo_entrega")
+
+            nome_cliente = data.get("nome_cliente")
 
             endereco = data.get("endereco", {})
             cep = endereco.get("cep")
@@ -107,41 +105,40 @@ class CaixaView(LoginRequiredMixin, View):
                     status=400
                 )
 
+            if not nome_cliente:
+                return JsonResponse(
+                    {"success": False, "message": "Nome do cliente é obrigatório"},
+                    status=400
+                )
+
             with transaction.atomic():
 
                 pedido = Pedidos.objects.create(
-                    subtotal=subtotal,
-                    desconto=desconto,
+                    nome_cliente=nome_cliente,
                     total=total,
-                    metodo_pagamento=metodo_pagamento,
-                    tipo_entrega=tipo_entrega,
+                    forma_pagamento=metodo_pagamento.upper(),
+                    entrega=True if tipo_entrega == "entrega" else False,
                     cep=cep,
                     rua=rua,
-                    numero=numero,
-                    data=timezone.now()
+                    numero=numero
                 )
 
                 itens = []
 
                 for item in carrinho:
-
                     produto = Produtos.objects.get(id=item["id"])
 
                     preco_base = float(item["precoBase"])
-
                     adicionais = item.get("adicionais", [])
 
                     soma_adicionais = sum(
-                        float(a["preco"])
-                        for a in adicionais
+                        float(a["preco"]) for a in adicionais
                     )
 
                     preco_unitario = preco_base + soma_adicionais
-
                     subtotal_item = preco_unitario * int(item["qtd"])
 
                     item_pedido = ItensPedido.objects.create(
-                        pedido=pedido,
                         produto=produto,
                         quantidade=item["qtd"],
                         preco_unitario=preco_unitario,
@@ -151,7 +148,7 @@ class CaixaView(LoginRequiredMixin, View):
 
                     itens.append(item_pedido)
 
-                pedido.save()
+                pedido.itens.set(itens)
 
             return JsonResponse({
                 "success": True,
@@ -159,14 +156,12 @@ class CaixaView(LoginRequiredMixin, View):
             })
 
         except Produtos.DoesNotExist:
-
             return JsonResponse({
                 "success": False,
                 "message": "Produto não encontrado"
             }, status=404)
 
         except Exception as e:
-
             return JsonResponse({
                 "success": False,
                 "message": str(e)
