@@ -111,6 +111,13 @@ class CaixaView(LoginRequiredMixin, View):
                     status=400
                 )
 
+            if tipo_entrega == "entrega":
+                if not cep or not rua or not numero:
+                    return JsonResponse(
+                        {"success": False, "message": "CEP, rua e número são obrigatórios para entrega."},
+                        status=400
+                    )
+
             with transaction.atomic():
 
                 pedido = Pedidos.objects.create(

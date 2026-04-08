@@ -3,236 +3,265 @@
 {% block title %} PDV Profissional {% endblock %}
 
 {% block content %}
-<div class="flex flex-col lg:flex-row h-[calc(100vh-80px)] gap-4 overflow-hidden">
+<div class="h-[calc(100vh-80px)] overflow-hidden">
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 h-full">
 
-    <div class="lg:w-2/3 xl:w-3/4 flex flex-col h-full">
-        <div class="bg-white p-3 rounded-2xl shadow-sm mb-4 border border-gray-100">
-            <div class="relative mb-3">
-                <i class="fas fa-search absolute left-4 top-3.5 text-gray-400"></i>
-                <input id="searchUnificado" type="text" placeholder="Pesquise por nome ou código do produto..."
-                    class="pl-12 w-full bg-gray-50 border-none rounded-2xl py-3 text-sm focus:ring-2 focus:ring-blue-500 shadow-inner"
-                    onkeyup="filtrar()">
+        <!-- COLUNA ESQUERDA -->
+        <div class="lg:col-span-8 xl:col-span-9 min-h-0 flex flex-col">
+            <div class="bg-white p-3 rounded-2xl shadow-sm mb-4 border border-gray-100 shrink-0">
+                <div class="relative mb-3">
+                    <i class="fas fa-search absolute left-4 top-3.5 text-gray-400"></i>
+                    <input id="searchUnificado" type="text" placeholder="Pesquise por nome ou código do produto..."
+                        class="pl-12 w-full bg-gray-50 border-none rounded-2xl py-3 text-sm focus:ring-2 focus:ring-blue-500 shadow-inner"
+                        onkeyup="filtrar()">
+                </div>
+
+                <div class="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+                    <button onclick="filtrarCategoria('all', this)"
+                        class="categoria-btn active px-5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all">
+                        Todas
+                    </button>
+
+                    {% if pratos_do_dia %}
+                    <button onclick="filtrarCategoria('pratos-dia', this)"
+                        class="categoria-btn bg-orange-100 text-orange-600 px-5 py-2 rounded-xl text-xs font-bold whitespace-nowrap hover:bg-orange-200 transition-all">
+                        Pratos do Dia
+                    </button>
+                    {% endif %}
+
+                    {% for categoria in categorias %}
+                    <button onclick="filtrarCategoria('{{ categoria.id }}', this)"
+                        class="categoria-btn bg-gray-100 text-gray-500 px-5 py-2 rounded-xl text-xs font-bold whitespace-nowrap hover:bg-gray-200 transition-all">
+                        {{ categoria.nome_categoria }}
+                    </button>
+                    {% endfor %}
+                </div>
             </div>
 
-            <div class="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
-                <button onclick="filtrarCategoria('all', this)" class="categoria-btn active px-5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all">
-                    Todas
-                </button>
+            <div class="flex-1 min-h-0 overflow-y-auto pr-2 custom-scrollbar space-y-5">
                 {% if pratos_do_dia %}
-                <button onclick="filtrarCategoria('pratos-dia', this)"
-                    class="categoria-btn bg-orange-100 text-orange-600 px-5 py-2 rounded-xl text-xs font-bold whitespace-nowrap hover:bg-orange-200 transition-all">
-                    Pratos do Dia
-                </button>
+                <div id="secaoPratosDia" class="space-y-3">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h2 class="text-sm font-black uppercase tracking-wide text-orange-600 flex items-center gap-2">
+                                <i class="fas fa-utensils"></i> Pratos do Dia
+                            </h2>
+                        </div>
+                    </div>
+
+                    <div id="pratosDiaGrid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                        {% for prato in pratos_do_dia %}
+                        <div class="prato-dia-card bg-gradient-to-br from-orange-50 to-amber-50 rounded-3xl shadow-sm border border-orange-200 hover:border-orange-300 transition-all group overflow-hidden"
+                             data-name="{{ prato.produto.nome_produto|lower }}"
+                             data-code="{{ prato.produto.codigo|default:''|lower }}"
+                             data-categoria="{{ prato.produto.categoria.id|default:'' }}">
+
+                            <div class="aspect-video bg-orange-100 flex items-center justify-center relative cursor-pointer"
+                                onclick="{% if prato.produto.adicionais_disponiveis.exists %}abrirModalAdicionais('{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}'){% else %}addProduto('{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}'){% endif %}">
+
+                                {% if prato.produto.image_produto %}
+                                    <img src="{{ prato.produto.image_produto.url }}" class="object-cover w-full h-full">
+                                {% else %}
+                                    <i class="fas fa-utensils text-orange-300 text-3xl"></i>
+                                {% endif %}
+
+                                <div class="absolute top-2 left-2 bg-orange-500 text-white text-[10px] px-3 py-1 rounded-full font-black uppercase tracking-wide shadow">
+                                    Hoje
+                                </div>
+
+                                {% if prato.produto.adicionais_disponiveis.exists %}
+                                <button type="button"
+                                    onclick="event.stopPropagation(); abrirModalAdicionais('{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}')"
+                                    class="absolute top-2 right-2 bg-white/90 backdrop-blur p-2 rounded-full shadow-md text-orange-500 hover:scale-110 transition-transform z-10">
+                                    <i class="fas fa-plus-circle"></i>
+                                </button>
+                                {% endif %}
+                            </div>
+
+                            <div class="p-4 cursor-pointer"
+                                onclick="{% if prato.produto.adicionais_disponiveis.exists %}abrirModalAdicionais('{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}'){% else %}addProduto('{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}'){% endif %}">
+                                <div class="flex justify-between items-start mb-1 gap-2">
+                                    <h3 class="text-sm font-black text-gray-800 leading-tight">{{ prato.produto.nome_produto }}</h3>
+                                    <span class="text-[10px] bg-white px-2 py-0.5 rounded-md text-orange-500 font-mono border border-orange-200">
+                                        #{{ prato.produto.codigo }}
+                                    </span>
+                                </div>
+                                <div class="flex items-center justify-between gap-2">
+                                    <span class="text-orange-600 font-black text-lg">R$ {{ prato.produto.preco }}</span>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
                 {% endif %}
-                {% for categoria in categorias %}
-                <button onclick="filtrarCategoria('{{ categoria.id }}', this)"
-                    class="categoria-btn bg-gray-100 text-gray-500 px-5 py-2 rounded-xl text-xs font-bold whitespace-nowrap hover:bg-gray-200 transition-all">
-                    {{ categoria.nome_categoria }}
-                </button>
-                {% endfor %}
-            </div>
-        </div>
 
-        <div class="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-5">
-            {% if pratos_do_dia %}
-            <div id="secaoPratosDia" class="space-y-3">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <h2 class="text-sm font-black uppercase tracking-wide text-orange-600 flex items-center gap-2">
-                            <i class="fas fa-utensils"></i> Pratos do Dia
-                        </h2>
-                    </div>
-                </div>
+                <div class="space-y-3 pb-2">
+                    <h2 class="text-sm font-black uppercase tracking-wide text-gray-700 flex items-center gap-2">
+                        <i class="fas fa-box-open"></i> Produtos
+                    </h2>
 
-                <div id="pratosDiaGrid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                    {% for prato in pratos_do_dia %}
-                    <div class="prato-dia-card bg-gradient-to-br from-orange-50 to-amber-50 rounded-3xl shadow-sm border border-orange-200 hover:border-orange-300 transition-all group overflow-hidden">
+                    <div id="produtosGrid" class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
+                        {% for produto in produtos %}
+                        <div class="produto-card bg-white rounded-3xl shadow-sm border border-transparent hover:border-blue-50 transition-all group overflow-hidden"
+                             data-name="{{ produto.nome_produto|lower }}"
+                             data-code="{{ produto.codigo|default:''|lower }}"
+                             data-categoria="{{ produto.categoria.id|default:'' }}">
 
-                        <div class="aspect-video bg-orange-100 flex items-center justify-center relative cursor-pointer"
-                            onclick="{% if prato.produto.adicionais_disponiveis.exists %}abrirModalAdicionais('{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}'){% else %}addProduto('{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}'){% endif %}">
+                            <div class="aspect-video bg-gray-50 flex items-center justify-center relative cursor-pointer"
+                                onclick="{% if produto.adicionais_disponiveis.exists %}abrirModalAdicionais('{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}'){% else %}addProduto('{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}'){% endif %}">
 
-                            {% if prato.produto.image_produto %}
-                                <img src="{{ prato.produto.image_produto.url }}" class="object-cover w-full h-full">
-                            {% else %}
-                                <i class="fas fa-utensils text-orange-300 text-3xl"></i>
-                            {% endif %}
+                                {% if produto.image_produto %}
+                                    <img src="{{ produto.image_produto.url }}" class="object-cover w-full h-full">
+                                {% else %}
+                                    <i class="fas fa-box text-gray-200 text-3xl"></i>
+                                {% endif %}
 
-                            <div class="absolute top-2 left-2 bg-orange-500 text-white text-[10px] px-3 py-1 rounded-full font-black uppercase tracking-wide shadow">Hoje</div>
-
-                            {% if prato.produto.adicionais_disponiveis.exists %}
-                                <button onclick="event.stopPropagation(); abrirModalAdicionais('{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}')"
+                                {% if produto.adicionais_disponiveis.exists %}
+                                <button type="button"
+                                    onclick="event.stopPropagation(); abrirModalAdicionais('{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}')"
                                     class="absolute top-2 right-2 bg-white/90 backdrop-blur p-2 rounded-full shadow-md text-orange-500 hover:scale-110 transition-transform z-10">
                                     <i class="fas fa-plus-circle"></i>
                                 </button>
-                            {% endif %}
-                        </div>
+                                {% endif %}
+                            </div>
 
-                        <div class="p-4 cursor-pointer"
-                            onclick="{% if prato.produto.adicionais_disponiveis.exists %}abrirModalAdicionais('{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}'){% else %}addProduto('{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}'){% endif %}">
-                            <div class="flex justify-between items-start mb-1 gap-2">
-                                <h3 class="text-sm font-black text-gray-800 leading-tight">{{ prato.produto.nome_produto }}</h3>
-                                <span class="text-[10px] bg-white px-2 py-0.5 rounded-md text-orange-500 font-mono border border-orange-200">#{{ prato.produto.codigo }}</span>
-                            </div>
-                            <div class="flex items-center justify-between gap-2">
-                                <span class="text-orange-600 font-black text-lg">R$ {{ prato.produto.preco }}</span>
+                            <div class="p-4 cursor-pointer"
+                                onclick="{% if produto.adicionais_disponiveis.exists %}abrirModalAdicionais('{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}'){% else %}addProduto('{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}'){% endif %}">
+                                <div class="flex justify-between items-start mb-1 gap-2">
+                                    <h3 class="text-sm font-bold text-gray-800 leading-tight">{{ produto.nome_produto }}</h3>
+                                    <span class="text-[10px] bg-gray-100 px-2 py-0.5 rounded-md text-gray-400 font-mono">
+                                        #{{ produto.codigo }}
+                                    </span>
+                                </div>
+                                <span class="text-blue-600 font-black text-lg">R$ {{ produto.preco }}</span>
                             </div>
                         </div>
+                        {% endfor %}
                     </div>
-                    {% endfor %}
-                </div>
-            </div>
-            {% endif %}
-
-            <div class="space-y-3">
-                <h2 class="text-sm font-black uppercase tracking-wide text-gray-700 flex items-center gap-2">
-                    <i class="fas fa-box-open"></i> Produtos
-                </h2>
-
-                <div id="produtosGrid" class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
-                    {% for produto in produtos %}
-                    <div class="produto-card bg-white rounded-3xl shadow-sm border border-transparent hover:border-blue-50 transition-all group overflow-hidden">
-
-                        <div class="aspect-video bg-gray-50 flex items-center justify-center relative cursor-pointer"
-                            onclick="{% if produto.adicionais_disponiveis.exists %}abrirModalAdicionais('{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}'){% else %}addProduto('{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}'){% endif %}">
-
-                            {% if produto.image_produto %}
-                                <img src="{{ produto.image_produto.url }}" class="object-cover w-full h-full">
-                            {% else %}
-                                <i class="fas fa-box text-gray-200 text-3xl"></i>
-                            {% endif %}
-
-                            {% if produto.adicionais_disponiveis.exists %}
-                                <button onclick="event.stopPropagation(); abrirModalAdicionais('{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}')"
-                                    class="absolute top-2 right-2 bg-white/90 backdrop-blur p-2 rounded-full shadow-md text-orange-500 hover:scale-110 transition-transform z-10">
-                                    <i class="fas fa-plus-circle"></i>
-                                </button>
-                            {% endif %}
-                        </div>
-
-                        <div class="p-4 cursor-pointer"
-                            onclick="{% if produto.adicionais_disponiveis.exists %}abrirModalAdicionais('{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}'){% else %}addProduto('{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}'){% endif %}">
-                            <div class="flex justify-between items-start mb-1">
-                                <h3 class="text-sm font-bold text-gray-800 leading-tight">{{ produto.nome_produto }}</h3>
-                                <span class="text-[10px] bg-gray-100 px-2 py-0.5 rounded-md text-gray-400 font-mono">#{{ produto.codigo }}</span>
-                            </div>
-                            <span class="text-blue-600 font-black text-lg">R$ {{ produto.preco }}</span>
-                        </div>
-                    </div>
-                    {% endfor %}
                 </div>
             </div>
         </div>
+
+        <!-- COLUNA DIREITA / CARRINHO -->
+        <div class="lg:col-span-4 xl:col-span-3 min-h-0">
+            <div class="h-full bg-white rounded-[2rem] shadow-2xl border border-gray-100 overflow-hidden flex flex-col">
+                <div class="p-4 bg-blue-600 text-white flex justify-between items-center shrink-0">
+                    <h2 class="font-bold flex items-center gap-2 text-sm">
+                        <i class="fas fa-shopping-basket"></i> CARRINHO
+                    </h2>
+                    <span id="cartCount" class="bg-blue-400 text-[10px] px-2 py-1 rounded-full font-bold">0 ITENS</span>
+                </div>
+
+                <div id="carrinhoItens" class="flex-1 min-h-[180px] overflow-y-auto p-4 space-y-3 custom-scrollbar bg-white">
+                    <div class="text-center py-20 text-gray-300" id="emptyCart">
+                        <i class="fas fa-ghost text-5xl mb-4 opacity-20"></i>
+                        <p class="text-sm italic">Seu carrinho está vazio</p>
+                    </div>
+                </div>
+
+                <div class="shrink-0 border-t border-gray-100 bg-white">
+                    <div class="px-4 pt-3">
+                        <div class="flex items-center gap-3 bg-white border rounded-2xl p-3">
+                            <span class="text-xs font-bold text-gray-400 uppercase">Desconto</span>
+                            <input
+                                id="inputDesconto"
+                                type="text"
+                                value="0,00"
+                                onkeyup="mascaraMoeda(this)"
+                                class="ml-auto text-right font-mono font-black text-gray-700 outline-none w-24"
+                            >
+                        </div>
+                    </div>
+
+                    <div class="p-4 bg-gray-50 space-y-3 max-h-[46vh] overflow-y-auto custom-scrollbar">
+                        <div class="flex justify-between items-center bg-gray-900 p-4 rounded-2xl text-white sticky top-0 z-10 shadow-sm">
+                            <span class="text-xs font-bold">TOTAL</span>
+                            <span id="totalFinal" class="text-2xl font-black font-mono">R$ 0,00</span>
+                        </div>
+
+                        <div>
+                            <label for="nomeCliente" class="block text-[11px] font-black uppercase tracking-wide text-gray-500 mb-2">
+                                Nome do Cliente *
+                            </label>
+                            <input
+                                id="nomeCliente"
+                                type="text"
+                                placeholder="Digite o nome do cliente"
+                                class="w-full border rounded-xl px-3 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            >
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-2">
+                            <button
+                                type="button"
+                                onclick="setEntrega(true, this)"
+                                class="entrega-btn selected border rounded-xl py-2.5 px-2 flex flex-col items-center justify-center gap-1 text-xs font-black transition-all"
+                            >
+                                <span class="text-lg leading-none">🏍️</span>
+                                <span>Entrega</span>
+                            </button>
+
+                            <button
+                                type="button"
+                                onclick="setEntrega(false, this)"
+                                class="entrega-btn border rounded-xl py-2.5 px-2 flex flex-col items-center justify-center gap-1 text-xs font-black transition-all"
+                            >
+                                <span class="text-lg leading-none">🏪</span>
+                                <span>Retirada</span>
+                            </button>
+                        </div>
+
+                        <div id="enderecoBox" class="space-y-2 transition-all">
+                            <input
+                                id="cep"
+                                placeholder="CEP"
+                                oninput="formatarCEP(this)"
+                                class="w-full border rounded-xl p-3 text-sm"
+                            >
+
+                            <input
+                                id="rua"
+                                placeholder="Rua"
+                                class="w-full border rounded-xl p-3 text-sm"
+                            >
+
+                            <input
+                                id="numero"
+                                placeholder="Número"
+                                class="w-full border rounded-xl p-3 text-sm"
+                            >
+                        </div>
+
+                        <div class="grid grid-cols-3 gap-2">
+                            <button type="button" onclick="setMetodo('pix', this)"
+                                class="metodo-btn border rounded-xl py-3 font-black text-xs">
+                                PIX
+                            </button>
+
+                            <button type="button" onclick="setMetodo('cartao', this)"
+                                class="metodo-btn border rounded-xl py-3 font-black text-xs">
+                                Cartão
+                            </button>
+
+                            <button type="button" onclick="setMetodo('dinheiro', this)"
+                                class="metodo-btn border rounded-xl py-3 font-black text-xs">
+                                Dinheiro
+                            </button>
+                        </div>
+
+                        <div class="sticky bottom-0 bg-gray-50 pt-2">
+                            <button onclick="finalizarVenda()"
+                                class="w-full bg-green-500 hover:bg-green-600 text-white font-black py-4 rounded-2xl shadow-lg transition-all text-sm uppercase tracking-widest">
+                                Finalizar Pedido
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
     </div>
-
-<div class="lg:w-1/3 xl:w-1/4 flex flex-col h-full bg-white rounded-[2rem] shadow-2xl border border-gray-100 overflow-hidden">
-    <div class="p-4 bg-blue-600 text-white flex justify-between items-center">
-        <h2 class="font-bold flex items-center gap-2 text-sm">
-            <i class="fas fa-shopping-basket"></i> CARRINHO
-        </h2>
-        <span id="cartCount" class="bg-blue-400 text-[10px] px-2 py-1 rounded-full font-bold">0 ITENS</span>
-    </div>
-
-    <div id="carrinhoItens" class="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
-        <div class="text-center py-20 text-gray-300" id="emptyCart">
-            <i class="fas fa-ghost text-5xl mb-4 opacity-20"></i>
-            <p class="text-sm italic">Seu carrinho está vazio</p>
-        </div>
-    </div>
-
-    <div class="px-4 pt-3 pb-0">
-        <div class="flex items-center gap-3 bg-white border rounded-2xl p-3">
-            <span class="text-xs font-bold text-gray-400 uppercase">Desconto</span>
-            <input
-                id="inputDesconto"
-                type="text"
-                value="0,00"
-                onkeyup="mascaraMoeda(this)"
-                class="ml-auto text-right font-mono font-black text-gray-700 outline-none w-24"
-            >
-        </div>
-    </div>
-
-    <div class="p-4 bg-gray-50 border-t border-dashed border-gray-300 space-y-3">
-        <div class="flex justify-between items-center bg-gray-900 p-4 rounded-2xl text-white">
-            <span class="text-xs font-bold">TOTAL</span>
-            <span id="totalFinal" class="text-2xl font-black font-mono">R$ 0,00</span>
-        </div>
-
-        <div>
-            <label for="nomeCliente" class="block text-[11px] font-black uppercase tracking-wide text-gray-500 mb-2">
-                Nome do Cliente *
-            </label>
-            <input
-                id="nomeCliente"
-                type="text"
-                placeholder="Digite o nome do cliente"
-                class="w-full border rounded-xl px-3 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-        </div>
-
-        <div class="grid grid-cols-2 gap-2">
-            <button
-                type="button"
-                onclick="setEntrega(true, this)"
-                class="entrega-btn selected border rounded-xl py-2.5 px-2 flex flex-col items-center justify-center gap-1 text-xs font-black transition-all"
-            >
-                <span class="text-lg leading-none">🏍️</span>
-                <span>Entrega</span>
-            </button>
-
-            <button
-                type="button"
-                onclick="setEntrega(false, this)"
-                class="entrega-btn border rounded-xl py-2.5 px-2 flex flex-col items-center justify-center gap-1 text-xs font-black transition-all"
-            >
-                <span class="text-lg leading-none">🏪</span>
-                <span>Retirada</span>
-            </button>
-        </div>
-
-        <div id="enderecoBox" class="space-y-2 transition-all">
-            <input
-                id="cep"
-                placeholder="CEP"
-                oninput="formatarCEP(this)"
-                class="w-full border rounded-xl p-3 text-sm"
-            >
-
-            <input
-                id="rua"
-                placeholder="Rua"
-                class="w-full border rounded-xl p-3 text-sm"
-            >
-
-            <input
-                id="numero"
-                placeholder="Número"
-                class="w-full border rounded-xl p-3 text-sm"
-            >
-        </div>
-
-        <div class="grid grid-cols-3 gap-2">
-            <button onclick="setMetodo('pix', this)"
-                class="metodo-btn border rounded-xl py-3 font-black text-xs">
-                PIX
-            </button>
-
-            <button onclick="setMetodo('cartao', this)"
-                class="metodo-btn border rounded-xl py-3 font-black text-xs">
-                Cartão
-            </button>
-
-            <button onclick="setMetodo('dinheiro', this)"
-                class="metodo-btn border rounded-xl py-3 font-black text-xs">
-                Dinheiro
-            </button>
-        </div>
-
-        <button onclick="finalizarVenda()" class="w-full bg-green-500 hover:bg-green-600 text-white font-black py-4 rounded-2xl shadow-lg transition-all text-sm uppercase tracking-widest">
-            Finalizar Pedido
-        </button>
-    </div>
-</div>
 </div>
 
 <div id="modalAdicionais" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
@@ -247,23 +276,7 @@
             </button>
         </div>
 
-        <div id="listaAdicionais"
-            class="p-6 space-y-4 max-h-[50vh] overflow-y-auto custom-scrollbar">
-            <label class="flex justify-between items-center p-3 bg-gray-50 rounded-2xl cursor-pointer hover:bg-blue-50 transition-colors">
-                <div class="flex items-center gap-3">
-                    <input type="checkbox" class="add-check w-5 h-5 rounded-lg text-blue-600" data-nome="Ovo Extra" data-preco="2.00">
-                    <span class="text-sm font-bold text-gray-700">Ovo Extra</span>
-                </div>
-                <span class="text-xs font-mono font-bold text-blue-600">+ R$ 2,00</span>
-            </label>
-            <label class="flex justify-between items-center p-3 bg-gray-50 rounded-2xl cursor-pointer hover:bg-blue-50 transition-colors">
-                <div class="flex items-center gap-3">
-                    <input type="checkbox" class="add-check w-5 h-5 rounded-lg text-blue-600" data-nome="Bacon" data-preco="4.50">
-                    <span class="text-sm font-bold text-gray-700">Bacon</span>
-                </div>
-                <span class="text-xs font-mono font-bold text-blue-600">+ R$ 4,50</span>
-            </label>
-        </div>
+        <div id="listaAdicionais" class="p-6 space-y-4 max-h-[50vh] overflow-y-auto custom-scrollbar"></div>
 
         <div class="p-6 bg-gray-50">
             <button id="btnConfirmarAdicional" class="w-full bg-blue-600 text-white font-black py-4 rounded-2xl shadow-lg shadow-blue-200 uppercase tracking-tighter">
@@ -322,11 +335,26 @@
 
 <style>
     .no-scrollbar::-webkit-scrollbar { display: none; }
-    .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-    .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-    .categoria-btn.active { background: #2563eb; color: white; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3); }
-    .metodo-btn.selected { background: #2563eb; border-color: #2563eb; color: white; box-shadow: 0 4px 10px rgba(37,99,235,0.2); }
-    .prato-dia-card { box-shadow: 0 8px 24px rgba(251, 146, 60, 0.12); }
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 999px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+
+    .categoria-btn.active {
+        background: #2563eb;
+        color: white;
+        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.30);
+    }
+
+    .metodo-btn.selected {
+        background: #2563eb;
+        border-color: #2563eb;
+        color: white;
+        box-shadow: 0 4px 10px rgba(37,99,235,0.20);
+    }
+
+    .prato-dia-card {
+        box-shadow: 0 8px 24px rgba(251, 146, 60, 0.12);
+    }
 
     .entrega-btn.selected {
         background: #2563eb;
@@ -344,11 +372,11 @@
 let carrinho = [];
 let metodoPagamento = '';
 let categoriaAtual = 'all';
+let tipoEntrega = true;
 
-// FORMATADOR BRL
-const formatar = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
+const formatar = (v) =>
+    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
 
-// MÁSCARA MONETÁRIA
 function mascaraMoeda(input) {
     let value = input.value.replace(/\D/g, '');
     value = (value / 100).toFixed(2) + '';
@@ -359,7 +387,6 @@ function mascaraMoeda(input) {
     atualizarTotais();
 }
 
-// FILTROS
 function filtrar() {
     aplicarFiltros();
 }
@@ -369,26 +396,23 @@ function filtrarCategoria(catId, btnElement) {
 
     document.querySelectorAll('.categoria-btn').forEach(btn => btn.classList.remove('active'));
 
-    const el = btnElement || event.currentTarget;
-    if (el) el.classList.add('active');
+    if (btnElement) {
+        btnElement.classList.add('active');
+    }
 
     aplicarFiltros();
 }
 
 function aplicarFiltros() {
-    const termo = document.getElementById('searchUnificado').value.toLowerCase();
+    const termo = document.getElementById('searchUnificado').value.toLowerCase().trim();
 
     document.querySelectorAll('.produto-card').forEach(card => {
-        const matchesBusca = card.dataset.name.includes(termo) || card.dataset.code.includes(termo);
-        const categoriaId = card.dataset.categoria;
+        const nome = card.dataset.name || '';
+        const code = card.dataset.code || '';
+        const categoriaId = card.dataset.categoria || '';
 
-        let matchesCategoria = false;
-
-        if (categoriaAtual === 'all') {
-            matchesCategoria = true;
-        } else {
-            matchesCategoria = categoriaId === categoriaAtual;
-        }
+        const matchesBusca = nome.includes(termo) || code.includes(termo);
+        const matchesCategoria = (categoriaAtual === 'all') ? true : categoriaId === categoriaAtual;
 
         card.style.display = (matchesBusca && matchesCategoria) ? 'block' : 'none';
     });
@@ -400,11 +424,13 @@ function aplicarFiltros() {
         let pratosVisiveis = 0;
 
         pratosDiaCards.forEach(card => {
-            const matchesBusca = card.dataset.name.includes(termo) || card.dataset.code.includes(termo);
-            const categoriaId = card.dataset.categoria;
+            const nome = card.dataset.name || '';
+            const code = card.dataset.code || '';
+            const categoriaId = card.dataset.categoria || '';
+
+            const matchesBusca = nome.includes(termo) || code.includes(termo);
 
             let matchesCategoria = false;
-
             if (categoriaAtual === 'all' || categoriaAtual === 'pratos-dia') {
                 matchesCategoria = true;
             } else {
@@ -421,9 +447,7 @@ function aplicarFiltros() {
     }
 }
 
-// LÓGICA DO CARRINHO COM ADICIONAIS
 function addProduto(id, nome, preco, adicionais = []) {
-
     const addKey = adicionais.map(a => a.nome).sort().join('|');
     const uniqueKey = `${id}-${addKey}`;
 
@@ -447,8 +471,8 @@ function addProduto(id, nome, preco, adicionais = []) {
 
 function renderCarrinho() {
     const container = document.getElementById('carrinhoItens');
-
     const totalItens = carrinho.reduce((acc, item) => acc + item.qtd, 0);
+
     document.getElementById('cartCount').innerText = `${totalItens} ITENS`;
 
     if (carrinho.length === 0) {
@@ -524,103 +548,93 @@ function removerItem(index) {
 }
 
 function atualizarTotais() {
-
     const subtotal = carrinho.reduce((acc, item) => {
         const pAdd = item.adicionais.reduce((a, b) => a + parseFloat(b.preco), 0);
         return acc + ((item.precoBase + pAdd) * item.qtd);
     }, 0);
 
     const descRaw = document.getElementById('inputDesconto').value.replace(/[^\d]/g, '');
-
     const desconto = parseFloat(descRaw) / 100 || 0;
-
     const total = Math.max(0, subtotal - desconto);
 
     document.getElementById('totalFinal').innerText = formatar(total);
 
-    return {
-        subtotal,
-        desconto,
-        total
-    };
+    return { subtotal, desconto, total };
 }
 
-// LÓGICA DO MODAL ADICIONAIS
 function abrirModalAdicionais(id, nome, preco) {
     fetch(`/produto/${id}/adicionais/`)
-    .then(res => res.json())
-    .then(data => {
-        const container = document.getElementById("listaAdicionais");
-        document.getElementById('modalProdNome').innerText = nome;
+        .then(res => res.json())
+        .then(data => {
+            const container = document.getElementById("listaAdicionais");
+            document.getElementById('modalProdNome').innerText = nome;
 
-        if (!data || data.length === 0) {
-            addProduto(id, nome, preco, []);
-            return;
-        }
+            if (!data || data.length === 0) {
+                addProduto(id, nome, preco, []);
+                return;
+            }
 
-        container.innerHTML = data.map(add => `
-            <label class="flex justify-between items-center p-3 bg-gray-50 rounded-2xl cursor-pointer hover:bg-blue-50 transition-colors">
-                <div class="flex items-center gap-3">
-                    <input type="checkbox"
-                        class="add-check w-5 h-5 rounded-lg text-blue-600"
-                        data-nome="${add.nome}"
-                        data-preco="${add.preco}">
-                    <span class="text-sm font-bold text-gray-700">${add.nome}</span>
-                </div>
-                <span class="text-xs font-mono font-bold text-blue-600">
-                    + R$ ${add.preco}
-                </span>
-            </label>
-        `).join("");
+            container.innerHTML = data.map(add => `
+                <label class="flex justify-between items-center p-3 bg-gray-50 rounded-2xl cursor-pointer hover:bg-blue-50 transition-colors">
+                    <div class="flex items-center gap-3">
+                        <input type="checkbox"
+                            class="add-check w-5 h-5 rounded-lg text-blue-600"
+                            data-nome="${add.nome}"
+                            data-preco="${add.preco}">
+                        <span class="text-sm font-bold text-gray-700">${add.nome}</span>
+                    </div>
+                    <span class="text-xs font-mono font-bold text-blue-600">
+                        + R$ ${add.preco}
+                    </span>
+                </label>
+            `).join("");
 
-        const btnConfirmar = document.getElementById('btnConfirmarAdicional');
+            const btnConfirmar = document.getElementById('btnConfirmarAdicional');
 
-        btnConfirmar.onclick = () => {
-            const selecionados = [];
+            btnConfirmar.onclick = () => {
+                const selecionados = [];
 
-            document.querySelectorAll('.add-check:checked').forEach(c => {
-                selecionados.push({
-                    nome: c.dataset.nome,
-                    preco: c.dataset.preco
+                document.querySelectorAll('.add-check:checked').forEach(c => {
+                    selecionados.push({
+                        nome: c.dataset.nome,
+                        preco: c.dataset.preco
+                    });
                 });
-            });
 
-            addProduto(id, nome, preco, selecionados);
+                addProduto(id, nome, preco, selecionados);
+                fecharModal();
+            };
 
-            // força fechamento imediato e seguro
-            document.getElementById("modalAdicionais").classList.add("hidden");
-        };
-
-        document.getElementById("modalAdicionais").classList.remove("hidden");
-    })
-    .catch(() => {
-        mostrarAlerta("Erro", "Não foi possível carregar os adicionais.", "erro");
-    });
+            document.getElementById("modalAdicionais").classList.remove("hidden");
+        })
+        .catch(() => {
+            mostrarAlerta("Erro", "Não foi possível carregar os adicionais.", "erro");
+        });
 }
 
 function fecharModal() {
     const modal = document.getElementById('modalAdicionais');
-
     modal.classList.add('hidden');
 
-    // limpa checkboxes
     document.querySelectorAll('.add-check').forEach(el => {
         el.checked = false;
     });
 
-    // remove callback antigo
     document.getElementById('btnConfirmarAdicional').onclick = null;
 }
-// LÓGICA DOS BOTÕES DE PAGAMENTO
+
 function setMetodo(met, btnElement) {
     metodoPagamento = met;
-    document.querySelectorAll('.metodo-btn').forEach(b => b.classList.remove('selected', 'bg-blue-600', 'text-white'));
 
-    const el = btnElement || event.currentTarget;
-    if (el) el.classList.add('selected', 'bg-blue-600', 'text-white');
+    document.querySelectorAll('.metodo-btn').forEach(b => {
+        b.classList.remove('selected', 'bg-blue-600', 'text-white');
+    });
+
+    if (btnElement) {
+        btnElement.classList.add('selected', 'bg-blue-600', 'text-white');
+    }
 }
 
-// LÓGICA DO MODAL DE SUCESSO
 function mostrarSucesso(total, metodo) {
     const modal = document.getElementById('modalSucesso');
     const card = document.getElementById('sucessoCard');
@@ -668,12 +682,10 @@ function fecharModalSucesso() {
         }
 
         document.getElementById('enderecoBox').style.display = 'block';
-
         renderCarrinho();
     }, 300);
 }
 
-// LÓGICA DO MODAL DE ALERTA
 function mostrarAlerta(titulo, mensagem, tipo = 'aviso') {
     const modal = document.getElementById('modalAlerta');
     const card = document.getElementById('alertaCard');
@@ -709,194 +721,75 @@ function fecharModalAlerta() {
     }, 200);
 }
 
-let tipoEntrega = true;
+function setEntrega(valor, btn) {
+    tipoEntrega = valor;
 
-function setEntrega(valor, btn){
+    document.querySelectorAll('.entrega-btn').forEach(b => {
+        b.classList.remove('selected', 'bg-blue-600', 'text-white');
+    });
 
-tipoEntrega = valor;
+    if (btn) {
+        btn.classList.add('selected', 'bg-blue-600', 'text-white');
+    }
 
-document.querySelectorAll('.entrega-btn')
-.forEach(b => b.classList.remove(
-'selected',
-'bg-blue-600',
-'text-white'
-));
+    const box = document.getElementById('enderecoBox');
+    box.style.display = valor ? 'block' : 'none';
 
-btn.classList.add(
-'selected',
-'bg-blue-600',
-'text-white'
-);
-
-const box =
-document.getElementById('enderecoBox');
-
-box.style.display =
-valor ? 'block' : 'none';
-
-if(!valor){
-
-document.getElementById('cep').value='';
-document.getElementById('rua').value='';
-document.getElementById('numero').value='';
-
+    if (!valor) {
+        document.getElementById('cep').value = '';
+        document.getElementById('rua').value = '';
+        document.getElementById('numero').value = '';
+    }
 }
 
+function formatarCEP(input) {
+    let cep = input.value.replace(/\D/g, '');
+
+    if (cep.length > 5) {
+        cep = cep.replace(/(\d{5})(\d)/, '$1-$2');
+    }
+
+    input.value = cep;
+
+    if (cep.replace(/\D/g, '').length === 8) {
+        buscarCepAuto();
+    }
+
+    if (cep.length === 0) {
+        document.getElementById('rua').value = '';
+    }
 }
 
+async function buscarCepAuto() {
+    const cep = document.getElementById('cep').value.replace(/\D/g, '');
 
-function formatarCEP(input){
+    if (cep.length !== 8) return;
 
-let cep = input.value.replace(/\D/g,'');
+    const ruaInput = document.getElementById('rua');
+    ruaInput.value = "Buscando endereço...";
 
-if(cep.length > 5)
-cep = cep.replace(/(\d{5})(\d)/,'$1-$2');
+    try {
+        const res = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+        const data = await res.json();
 
-input.value = cep;
+        if (data.erro) {
+            ruaInput.value = '';
+            mostrarAlerta("CEP inválido", "Não encontramos esse CEP", "erro");
+            return;
+        }
 
-if(cep.replace(/\D/g,'').length === 8)
-buscarCepAuto();
-
-if(cep.length === 0){
-
-document.getElementById('rua').value = '';
-
+        ruaInput.value = data.logradouro || '';
+    } catch {
+        ruaInput.value = '';
+        mostrarAlerta("Erro CEP", "Falha ao consultar CEP", "erro");
+    }
 }
-
-}
-
-
-async function buscarCepAuto(){
-
-const cep =
-document.getElementById('cep').value.replace(/\D/g,'');
-
-if(cep.length !== 8) return;
-
-const ruaInput = document.getElementById('rua');
-
-ruaInput.value = "Buscando endereço...";
-
-try{
-
-const res =
-await fetch(`https://viacep.com.br/ws/${cep}/json/`);
-
-const data = await res.json();
-
-if(data.erro){
-
-ruaInput.value = '';
-
-mostrarAlerta(
-"CEP inválido",
-"Não encontramos esse CEP",
-"erro"
-);
-
-return;
-
-}
-
-ruaInput.value =
-data.logradouro || '';
-
-}
-catch{
-
-ruaInput.value = '';
-
-mostrarAlerta(
-"Erro CEP",
-"Falha ao consultar CEP",
-"erro"
-);
-
-}
-
-}
-
-function formatarCEP(input){
-
-let cep = input.value.replace(/\D/g,'');
-
-if(cep.length > 5)
-cep = cep.replace(/(\d{5})(\d)/,'$1-$2');
-
-input.value = cep;
-
-if(cep.replace(/\D/g,'').length === 8)
-buscarCepAuto();
-
-if(cep.length === 0){
-
-document.getElementById('rua').value = '';
-
-}
-
-}
-
-
-async function buscarCepAuto(){
-
-const cep =
-document.getElementById('cep').value.replace(/\D/g,'');
-
-if(cep.length !== 8) return;
-
-const ruaInput = document.getElementById('rua');
-
-ruaInput.value = "Buscando endereço...";
-
-try{
-
-const res =
-await fetch(`https://viacep.com.br/ws/${cep}/json/`);
-
-const data = await res.json();
-
-if(data.erro){
-
-ruaInput.value = '';
-
-mostrarAlerta(
-"CEP inválido",
-"Não encontramos esse CEP",
-"erro"
-);
-
-return;
-
-}
-
-ruaInput.value =
-data.logradouro || '';
-
-}
-catch{
-
-ruaInput.value = '';
-
-mostrarAlerta(
-"Erro CEP",
-"Falha ao consultar CEP",
-"erro"
-);
-
-}
-
-}
-
 
 async function finalizarVenda() {
     const nomeCliente = document.getElementById('nomeCliente').value.trim();
 
     if (!nomeCliente) {
-        mostrarAlerta(
-            "Nome obrigatório",
-            "Preencha o nome do cliente para continuar.",
-            "aviso"
-        );
+        mostrarAlerta("Nome obrigatório", "Preencha o nome do cliente para continuar.", "aviso");
         document.getElementById('nomeCliente').focus();
         return;
     }
@@ -907,11 +800,7 @@ async function finalizarVenda() {
         const numero = document.getElementById('numero').value.trim();
 
         if (!cep || !rua || !numero) {
-            mostrarAlerta(
-                "Endereço incompleto",
-                "Preencha CEP, rua e número.",
-                "aviso"
-            );
+            mostrarAlerta("Endereço incompleto", "Preencha CEP, rua e número.", "aviso");
             return;
         }
     }
@@ -956,48 +845,38 @@ async function finalizarVenda() {
         const resultado = await response.json();
 
         if (resultado.success) {
-            mostrarSucesso(
-                formatar(valores.total),
-                metodoPagamento.toUpperCase()
-            );
+            mostrarSucesso(formatar(valores.total), metodoPagamento.toUpperCase());
         } else {
-            mostrarAlerta(
-                "Erro",
-                resultado.message,
-                "erro"
-            );
+            mostrarAlerta("Erro", resultado.message, "erro");
         }
-
     } catch (error) {
-        mostrarAlerta(
-            "Erro conexão",
-            "Servidor indisponível.",
-            "erro"
-        );
+        mostrarAlerta("Erro conexão", "Servidor indisponível.", "erro");
     }
 }
 
-
-// Função auxiliar para pegar o token CSRF do Django
 function getCookie(name) {
     let cookieValue = null;
+
     if (document.cookie && document.cookie !== '') {
         const cookies = document.cookie.split(';');
+
         for (let i = 0; i < cookies.length; i++) {
             const cookie = cookies[i].trim();
+
             if (cookie.substring(0, name.length + 1) === (name + '=')) {
                 cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
                 break;
             }
         }
     }
+
     return cookieValue;
 }
 
-// Render inicial
 document.addEventListener('DOMContentLoaded', function () {
     aplicarFiltros();
     renderCarrinho();
+    document.getElementById('enderecoBox').style.display = 'block';
 });
 </script>
 {% endblock %}
