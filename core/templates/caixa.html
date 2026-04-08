@@ -417,6 +417,16 @@
     #carrinhoItens .cart-item-compact:last-child {
     margin-bottom: 0;
 }
+    #carrinhoItens.overflow-hidden {
+    display: flex;
+    flex-direction: column;
+}
+
+#emptyCart {
+    width: 100%;
+}
+
+
 </style>
 
 <script>
@@ -521,6 +531,9 @@ function renderCarrinho() {
     document.getElementById('cartCount').innerText = `${totalItens} ITENS`;
 
     if (carrinho.length === 0) {
+        container.classList.remove('overflow-y-auto');
+        container.classList.add('overflow-hidden');
+
         container.innerHTML = `
             <div id="emptyCart" class="h-full min-h-[320px] flex flex-col items-center justify-center text-center text-gray-300">
                 <div class="w-24 h-24 rounded-full bg-white shadow-sm border border-gray-100 flex items-center justify-center mb-4">
@@ -530,9 +543,13 @@ function renderCarrinho() {
                 <span class="text-xs text-gray-300 mt-1">Adicione produtos para começar</span>
             </div>
         `;
+
         atualizarTotais();
         return;
     }
+
+    container.classList.remove('overflow-hidden');
+    container.classList.add('overflow-y-auto');
 
     container.innerHTML = carrinho.map((item, index) => {
         const precoAdicionais = item.adicionais.reduce((acc, a) => acc + parseFloat(a.preco), 0);
