@@ -90,23 +90,71 @@
                         <div class="text-[10px] font-bold text-gray-400 uppercase">{{ pedido.get_forma_pagamento_display }}</div>
                     </div>
 
-                    <div class="flex items-center gap-2 mb-3">
-                        <span class="text-[9px] {% if pedido.entrega %}bg-indigo-100 text-indigo-600{% else %}bg-gray-100 text-gray-600{% endif %} px-2 py-1 rounded-lg font-bold">
-                            {% if pedido.entrega %}ENTREGA{% else %}RETIRADA{% endif %}
-                        </span>
-                        {% if pedido.nome_cliente %}
-                        <span class="text-[9px] bg-orange-50 text-orange-500 px-2 py-1 rounded-lg font-bold">{{ pedido.nome_cliente }}</span>
+                    <div class="space-y-3 mb-4">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="text-[9px] {% if pedido.entrega %}bg-indigo-100 text-indigo-600{% else %}bg-gray-100 text-gray-600{% endif %} px-2 py-1 rounded-lg font-bold">
+                                {% if pedido.entrega %}ENTREGA{% else %}RETIRADA{% endif %}
+                            </span>
+
+                            {% if pedido.nome_cliente %}
+                            <span class="text-[9px] bg-orange-50 text-orange-500 px-2 py-1 rounded-lg font-bold">
+                                {{ pedido.nome_cliente }}
+                            </span>
+                            {% endif %}
+                        </div>
+
+                        {% if pedido.entrega and pedido.rua %}
+                        <div class="bg-gradient-to-r from-indigo-50 to-sky-50 border border-indigo-100 rounded-2xl p-3 shadow-sm">
+                            <div class="flex items-start gap-3">
+                                <div class="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
+                                    <i class="fas fa-location-dot"></i>
+                                </div>
+
+                                <div class="min-w-0 flex-1">
+                                    <div class="text-[9px] font-black uppercase tracking-widest text-indigo-500 mb-1">
+                                        Endereço de Entrega
+                                    </div>
+
+                                    <div class="text-sm font-black text-gray-800 leading-tight break-words">
+                                        {{ pedido.rua }}{% if pedido.numero %}, {{ pedido.numero }}{% endif %}
+                                    </div>
+
+                                    {% if pedido.cep %}
+                                    <div class="mt-1 text-[11px] font-bold text-gray-500">
+                                        CEP: {{ pedido.cep }}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
                         {% endif %}
                     </div>
 
                     <hr class="border-gray-50 mb-4">
 
-                    <div class="space-y-3 mb-4">
+                    <div class="space-y-2.5 mb-4">
                         {% for item in pedido.itens.all %}
-                        <div class="text-sm">
-                            <div class="flex justify-between">
-                                <span class="text-gray-700 font-bold"><span class="text-orange-500">{{ item.quantidade }}x</span> {{ item.produto.nome_produto }}</span>
-                                <span class="text-gray-400 text-xs">R$ {{ item.subtotal }}</span>
+                        <div class="bg-gray-50 rounded-2xl px-3 py-2.5 border border-gray-100">
+                            <div class="flex justify-between items-start gap-3">
+                                <div class="min-w-0">
+                                    <div class="text-sm font-bold text-gray-700 leading-tight break-words">
+                                        <span class="text-orange-500">{{ item.quantidade }}x</span> {{ item.produto.nome_produto }}
+                                    </div>
+
+                                    {% if item.adicionais %}
+                                    <div class="flex flex-wrap gap-1 mt-2">
+                                        {% for adicional in item.adicionais %}
+                                        <span class="text-[9px] bg-orange-50 text-orange-600 border border-orange-200 px-2 py-1 rounded-md font-bold leading-none">
+                                            + {{ adicional.nome }}
+                                        </span>
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+
+                                <span class="text-xs font-black text-gray-500 whitespace-nowrap">
+                                    R$ {{ item.subtotal }}
+                                </span>
                             </div>
                         </div>
                         {% endfor %}
@@ -215,6 +263,11 @@ color:white;
 
 box-shadow:0 6px 18px rgba(249,115,22,.25);
 
+}
+
+    .endereco-entrega-card {
+    background: linear-gradient(90deg, #eef2ff 0%, #f0f9ff 100%);
+    border: 1px solid #c7d2fe;
 }
 </style>
 
