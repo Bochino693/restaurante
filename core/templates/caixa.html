@@ -167,117 +167,124 @@
         </div>
 
         <!-- RODAPÉ -->
-        <div class="shrink-0 border-t border-gray-200 bg-white p-4 space-y-3 shadow-[0_-8px_20px_rgba(15,23,42,0.05)]">
-            <div class="grid grid-cols-2 gap-2">
-                <div class="bg-white border rounded-2xl p-3">
-                    <div class="text-[10px] font-black text-gray-400 uppercase mb-1">Desconto</div>
-                    <input
-                        id="inputDesconto"
-                        type="text"
-                        value="0,00"
-                        onkeyup="mascaraMoeda(this)"
-                        class="w-full text-left font-mono font-black text-gray-700 outline-none bg-transparent text-sm"
-                    >
-                </div>
+        <!-- RODAPÉ COMPACTO -->
+<div class="shrink-0 border-t border-gray-200 bg-white px-3 py-3 space-y-2.5 shadow-[0_-8px_20px_rgba(15,23,42,0.05)]">
 
-                <div class="bg-gray-900 rounded-2xl p-3 text-white">
-                    <div class="text-[10px] font-black uppercase opacity-70 mb-1">Total</div>
-                    <div id="totalFinal" class="text-lg xl:text-xl font-black font-mono leading-none">R$ 0,00</div>
-                </div>
-            </div>
-
-            <div>
-                <label for="nomeCliente" class="block text-[11px] font-black uppercase tracking-wide text-gray-500 mb-2">
-                    Nome do Cliente *
-                </label>
-                <input
-                    id="nomeCliente"
-                    type="text"
-                    placeholder="Digite o nome do cliente"
-                    class="w-full border rounded-xl px-3 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-            </div>
-
-            <div class="grid grid-cols-2 gap-2">
-                <button
-                    type="button"
-                    onclick="setEntrega(true, this)"
-                    class="entrega-btn selected border rounded-xl py-2 px-2 flex items-center justify-center gap-2 text-xs font-black transition-all"
-                >
-                    <span class="text-base leading-none">🏍️</span>
-                    <span>Entrega</span>
-                </button>
-
-                <button
-                    type="button"
-                    onclick="setEntrega(false, this)"
-                    class="entrega-btn border rounded-xl py-2 px-2 flex items-center justify-center gap-2 text-xs font-black transition-all"
-                >
-                    <span class="text-base leading-none">🏪</span>
-                    <span>Retirada</span>
-                </button>
-            </div>
-
-            <!-- ENTREGA -->
-            <div id="enderecoBox" class="space-y-2">
-                <div class="grid grid-cols-3 gap-2">
-                    <input
-                        id="cep"
-                        placeholder="CEP"
-                        oninput="formatarCEP(this)"
-                        class="col-span-2 w-full border rounded-xl p-2.5 text-sm"
-                    >
-                    <input
-                        id="numero"
-                        placeholder="Número"
-                        class="col-span-1 w-full border rounded-xl p-2.5 text-sm"
-                    >
-                </div>
-
-                <input
-                    id="rua"
-                    placeholder="Rua"
-                    class="w-full border rounded-xl p-2.5 text-sm"
-                >
-            </div>
-
-            <!-- RETIRADA -->
-            <div id="retiradaInfo" class="hidden">
-                <div class="bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-3 flex items-center gap-2">
-                    <i class="fas fa-store text-emerald-600"></i>
-                    <div class="min-w-0">
-                        <div class="text-[11px] font-black uppercase tracking-wide text-emerald-700">
-                            Retirada no balcão
-                        </div>
-                        <div class="text-xs text-emerald-600">
-                            Pedido sem preenchimento de endereço
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="grid grid-cols-3 gap-2">
-                <button type="button" onclick="setMetodo('pix', this)"
-                    class="metodo-btn border rounded-xl py-2.5 font-black text-xs">
-                    PIX
-                </button>
-
-                <button type="button" onclick="setMetodo('cartao', this)"
-                    class="metodo-btn border rounded-xl py-2.5 font-black text-xs">
-                    Cartão
-                </button>
-
-                <button type="button" onclick="setMetodo('dinheiro', this)"
-                    class="metodo-btn border rounded-xl py-2.5 font-black text-xs">
-                    Dinheiro
-                </button>
-            </div>
-
-            <button onclick="finalizarVenda()"
-                class="w-full bg-green-500 hover:bg-green-600 text-white font-black py-3.5 rounded-2xl shadow-lg transition-all text-sm uppercase tracking-widest">
-                Finalizar Pedido
-            </button>
+    <!-- DESCONTO + TOTAL MAIS BAIXOS -->
+    <div class="grid grid-cols-2 gap-2">
+        <div class="bg-white border rounded-xl px-3 py-2">
+            <div class="text-[9px] font-black text-gray-400 uppercase leading-none mb-1">Desconto</div>
+            <input
+                id="inputDesconto"
+                type="text"
+                value="0,00"
+                onkeyup="mascaraMoeda(this)"
+                class="w-full text-left font-mono font-black text-gray-700 outline-none bg-transparent text-xs leading-none"
+            >
         </div>
+
+        <div class="bg-gray-900 rounded-xl px-3 py-2 text-white">
+            <div class="text-[9px] font-black uppercase opacity-70 leading-none mb-1">Total</div>
+            <div id="totalFinal" class="text-base font-black font-mono leading-none">R$ 0,00</div>
+        </div>
+    </div>
+
+    <!-- NOME MAIS COMPACTO -->
+    <div>
+        <label for="nomeCliente" class="block text-[10px] font-black uppercase tracking-wide text-gray-500 mb-1">
+            Nome do Cliente *
+        </label>
+        <input
+            id="nomeCliente"
+            type="text"
+            placeholder="Digite o nome do cliente"
+            class="w-full border rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+    </div>
+
+    <!-- ENTREGA / RETIRADA MAIS BAIXOS -->
+    <div class="grid grid-cols-2 gap-2">
+        <button
+            type="button"
+            onclick="setEntrega(true, this)"
+            class="entrega-btn selected border rounded-xl h-9 px-2 flex items-center justify-center gap-2 text-[11px] font-black transition-all"
+        >
+            <span class="text-sm leading-none">🏍️</span>
+            <span>Entrega</span>
+        </button>
+
+        <button
+            type="button"
+            onclick="setEntrega(false, this)"
+            class="entrega-btn border rounded-xl h-9 px-2 flex items-center justify-center gap-2 text-[11px] font-black transition-all"
+        >
+            <span class="text-sm leading-none">🏪</span>
+            <span>Retirada</span>
+        </button>
+    </div>
+
+    <!-- ENTREGA -->
+    <div id="enderecoBox" class="space-y-2">
+        <div class="grid grid-cols-3 gap-2">
+            <input
+                id="cep"
+                placeholder="CEP"
+                oninput="formatarCEP(this)"
+                class="col-span-2 w-full border rounded-xl px-3 py-2 text-xs"
+            >
+            <input
+                id="numero"
+                placeholder="Número"
+                class="col-span-1 w-full border rounded-xl px-3 py-2 text-xs"
+            >
+        </div>
+
+        <input
+            id="rua"
+            placeholder="Rua"
+            class="w-full border rounded-xl px-3 py-2 text-xs"
+        >
+    </div>
+
+    <!-- RETIRADA -->
+    <div id="retiradaInfo" class="hidden">
+        <div class="bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 flex items-center gap-2">
+            <i class="fas fa-store text-emerald-600 text-sm"></i>
+            <div class="min-w-0">
+                <div class="text-[10px] font-black uppercase tracking-wide text-emerald-700 leading-none">
+                    Retirada no balcão
+                </div>
+                <div class="text-[10px] text-emerald-600 mt-1 leading-none">
+                    Sem endereço
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- PAGAMENTO MAIS BAIXO -->
+    <div class="grid grid-cols-3 gap-2">
+        <button type="button" onclick="setMetodo('pix', this)"
+            class="metodo-btn border rounded-xl h-9 font-black text-[11px]">
+            PIX
+        </button>
+
+        <button type="button" onclick="setMetodo('cartao', this)"
+            class="metodo-btn border rounded-xl h-9 font-black text-[11px]">
+            Cartão
+        </button>
+
+        <button type="button" onclick="setMetodo('dinheiro', this)"
+            class="metodo-btn border rounded-xl h-9 font-black text-[11px]">
+            Dinheiro
+        </button>
+    </div>
+
+    <!-- BOTÃO MAIS BAIXO -->
+    <button onclick="finalizarVenda()"
+        class="w-full bg-green-500 hover:bg-green-600 text-white font-black h-10 rounded-xl shadow-lg transition-all text-xs uppercase tracking-[0.15em]">
+        Finalizar Pedido
+    </button>
+</div>
     </div>
 </div>
     </div>
@@ -389,16 +396,23 @@
         box-shadow: 0 8px 24px rgba(251, 146, 60, 0.12);
     }
 
-    .entrega-btn.selected {
-        background: #2563eb;
-        border-color: #2563eb;
-        color: white;
-        box-shadow: 0 4px 10px rgba(37,99,235,0.18);
-    }
-
     .entrega-btn {
-        min-height: 44px;
-    }
+    min-height: 36px;
+}
+
+.metodo-btn.selected {
+    background: #2563eb;
+    border-color: #2563eb;
+    color: white;
+    box-shadow: 0 4px 10px rgba(37,99,235,0.20);
+}
+
+.entrega-btn.selected {
+    background: #2563eb;
+    border-color: #2563eb;
+    color: white;
+    box-shadow: 0 4px 10px rgba(37,99,235,0.18);
+}
 </style>
 
 <script>
