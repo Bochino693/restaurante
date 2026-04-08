@@ -143,127 +143,143 @@
             </div>
         </div>
 
-        <!-- COLUNA DIREITA / CARRINHO -->
-        <div class="lg:col-span-4 xl:col-span-3 min-h-0">
-            <div class="h-full bg-white rounded-[2rem] shadow-2xl border border-gray-100 overflow-hidden grid cart-layout">
+       <!-- COLUNA DIREITA / CARRINHO -->
+<div class="lg:col-span-4 xl:col-span-3 min-h-0">
+    <div class="h-full bg-white rounded-[2rem] shadow-2xl border border-gray-100 overflow-hidden flex flex-col">
 
-                <!-- TOPO -->
-                <div class="p-4 bg-blue-600 text-white flex justify-between items-center">
-                    <h2 class="font-bold flex items-center gap-2 text-sm">
-                        <i class="fas fa-shopping-basket"></i> CARRINHO
-                    </h2>
-                    <span id="cartCount" class="bg-blue-400 text-[10px] px-2 py-1 rounded-full font-bold">0 ITENS</span>
+        <!-- TOPO -->
+        <div class="p-4 bg-blue-600 text-white flex justify-between items-center shrink-0">
+            <h2 class="font-bold flex items-center gap-2 text-sm">
+                <i class="fas fa-shopping-basket"></i> CARRINHO
+            </h2>
+            <span id="cartCount" class="bg-blue-400 text-[10px] px-2 py-1 rounded-full font-bold">0 ITENS</span>
+        </div>
+
+        <!-- LISTA -->
+        <div id="carrinhoItens" class="flex-1 min-h-0 overflow-y-auto p-4 space-y-3 custom-scrollbar bg-slate-50">
+            <div id="emptyCart" class="h-full min-h-[320px] flex flex-col items-center justify-center text-center text-gray-300">
+                <div class="w-24 h-24 rounded-full bg-white shadow-sm border border-gray-100 flex items-center justify-center mb-4">
+                    <i class="fas fa-ghost text-5xl opacity-80"></i>
                 </div>
-
-                <!-- LISTA -->
-                <div id="carrinhoItens" class="min-h-0 overflow-y-auto p-4 space-y-3 custom-scrollbar bg-slate-50">
-                    <div id="emptyCart" class="h-full min-h-[320px] flex flex-col items-center justify-center text-center text-gray-300">
-                        <div class="w-24 h-24 rounded-full bg-white shadow-sm border border-gray-100 flex items-center justify-center mb-4">
-                            <i class="fas fa-ghost text-5xl opacity-80"></i>
-                        </div>
-                        <p class="text-sm font-semibold text-gray-400">Seu carrinho está vazio</p>
-                        <span class="text-xs text-gray-300 mt-1">Adicione produtos para começar</span>
-                    </div>
-                </div>
-
-                <!-- RODAPÉ COMPACTO FIXO -->
-                <div class="border-t border-gray-200 bg-white p-4 space-y-3 shadow-[0_-8px_20px_rgba(15,23,42,0.05)]">
-                    <div class="grid grid-cols-2 gap-2">
-                        <div class="bg-white border rounded-2xl p-3">
-                            <div class="text-[10px] font-black text-gray-400 uppercase mb-1">Desconto</div>
-                            <input
-                                id="inputDesconto"
-                                type="text"
-                                value="0,00"
-                                onkeyup="mascaraMoeda(this)"
-                                class="w-full text-left font-mono font-black text-gray-700 outline-none bg-transparent text-sm"
-                            >
-                        </div>
-
-                        <div class="bg-gray-900 rounded-2xl p-3 text-white">
-                            <div class="text-[10px] font-black uppercase opacity-70 mb-1">Total</div>
-                            <div id="totalFinal" class="text-lg xl:text-xl font-black font-mono leading-none">R$ 0,00</div>
-                        </div>
-                    </div>
-
-                    <div>
-                        <label for="nomeCliente" class="block text-[11px] font-black uppercase tracking-wide text-gray-500 mb-2">
-                            Nome do Cliente *
-                        </label>
-                        <input
-                            id="nomeCliente"
-                            type="text"
-                            placeholder="Digite o nome do cliente"
-                            class="w-full border rounded-xl px-3 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        >
-                    </div>
-
-                    <div class="grid grid-cols-2 gap-2">
-                        <button
-                            type="button"
-                            onclick="setEntrega(true, this)"
-                            class="entrega-btn selected border rounded-xl py-2 px-2 flex items-center justify-center gap-2 text-xs font-black transition-all"
-                        >
-                            <span class="text-base leading-none">🏍️</span>
-                            <span>Entrega</span>
-                        </button>
-
-                        <button
-                            type="button"
-                            onclick="setEntrega(false, this)"
-                            class="entrega-btn border rounded-xl py-2 px-2 flex items-center justify-center gap-2 text-xs font-black transition-all"
-                        >
-                            <span class="text-base leading-none">🏪</span>
-                            <span>Retirada</span>
-                        </button>
-                    </div>
-
-                    <div id="enderecoBox" class="space-y-2">
-                        <div class="grid grid-cols-3 gap-2">
-                            <input
-                                id="cep"
-                                placeholder="CEP"
-                                oninput="formatarCEP(this)"
-                                class="col-span-2 w-full border rounded-xl p-2.5 text-sm"
-                            >
-                            <input
-                                id="numero"
-                                placeholder="Número"
-                                class="col-span-1 w-full border rounded-xl p-2.5 text-sm"
-                            >
-                        </div>
-
-                        <input
-                            id="rua"
-                            placeholder="Rua"
-                            class="w-full border rounded-xl p-2.5 text-sm"
-                        >
-                    </div>
-
-                    <div class="grid grid-cols-3 gap-2">
-                        <button type="button" onclick="setMetodo('pix', this)"
-                            class="metodo-btn border rounded-xl py-2.5 font-black text-xs">
-                            PIX
-                        </button>
-
-                        <button type="button" onclick="setMetodo('cartao', this)"
-                            class="metodo-btn border rounded-xl py-2.5 font-black text-xs">
-                            Cartão
-                        </button>
-
-                        <button type="button" onclick="setMetodo('dinheiro', this)"
-                            class="metodo-btn border rounded-xl py-2.5 font-black text-xs">
-                            Dinheiro
-                        </button>
-                    </div>
-
-                    <button onclick="finalizarVenda()"
-                        class="w-full bg-green-500 hover:bg-green-600 text-white font-black py-3.5 rounded-2xl shadow-lg transition-all text-sm uppercase tracking-widest">
-                        Finalizar Pedido
-                    </button>
-                </div>
+                <p class="text-sm font-semibold text-gray-400">Seu carrinho está vazio</p>
+                <span class="text-xs text-gray-300 mt-1">Adicione produtos para começar</span>
             </div>
         </div>
+
+        <!-- RODAPÉ -->
+        <div class="shrink-0 border-t border-gray-200 bg-white p-4 space-y-3 shadow-[0_-8px_20px_rgba(15,23,42,0.05)]">
+            <div class="grid grid-cols-2 gap-2">
+                <div class="bg-white border rounded-2xl p-3">
+                    <div class="text-[10px] font-black text-gray-400 uppercase mb-1">Desconto</div>
+                    <input
+                        id="inputDesconto"
+                        type="text"
+                        value="0,00"
+                        onkeyup="mascaraMoeda(this)"
+                        class="w-full text-left font-mono font-black text-gray-700 outline-none bg-transparent text-sm"
+                    >
+                </div>
+
+                <div class="bg-gray-900 rounded-2xl p-3 text-white">
+                    <div class="text-[10px] font-black uppercase opacity-70 mb-1">Total</div>
+                    <div id="totalFinal" class="text-lg xl:text-xl font-black font-mono leading-none">R$ 0,00</div>
+                </div>
+            </div>
+
+            <div>
+                <label for="nomeCliente" class="block text-[11px] font-black uppercase tracking-wide text-gray-500 mb-2">
+                    Nome do Cliente *
+                </label>
+                <input
+                    id="nomeCliente"
+                    type="text"
+                    placeholder="Digite o nome do cliente"
+                    class="w-full border rounded-xl px-3 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+            </div>
+
+            <div class="grid grid-cols-2 gap-2">
+                <button
+                    type="button"
+                    onclick="setEntrega(true, this)"
+                    class="entrega-btn selected border rounded-xl py-2 px-2 flex items-center justify-center gap-2 text-xs font-black transition-all"
+                >
+                    <span class="text-base leading-none">🏍️</span>
+                    <span>Entrega</span>
+                </button>
+
+                <button
+                    type="button"
+                    onclick="setEntrega(false, this)"
+                    class="entrega-btn border rounded-xl py-2 px-2 flex items-center justify-center gap-2 text-xs font-black transition-all"
+                >
+                    <span class="text-base leading-none">🏪</span>
+                    <span>Retirada</span>
+                </button>
+            </div>
+
+            <!-- ENTREGA -->
+            <div id="enderecoBox" class="space-y-2">
+                <div class="grid grid-cols-3 gap-2">
+                    <input
+                        id="cep"
+                        placeholder="CEP"
+                        oninput="formatarCEP(this)"
+                        class="col-span-2 w-full border rounded-xl p-2.5 text-sm"
+                    >
+                    <input
+                        id="numero"
+                        placeholder="Número"
+                        class="col-span-1 w-full border rounded-xl p-2.5 text-sm"
+                    >
+                </div>
+
+                <input
+                    id="rua"
+                    placeholder="Rua"
+                    class="w-full border rounded-xl p-2.5 text-sm"
+                >
+            </div>
+
+            <!-- RETIRADA -->
+            <div id="retiradaInfo" class="hidden">
+                <div class="bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-3 flex items-center gap-2">
+                    <i class="fas fa-store text-emerald-600"></i>
+                    <div class="min-w-0">
+                        <div class="text-[11px] font-black uppercase tracking-wide text-emerald-700">
+                            Retirada no balcão
+                        </div>
+                        <div class="text-xs text-emerald-600">
+                            Pedido sem preenchimento de endereço
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-3 gap-2">
+                <button type="button" onclick="setMetodo('pix', this)"
+                    class="metodo-btn border rounded-xl py-2.5 font-black text-xs">
+                    PIX
+                </button>
+
+                <button type="button" onclick="setMetodo('cartao', this)"
+                    class="metodo-btn border rounded-xl py-2.5 font-black text-xs">
+                    Cartão
+                </button>
+
+                <button type="button" onclick="setMetodo('dinheiro', this)"
+                    class="metodo-btn border rounded-xl py-2.5 font-black text-xs">
+                    Dinheiro
+                </button>
+            </div>
+
+            <button onclick="finalizarVenda()"
+                class="w-full bg-green-500 hover:bg-green-600 text-white font-black py-3.5 rounded-2xl shadow-lg transition-all text-sm uppercase tracking-widest">
+                Finalizar Pedido
+            </button>
+        </div>
+    </div>
+</div>
     </div>
 </div>
 
@@ -337,7 +353,7 @@
 </div>
 
 <style>
-    .no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
 
     .custom-scrollbar::-webkit-scrollbar {
         width: 6px;
@@ -350,10 +366,6 @@
 
     .custom-scrollbar::-webkit-scrollbar-track {
         background: transparent;
-    }
-
-    .cart-layout {
-        grid-template-rows: auto minmax(0, 1fr) auto;
     }
 
     #carrinhoItens {
@@ -769,10 +781,16 @@ function setEntrega(valor, btn) {
         btn.classList.add('selected', 'bg-blue-600', 'text-white');
     }
 
-    const box = document.getElementById('enderecoBox');
-    box.style.display = valor ? 'block' : 'none';
+    const enderecoBox = document.getElementById('enderecoBox');
+    const retiradaInfo = document.getElementById('retiradaInfo');
 
-    if (!valor) {
+    if (valor) {
+        enderecoBox.classList.remove('hidden');
+        retiradaInfo.classList.add('hidden');
+    } else {
+        enderecoBox.classList.add('hidden');
+        retiradaInfo.classList.remove('hidden');
+
         document.getElementById('cep').value = '';
         document.getElementById('rua').value = '';
         document.getElementById('numero').value = '';
@@ -913,7 +931,8 @@ function getCookie(name) {
 document.addEventListener('DOMContentLoaded', function () {
     aplicarFiltros();
     renderCarrinho();
-    document.getElementById('enderecoBox').style.display = 'block';
+    document.getElementById('enderecoBox').classList.remove('hidden');
+    document.getElementById('retiradaInfo').classList.add('hidden');
 });
 </script>
 {% endblock %}
