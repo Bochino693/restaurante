@@ -124,24 +124,24 @@
         </div>
     </div>
 
-    <div class="lg:w-1/3 xl:w-1/4 flex flex-col h-full bg-white rounded-[2rem] shadow-2xl border border-gray-100 overflow-hidden">
-        <div class="p-5 bg-blue-600 text-white flex justify-between items-center">
-            <h2 class="font-bold flex items-center gap-2"><i class="fas fa-shopping-basket"></i> CARRINHO</h2>
-            <span id="cartCount" class="bg-blue-400 text-[10px] px-2 py-1 rounded-full font-bold">0 ITENS</span>
-        </div>
+<div class="lg:w-1/3 xl:w-1/4 flex flex-col h-full bg-white rounded-[2rem] shadow-2xl border border-gray-100 overflow-hidden">
+    <div class="p-4 bg-blue-600 text-white flex justify-between items-center">
+        <h2 class="font-bold flex items-center gap-2 text-sm">
+            <i class="fas fa-shopping-basket"></i> CARRINHO
+        </h2>
+        <span id="cartCount" class="bg-blue-400 text-[10px] px-2 py-1 rounded-full font-bold">0 ITENS</span>
+    </div>
 
-        <div id="carrinhoItens" class="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
-            <div class="text-center py-20 text-gray-300" id="emptyCart">
-                <i class="fas fa-ghost text-5xl mb-4 opacity-20"></i>
-                <p class="text-sm italic">Seu carrinho está vazio</p>
-            </div>
+    <div id="carrinhoItens" class="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+        <div class="text-center py-20 text-gray-300" id="emptyCart">
+            <i class="fas fa-ghost text-5xl mb-4 opacity-20"></i>
+            <p class="text-sm italic">Seu carrinho está vazio</p>
         </div>
+    </div>
 
+    <div class="px-4 pt-3 pb-0">
         <div class="flex items-center gap-3 bg-white border rounded-2xl p-3">
-            <span class="text-xs font-bold text-gray-400 uppercase">
-                Desconto
-            </span>
-
+            <span class="text-xs font-bold text-gray-400 uppercase">Desconto</span>
             <input
                 id="inputDesconto"
                 type="text"
@@ -150,73 +150,89 @@
                 class="ml-auto text-right font-mono font-black text-gray-700 outline-none w-24"
             >
         </div>
+    </div>
 
-        <div class="p-6 bg-gray-50 border-t border-dashed border-gray-300 space-y-4">
-            <div class="flex justify-between items-center bg-gray-900 p-4 rounded-2xl text-white">
-                <span class="text-xs font-bold">TOTAL</span>
-                <span id="totalFinal" class="text-2xl font-black font-mono">R$ 0,00</span>
-            </div>
-            <div class="grid grid-cols-2 gap-3">
-            <button onclick="setEntrega(true, this)"
-            class="entrega-btn selected border rounded-2xl p-4 flex flex-col items-center gap-2">
+    <div class="p-4 bg-gray-50 border-t border-dashed border-gray-300 space-y-3">
+        <div class="flex justify-between items-center bg-gray-900 p-4 rounded-2xl text-white">
+            <span class="text-xs font-bold">TOTAL</span>
+            <span id="totalFinal" class="text-2xl font-black font-mono">R$ 0,00</span>
+        </div>
 
-            <span class="text-2xl">🏍️</span>
-            Entrega
+        <div>
+            <label for="nomeCliente" class="block text-[11px] font-black uppercase tracking-wide text-gray-500 mb-2">
+                Nome do Cliente *
+            </label>
+            <input
+                id="nomeCliente"
+                type="text"
+                placeholder="Digite o nome do cliente"
+                class="w-full border rounded-xl px-3 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+        </div>
 
+        <div class="grid grid-cols-2 gap-2">
+            <button
+                type="button"
+                onclick="setEntrega(true, this)"
+                class="entrega-btn selected border rounded-xl py-2.5 px-2 flex flex-col items-center justify-center gap-1 text-xs font-black transition-all"
+            >
+                <span class="text-lg leading-none">🏍️</span>
+                <span>Entrega</span>
             </button>
 
-            <button onclick="setEntrega(false, this)"
-            class="entrega-btn border rounded-2xl p-4 flex flex-col items-center gap-2">
-
-            <span class="text-2xl">🏪</span>
-            Retirada
-
+            <button
+                type="button"
+                onclick="setEntrega(false, this)"
+                class="entrega-btn border rounded-xl py-2.5 px-2 flex flex-col items-center justify-center gap-1 text-xs font-black transition-all"
+            >
+                <span class="text-lg leading-none">🏪</span>
+                <span>Retirada</span>
             </button>
+        </div>
 
-            </div>
-
-            <div id="enderecoBox" class="space-y-2 transition-all">
-
-            <input id="cep"
+        <div id="enderecoBox" class="space-y-2 transition-all">
+            <input
+                id="cep"
                 placeholder="CEP"
-                onblur="buscarCep()"
-                class="w-full border rounded-xl p-3">
+                oninput="formatarCEP(this)"
+                class="w-full border rounded-xl p-3 text-sm"
+            >
 
-            <input id="rua"
+            <input
+                id="rua"
                 placeholder="Rua"
-                oninput="limparCepSeRuaEditada()"
-                class="w-full border rounded-xl p-3">
+                class="w-full border rounded-xl p-3 text-sm"
+            >
 
-            <input id="numero"
-            placeholder="Número"
-            class="w-full border rounded-xl p-3">
+            <input
+                id="numero"
+                placeholder="Número"
+                class="w-full border rounded-xl p-3 text-sm"
+            >
+        </div>
 
-            </div>
-
-            <div class="grid grid-cols-3 gap-2">
-
+        <div class="grid grid-cols-3 gap-2">
             <button onclick="setMetodo('pix', this)"
-            class="metodo-btn border rounded-xl py-3 font-black text-xs">
-            PIX
+                class="metodo-btn border rounded-xl py-3 font-black text-xs">
+                PIX
             </button>
 
             <button onclick="setMetodo('cartao', this)"
-            class="metodo-btn border rounded-xl py-3 font-black text-xs">
-            Cartão
+                class="metodo-btn border rounded-xl py-3 font-black text-xs">
+                Cartão
             </button>
 
             <button onclick="setMetodo('dinheiro', this)"
-            class="metodo-btn border rounded-xl py-3 font-black text-xs">
-            Dinheiro
-            </button>
-
-            </div>
-
-            <button onclick="finalizarVenda()" class="w-full bg-green-500 hover:bg-green-600 text-white font-black py-4 rounded-2xl shadow-lg transition-all text-sm uppercase tracking-widest">
-                Finalizar Pedido
+                class="metodo-btn border rounded-xl py-3 font-black text-xs">
+                Dinheiro
             </button>
         </div>
+
+        <button onclick="finalizarVenda()" class="w-full bg-green-500 hover:bg-green-600 text-white font-black py-4 rounded-2xl shadow-lg transition-all text-sm uppercase tracking-widest">
+            Finalizar Pedido
+        </button>
     </div>
+</div>
 </div>
 
 <div id="modalAdicionais" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
@@ -311,6 +327,17 @@
     .categoria-btn.active { background: #2563eb; color: white; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3); }
     .metodo-btn.selected { background: #2563eb; border-color: #2563eb; color: white; box-shadow: 0 4px 10px rgba(37,99,235,0.2); }
     .prato-dia-card { box-shadow: 0 8px 24px rgba(251, 146, 60, 0.12); }
+
+    .entrega-btn.selected {
+        background: #2563eb;
+        border-color: #2563eb;
+        color: white;
+        box-shadow: 0 4px 10px rgba(37,99,235,0.18);
+    }
+
+    .entrega-btn {
+        min-height: 68px;
+    }
 </style>
 
 <script>
@@ -420,35 +447,68 @@ function addProduto(id, nome, preco, adicionais = []) {
 
 function renderCarrinho() {
     const container = document.getElementById('carrinhoItens');
-    document.getElementById('cartCount').innerText = `${carrinho.length} ITENS`;
+
+    const totalItens = carrinho.reduce((acc, item) => acc + item.qtd, 0);
+    document.getElementById('cartCount').innerText = `${totalItens} ITENS`;
 
     if (carrinho.length === 0) {
-        container.innerHTML = `<div class="text-center py-20 text-gray-300" id="emptyCart"><i class="fas fa-ghost text-5xl mb-4 opacity-20"></i><p class="text-sm italic">Seu carrinho está vazio</p></div>`;
-    } else {
-        container.innerHTML = carrinho.map((item, index) => {
-            const precoAdicionais = item.adicionais.reduce((acc, a) => acc + parseFloat(a.preco), 0);
-            const precoTotalItem = (item.precoBase + precoAdicionais) * item.qtd;
-
-            return `
-            <div class="bg-white p-4 rounded-[1.5rem] border border-gray-100 shadow-sm">
-                <div class="flex justify-between items-start mb-2">
-                    <div class="flex-1">
-                        <h4 class="text-xs font-black text-gray-800 uppercase leading-tight">${item.nome}</h4>
-                        ${item.adicionais.length ? `<p class="text-[9px] text-orange-500 font-bold tracking-tight">${item.adicionais.map(a => '+ ' + a.nome).join(', ')}</p>` : ''}
-                    </div>
-                    <span class="text-xs font-mono font-black text-blue-600 ml-2">${formatar(precoTotalItem)}</span>
-                </div>
-                <div class="flex justify-between items-center">
-                    <div class="flex items-center gap-4 bg-gray-50 rounded-xl px-3 py-1 border border-gray-100">
-                        <button onclick="alterQtd(${index}, -1)" class="text-red-500 font-black">-</button>
-                        <span class="text-xs font-mono font-black">${item.qtd}</span>
-                        <button onclick="alterQtd(${index}, 1)" class="text-green-600 font-black">+</button>
-                    </div>
-                    <button onclick="removerItem(${index})" class="text-[10px] text-gray-300 hover:text-red-500 uppercase font-bold">Excluir</button>
-                </div>
-            </div>`;
-        }).join('');
+        container.innerHTML = `
+            <div class="text-center py-20 text-gray-300" id="emptyCart">
+                <i class="fas fa-ghost text-5xl mb-4 opacity-20"></i>
+                <p class="text-sm italic">Seu carrinho está vazio</p>
+            </div>
+        `;
+        atualizarTotais();
+        return;
     }
+
+    container.innerHTML = carrinho.map((item, index) => {
+        const precoAdicionais = item.adicionais.reduce((acc, a) => acc + parseFloat(a.preco), 0);
+        const precoUnitarioFinal = item.precoBase + precoAdicionais;
+        const subtotalItem = precoUnitarioFinal * item.qtd;
+
+        return `
+            <div class="bg-white p-4 rounded-[1.4rem] border border-gray-100 shadow-sm">
+                <div class="flex justify-between items-start gap-3 mb-2">
+                    <div class="flex-1 min-w-0">
+                        <h4 class="text-xs font-black text-gray-800 uppercase leading-tight">${item.nome}</h4>
+
+                        ${item.adicionais.length ? `
+                            <div class="mt-1 flex flex-wrap gap-1">
+                                ${item.adicionais.map(a => `
+                                    <span class="text-[10px] bg-orange-50 text-orange-600 border border-orange-200 px-2 py-1 rounded-lg font-bold">
+                                        + ${a.nome}
+                                    </span>
+                                `).join('')}
+                            </div>
+                        ` : ''}
+
+                        <div class="mt-2 text-[11px] text-gray-400 font-bold">
+                            Unitário: ${formatar(precoUnitarioFinal)}
+                        </div>
+                    </div>
+
+                    <div class="text-right shrink-0">
+                        <div class="text-[10px] uppercase text-gray-400 font-bold">Subtotal</div>
+                        <div class="text-sm font-mono font-black text-blue-600">${formatar(subtotalItem)}</div>
+                    </div>
+                </div>
+
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center gap-4 bg-gray-50 rounded-xl px-3 py-2 border border-gray-100">
+                        <button onclick="alterQtd(${index}, -1)" class="text-red-500 font-black text-base leading-none">-</button>
+                        <span class="text-xs font-mono font-black">${item.qtd}</span>
+                        <button onclick="alterQtd(${index}, 1)" class="text-green-600 font-black text-base leading-none">+</button>
+                    </div>
+
+                    <button onclick="removerItem(${index})" class="text-[10px] text-gray-300 hover:text-red-500 uppercase font-bold">
+                        Excluir
+                    </button>
+                </div>
+            </div>
+        `;
+    }).join('');
+
     atualizarTotais();
 }
 
@@ -586,8 +646,29 @@ function fecharModalSucesso() {
         modal.classList.add('hidden');
         carrinho = [];
         metodoPagamento = '';
+        tipoEntrega = true;
+
         document.getElementById('inputDesconto').value = "0,00";
-        document.querySelectorAll('.metodo-btn').forEach(b => b.classList.remove('selected', 'bg-blue-600', 'text-white'));
+        document.getElementById('nomeCliente').value = "";
+        document.getElementById('cep').value = "";
+        document.getElementById('rua').value = "";
+        document.getElementById('numero').value = "";
+
+        document.querySelectorAll('.metodo-btn').forEach(b =>
+            b.classList.remove('selected', 'bg-blue-600', 'text-white')
+        );
+
+        document.querySelectorAll('.entrega-btn').forEach(b =>
+            b.classList.remove('selected', 'bg-blue-600', 'text-white')
+        );
+
+        const botoesEntrega = document.querySelectorAll('.entrega-btn');
+        if (botoesEntrega.length > 0) {
+            botoesEntrega[0].classList.add('selected', 'bg-blue-600', 'text-white');
+        }
+
+        document.getElementById('enderecoBox').style.display = 'block';
+
         renderCarrinho();
     }, 300);
 }
@@ -808,31 +889,32 @@ mostrarAlerta(
 
 
 async function finalizarVenda() {
+    const nomeCliente = document.getElementById('nomeCliente').value.trim();
 
-if(tipoEntrega){
+    if (!nomeCliente) {
+        mostrarAlerta(
+            "Nome obrigatório",
+            "Preencha o nome do cliente para continuar.",
+            "aviso"
+        );
+        document.getElementById('nomeCliente').focus();
+        return;
+    }
 
-const cep =
-document.getElementById('cep').value;
+    if (tipoEntrega) {
+        const cep = document.getElementById('cep').value.trim();
+        const rua = document.getElementById('rua').value.trim();
+        const numero = document.getElementById('numero').value.trim();
 
-const rua =
-document.getElementById('rua').value;
-
-const numero =
-document.getElementById('numero').value;
-
-if(!cep || !rua || !numero){
-
-mostrarAlerta(
-"Endereço incompleto",
-"Preencha CEP, rua e número.",
-"aviso"
-);
-
-return;
-
-}
-
-}
+        if (!cep || !rua || !numero) {
+            mostrarAlerta(
+                "Endereço incompleto",
+                "Preencha CEP, rua e número.",
+                "aviso"
+            );
+            return;
+        }
+    }
 
     if (carrinho.length === 0) {
         mostrarAlerta("Carrinho Vazio", "Adicione pelo menos um item.", "aviso");
@@ -847,77 +929,55 @@ return;
     const valores = atualizarTotais();
 
     const dadosVenda = {
-
         carrinho: carrinho,
-
         subtotal: valores.subtotal,
         desconto: valores.desconto,
         total: valores.total,
-
         metodo_pagamento: metodoPagamento,
-
+        nome_cliente: nomeCliente,
         tipo_entrega: tipoEntrega ? "entrega" : "retirada",
-
         endereco: {
-
             cep: document.getElementById('cep').value,
-
             rua: document.getElementById('rua').value,
-
             numero: document.getElementById('numero').value
-
         }
-
     };
 
     try {
-
         const response = await fetch('', {
-
             method: 'POST',
-
             headers: {
-
                 'Content-Type': 'application/json',
-
                 'X-CSRFToken': getCookie('csrftoken')
-
             },
-
             body: JSON.stringify(dadosVenda)
-
         });
 
         const resultado = await response.json();
 
         if (resultado.success) {
-
             mostrarSucesso(
                 formatar(valores.total),
                 metodoPagamento.toUpperCase()
             );
-
         } else {
-
             mostrarAlerta(
                 "Erro",
                 resultado.message,
                 "erro"
             );
-
         }
 
     } catch (error) {
-
         mostrarAlerta(
             "Erro conexão",
             "Servidor indisponível.",
             "erro"
         );
-
     }
-
 }
+
+
 // Função auxiliar para pegar o token CSRF do Django
 function getCookie(name) {
     let cookieValue = null;
