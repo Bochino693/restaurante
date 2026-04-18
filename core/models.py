@@ -189,6 +189,13 @@ class Pedidos(Prime):
         default=0
     )
 
+    taxa_motoca = models.DecimalField(
+        decimal_places=2,
+        max_digits=9,
+        default=0,
+        verbose_name="Taxa Motoca"
+    )
+
     criado_em = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -215,3 +222,13 @@ class PratoDiaMaisClick(Prime):
     class Meta:
         verbose_name = "Prato do dia mais clicado"
         verbose_name_plural = "Pratos do dia mais clicados"
+
+
+class EnderecoLoja(Prime):
+    rua = models.CharField(max_length=150)
+    cep = models.CharField(max_length=16)
+    numero = models.CharField(max_length=50)
+
+    class Meta:
+        verbose_name = "Endereço da loja"
+        verbose_name_plural = "Endereços das lojas"

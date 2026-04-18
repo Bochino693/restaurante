@@ -98,6 +98,7 @@ class CaixaView(LoginRequiredMixin, View):
             cep = endereco.get("cep")
             rua = endereco.get("rua")
             numero = endereco.get("numero")
+            pedido.taxa_motoca = data.get("taxa_motoca", 0)
 
             if not carrinho:
                 return JsonResponse(

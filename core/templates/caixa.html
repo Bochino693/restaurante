@@ -203,7 +203,7 @@
     </div>
 
     <!-- ENTREGA / RETIRADA MAIS BAIXOS -->
-    <div class="grid grid-cols-2 gap-2">
+    <div class="grid grid-cols-3 gap-2">
         <button
             type="button"
             onclick="setEntrega(true, this)"
@@ -244,6 +244,19 @@
             placeholder="Rua"
             class="w-full border rounded-xl px-3 py-2 text-xs"
         >
+
+        <div class="bg-white border rounded-xl px-3 py-2">
+    <div class="text-[9px] font-black text-gray-400 uppercase leading-none mb-1">
+        Taxa Motoca
+    </div>
+    <input
+        id="inputMotoca"
+        type="text"
+        value="0,00"
+        onkeyup="mascaraMoeda(this)"
+        class="w-full text-left font-mono font-black text-gray-700 outline-none bg-transparent text-xs leading-none"
+    >
+</div>
     </div>
 
     <!-- RETIRADA -->
@@ -879,6 +892,8 @@ async function buscarCepAuto() {
 
 async function finalizarVenda() {
     const nomeCliente = document.getElementById('nomeCliente').value.trim();
+    const motocaRaw = document.getElementById('inputMotoca').value.replace(/[^\d]/g, '');
+    const taxaMotoca = parseFloat(motocaRaw) / 100 || 0;
 
     if (!nomeCliente) {
         mostrarAlerta("Nome obrigatório", "Preencha o nome do cliente para continuar.", "aviso");
@@ -914,6 +929,7 @@ async function finalizarVenda() {
         subtotal: valores.subtotal,
         desconto: valores.desconto,
         total: valores.total,
+        taxa_motoca: taxaMotoca,
         metodo_pagamento: metodoPagamento,
         nome_cliente: nomeCliente,
         tipo_entrega: tipoEntrega ? "entrega" : "retirada",
@@ -937,8 +953,27 @@ async function finalizarVenda() {
         const resultado = await response.json();
 
         if (resultado.success) {
-            mostrarSucesso(formatar(valores.total), metodoPagamento.toUpperCase());
-        } else {
+    // Monta objeto do pedido para impressão
+    const descRaw = document.getElementById('inputDesconto').value.replace(/[^\d]/g, '');
+    const desconto = parseFloat(descRaw) / 100 || 0;
+    const motocaRaw = document.getElementById('inputMotoca').value.replace(/[^\d]/g, '');
+    const taxaMotoca = parseFloat(motocaRaw) / 100 || 0;
+
+    imprimirDuasVias({
+        id: resultado.pedido_id,   // seu backend precisa retornar o id
+        nomeCliente: document.getElementById('nomeCliente').value.trim(),
+        itens: carrinho,
+        total: dadosVenda.total + taxaMotoca,
+        desconto: desconto,
+        taxaMotoca: taxaMotoca,
+        metodo: metodoPagamento,
+        entrega: tipoEntrega,
+        endereco: dadosVenda.endereco,
+        criadoEm: new Date().toLocaleString('pt-BR')
+    });
+
+    mostrarSucesso(formatar(dadosVenda.total), metodoPagamento.toUpperCase());
+}        else {
             mostrarAlerta("Erro", resultado.message, "erro");
         }
     } catch (error) {
