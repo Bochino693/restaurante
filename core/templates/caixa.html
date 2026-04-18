@@ -1062,18 +1062,22 @@ function imprimirDuasVias(pedido) {
         <title>Pedido #${id}</title>
         <style>
             * { margin: 0; padding: 0; box-sizing: border-box; }
-            body {
+               body {
                 font-family: 'Courier New', Courier, monospace;
                 font-size: 12px;
-                display: flex;
-                flex-direction: row;
-                gap: 0;
                 background: #fff;
             }
+
             .via {
-                width: 50%;
+                width: 100%;
                 padding: 10px 12px;
-                border-right: 1px dashed #999;
+                border-bottom: 1px dashed #999;
+                margin-bottom: 10px;
+                padding-bottom: 12px;
+            }
+
+            .via:last-child {
+                border-bottom: none;
             }
             .via:last-child { border-right: none; }
             .header { text-align: center; margin-bottom: 6px; }
