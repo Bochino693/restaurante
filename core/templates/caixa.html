@@ -665,13 +665,16 @@ function abrirModalAdicionais(id, nome, preco) {
     fetch(`/produto/${id}/adicionais/`)
         .then(res => res.json())
         .then(data => {
-            const container = document.getElementById("listaAdicionais");
-            document.getElementById('modalProdNome').innerText = nome;
-
+            // Se não tem adicionais, adiciona direto e garante que o modal está fechado
             if (!data || data.length === 0) {
                 addProduto(id, nome, preco, []);
+                fecharModal(); // <-- garante fechamento caso estivesse aberto
                 return;
             }
+
+            // Preenche o modal
+            const container = document.getElementById("listaAdicionais");
+            document.getElementById('modalProdNome').innerText = nome;
 
             container.innerHTML = data.map(add => `
                 <label class="flex justify-between items-center p-3 bg-gray-50 rounded-2xl cursor-pointer hover:bg-blue-50 transition-colors">
@@ -688,21 +691,22 @@ function abrirModalAdicionais(id, nome, preco) {
                 </label>
             `).join("");
 
+            // Configura o botão confirmar
             const btnConfirmar = document.getElementById('btnConfirmarAdicional');
+            // Remove listener anterior para evitar duplicação
+            const btnNovo = btnConfirmar.cloneNode(true);
+            btnConfirmar.parentNode.replaceChild(btnNovo, btnConfirmar);
 
-            btnConfirmar.onclick = () => {
+            btnNovo.addEventListener('click', () => {
                 const selecionados = [];
                 document.querySelectorAll('.add-check:checked').forEach(c => {
-                    selecionados.push({
-                        nome: c.dataset.nome,
-                        preco: c.dataset.preco
-                    });
+                    selecionados.push({ nome: c.dataset.nome, preco: c.dataset.preco });
                 });
-
                 addProduto(id, nome, preco, selecionados);
                 fecharModal();
-            };
+            });
 
+            // Abre o modal
             document.getElementById("modalAdicionais").classList.remove("hidden");
         })
         .catch(() => {
@@ -714,11 +718,11 @@ function fecharModal() {
     const modal = document.getElementById('modalAdicionais');
     modal.classList.add('hidden');
 
-    document.querySelectorAll('.add-check').forEach(el => {
-        el.checked = false;
-    });
+    // Limpa checkboxes
+    document.querySelectorAll('.add-check').forEach(el => el.checked = false);
 
-    document.getElementById('btnConfirmarAdicional').onclick = null;
+    // Limpa conteúdo do container para evitar estado sujo na próxima abertura
+    document.getElementById('listaAdicionais').innerHTML = '';
 }
 
 function setMetodo(met, btnElement) {
