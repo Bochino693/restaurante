@@ -88,17 +88,15 @@ class CaixaView(LoginRequiredMixin, View):
 
             carrinho = data.get("carrinho", [])
             total = data.get("total", 0)
-
+            taxa_motoca = data.get("taxa_motoca", 0)  # ← movido para cá, antes de usar
             metodo_pagamento = data.get("metodo_pagamento")
             tipo_entrega = data.get("tipo_entrega")
-
             nome_cliente = data.get("nome_cliente")
 
             endereco = data.get("endereco", {})
             cep = endereco.get("cep")
             rua = endereco.get("rua")
             numero = endereco.get("numero")
-            pedido.taxa_motoca = data.get("taxa_motoca", 0)
 
             if not carrinho:
                 return JsonResponse(
@@ -119,15 +117,16 @@ class CaixaView(LoginRequiredMixin, View):
                 )
 
             with transaction.atomic():
-
                 pedido = Pedidos.objects.create(
                     nome_cliente=nome_cliente,
                     total=total,
+                    taxa_motoca=taxa_motoca,  # ← salvo direto no create
                     forma_pagamento=metodo_pagamento.upper(),
                     entrega=True if tipo_entrega == "entrega" else False,
                     cep=cep,
                     rua=rua,
-                    numero=numero
+                    numero=numero,
+                    impresso=True  # ← marca como impresso ao finalizar
                 )
 
                 itens = []
@@ -137,10 +136,7 @@ class CaixaView(LoginRequiredMixin, View):
 
                     preco_base = float(item["precoBase"])
                     adicionais = item.get("adicionais", [])
-
-                    soma_adicionais = sum(
-                        float(a["preco"]) for a in adicionais
-                    )
+                    soma_adicionais = sum(float(a["preco"]) for a in adicionais)
 
                     preco_unitario = preco_base + soma_adicionais
                     subtotal_item = preco_unitario * int(item["qtd"])
