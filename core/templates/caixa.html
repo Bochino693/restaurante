@@ -443,6 +443,9 @@
 
 </style>
 
+
+<script src="https://cdn.jsdelivr.net/npm/qz-tray/qz-tray.js"></script>
+
 <script>
 let carrinho = [];
 let metodoPagamento = '';
@@ -1001,127 +1004,79 @@ function getCookie(name) {
     return cookieValue;
 }
 
-function imprimirDuasVias(pedido) {
-    const { id, nomeCliente, itens, total, desconto, taxaMotoca, metodo, entrega, endereco, criadoEm } = pedido;
+async function imprimirDuasVias(pedido) {
 
-    const viaHTML = (numeroVia, titulo) => `
-        <div class="via">
-            <div class="header">
-                <div class="logo">🍽️ SEU RESTAURANTE</div>
-                <div class="sub">PEDIDO #${id} &nbsp;|&nbsp; ${titulo}</div>
-                <div class="data">${criadoEm}</div>
-            </div>
-            <div class="divider">------------------------------------</div>
-            <div class="cliente">
-                <strong>Cliente:</strong> ${nomeCliente}<br>
-                <strong>Pagamento:</strong> ${metodo.toUpperCase()}<br>
-                <strong>Tipo:</strong> ${entrega ? '🏍️ Entrega' : '🏪 Retirada no balcão'}
-                ${entrega && endereco?.rua ? `<br><strong>Endereço:</strong> ${endereco.rua}, ${endereco.numero} — CEP ${endereco.cep}` : ''}
-            </div>
-            <div class="divider">------------------------------------</div>
-            <table>
-                <thead>
-                    <tr>
-                        <th class="col-qtd">Qtd</th>
-                        <th class="col-nome">Item</th>
-                        <th class="col-preco">Valor</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${itens.map(item => {
-                        const precoAdicional = (item.adicionais || []).reduce((a, b) => a + parseFloat(b.preco), 0);
-                        const precoUnit = item.precoBase + precoAdicional;
-                        const subtotalItem = precoUnit * item.qtd;
-                        const adicionaisStr = item.adicionais?.length
-                            ? `<br><span class="add-tag">+ ${item.adicionais.map(a => a.nome).join(', ')}</span>`
-                            : '';
-                        return `
-                            <tr>
-                                <td class="col-qtd">${item.qtd}x</td>
-                                <td class="col-nome">${item.nome}${adicionaisStr}</td>
-                                <td class="col-preco">R$ ${subtotalItem.toFixed(2).replace('.', ',')}</td>
-                            </tr>`;
-                    }).join('')}
-                </tbody>
-            </table>
-            <div class="divider">------------------------------------</div>
-            <div class="totais">
-                ${desconto > 0 ? `<div class="linha-total"><span>Desconto:</span><span>- R$ ${desconto.toFixed(2).replace('.', ',')}</span></div>` : ''}
-                ${taxaMotoca > 0 ? `<div class="linha-total"><span>Taxa Motoboy:</span><span>R$ ${taxaMotoca.toFixed(2).replace('.', ',')}</span></div>` : ''}
-                <div class="linha-total total-final"><span>TOTAL:</span><span>R$ ${total.toFixed(2).replace('.', ',')}</span></div>
-            </div>
-            <div class="divider">------------------------------------</div>
-            <div class="rodape">Obrigado pela preferência! 😊</div>
-        </div>
-    `;
+    const impressora = "MP-4200 TH"; // nome exato da impressora no Windows
 
-    const html = `<!DOCTYPE html>
-    <html lang="pt-BR">
-    <head>
-        <meta charset="UTF-8">
-        <title>Pedido #${id}</title>
-        <style>
-            * { margin: 0; padding: 0; box-sizing: border-box; }
-               body {
-                font-family: 'Courier New', Courier, monospace;
-                font-size: 12px;
-                background: #fff;
-            }
+    const texto = gerarTextoCupom(pedido);
 
-            .via {
-                width: 100%;
-                padding: 10px 12px;
-                border-bottom: 1px dashed #999;
-                margin-bottom: 10px;
-                padding-bottom: 12px;
-            }
+    try {
 
-            .via:last-child {
-                border-bottom: none;
-            }
-            .via:last-child { border-right: none; }
-            .header { text-align: center; margin-bottom: 6px; }
-            .logo { font-size: 14px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; }
-            .sub { font-size: 11px; font-weight: bold; margin-top: 2px; }
-            .data { font-size: 10px; color: #555; margin-top: 2px; }
-            .divider { color: #999; font-size: 10px; margin: 6px 0; letter-spacing: 1px; }
-            .cliente { font-size: 11px; line-height: 1.7; }
-            table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 4px; }
-            th { text-align: left; font-size: 10px; text-transform: uppercase; padding-bottom: 4px; border-bottom: 1px solid #ccc; }
-            td { padding: 3px 0; vertical-align: top; line-height: 1.4; }
-            .col-qtd { width: 26px; }
-            .col-preco { text-align: right; white-space: nowrap; }
-            .add-tag { font-size: 10px; color: #c05600; font-style: italic; }
-            .totais { font-size: 11px; margin-top: 4px; }
-            .linha-total { display: flex; justify-content: space-between; padding: 2px 0; }
-            .total-final { font-size: 14px; font-weight: bold; margin-top: 4px; }
-            .rodape { text-align: center; font-size: 11px; color: #555; margin-top: 6px; }
-            @media print {
-                body { background: white; }
-                .via { border-right: 1px dashed #aaa; }
-                .via:last-child { border-right: none; }
-            }
-        </style>
-    </head>
-    <body>
-        ${viaHTML(1, '1ª VIA — BALCÃO')}
-        ${viaHTML(2, '2ª VIA — COZINHA')}
-    </body>
-    </html>`;
+        await qz.websocket.connect();
 
-    const janela = window.open('', '_blank', 'width=700,height=500,toolbar=0,menubar=0');
-    if (!janela) {
-        mostrarAlerta("Bloqueio de popup", "Permita popups neste site para imprimir o comprovante.", "aviso");
-        return;
+        const config = qz.configs.create(impressora);
+
+        const data = [{
+            type: 'raw',
+            format: 'plain',
+            data: texto
+        }];
+
+        await qz.print(config, data);
+
+        qz.websocket.disconnect();
+
+    } catch (error) {
+
+        console.error(error);
+
+        mostrarAlerta(
+            "Erro impressão",
+            "Não foi possível conectar na impressora.",
+            "erro"
+        );
+
     }
-    janela.document.write(html);
-    janela.document.close();
-    janela.focus();
-    setTimeout(() => {
-        janela.print();
-        janela.close();
-    }, 500);
+
 }
+
+function gerarTextoCupom(pedido) {
+
+    let texto = "";
+
+    texto += "SEU RESTAURANTE\n";
+    texto += "PEDIDO #" + pedido.id + "\n";
+    texto += "-----------------------------\n";
+
+    texto += "Cliente: " + pedido.nomeCliente + "\n";
+    texto += "Pagamento: " + pedido.metodo.toUpperCase() + "\n";
+
+    texto += pedido.entrega
+        ? "Entrega\n"
+        : "Retirada\n";
+
+    texto += "-----------------------------\n";
+
+    pedido.itens.forEach(item => {
+
+        const adicionais = item.adicionais
+            .map(a => " + " + a.nome)
+            .join("");
+
+        texto += item.qtd + "x " + item.nome + adicionais + "\n";
+
+    });
+
+    texto += "-----------------------------\n";
+
+    texto += "TOTAL: R$ " + pedido.total.toFixed(2) + "\n";
+
+    texto += "\n\n\n";
+
+    return texto;
+
+}
+
 
 
 document.addEventListener('DOMContentLoaded', function () {
