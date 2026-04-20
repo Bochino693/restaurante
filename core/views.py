@@ -171,6 +171,51 @@ class CaixaView(LoginRequiredMixin, View):
             }, status=500)
 
 
+def pedidos_pendentes_impressao(request):
+    """Retorna pedidos com impresso=False e marca como impresso"""
+    if request.method == 'GET':
+        pedidos = Pedidos.objects.filter(
+            impresso=False
+        ).prefetch_related('itens__produto').order_by('criado_em')
+
+        resultado = []
+        ids_imprimir = []
+
+        for pedido in pedidos:
+            itens = []
+            for item in pedido.itens.all():
+                itens.append({
+                    'nome': item.produto.nome_produto if item.produto else 'Produto removido',
+                    'quantidade': item.quantidade,
+                    'preco_unitario': str(item.preco_unitario),
+                    'subtotal': str(item.subtotal),
+                    'adicionais': item.adicionais or []
+                })
+
+            resultado.append({
+                'id': pedido.id,
+                'nome_cliente': pedido.nome_cliente,
+                'forma_pagamento': pedido.forma_pagamento,
+                'entrega': pedido.entrega,
+                'rua': pedido.rua or '',
+                'numero': pedido.numero or '',
+                'cep': pedido.cep or '',
+                'total': str(pedido.total),
+                'taxa_motoca': str(pedido.taxa_motoca),
+                'criado_em': pedido.criado_em.strftime('%d/%m/%Y %H:%M'),
+                'itens': itens
+            })
+
+            ids_imprimir.append(pedido.id)
+
+        # Marca todos como impressos de uma vez
+        if ids_imprimir:
+            Pedidos.objects.filter(id__in=ids_imprimir).update(impresso=True)
+
+        return JsonResponse({'pedidos': resultado})
+
+    return JsonResponse({'erro': 'Método inválido'}, status=405)
+
 def adicionais_produto(request, produto_id):
     produto = get_object_or_404(Produtos, id=produto_id)
     adicionais = produto.adicionais_disponiveis.filter(ativo=True)

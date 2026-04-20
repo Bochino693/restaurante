@@ -3,7 +3,7 @@ from django.urls import path, include
 from .views import (CaixaView, EstoqueView,
                     PedidosView, CardapioClienteView,
                     adicionais_produto, VendasView, DashboardAnalyticsView,
-                    LoginView, LogoutView, GerenciarPratosDiaView, RemoverPratoDiaView, avancar_status)
+                    LoginView, LogoutView, GerenciarPratosDiaView, RemoverPratoDiaView, avancar_status, pedidos_pendentes_impressao)
 
 urlpatterns = [
     path('', CardapioClienteView.as_view(), name='cardapio'),
@@ -20,6 +20,8 @@ urlpatterns = [
     path('admin-cardapio/pratos-do-dia/', GerenciarPratosDiaView.as_view(), name='gerenciar_pratos_dia'),
     path('pedido/<int:pedido_id>/avancar-status/', avancar_status, name='avancar_status'),
     path('admin-cardapio/pratos-do-dia/remover/<int:pk>/', RemoverPratoDiaView.as_view(), name='remover_prato_dia'),
+
+    path('api/pedidos-impressao/', pedidos_pendentes_impressao, name='pedidos_impressao'),
 
 
     path("logout/", LogoutView.as_view(), name="logout"),
