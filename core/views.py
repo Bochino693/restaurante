@@ -126,7 +126,7 @@ class CaixaView(LoginRequiredMixin, View):
                     cep=cep,
                     rua=rua,
                     numero=numero,
-                    impresso=True  # ← marca como impresso ao finalizar
+                    impresso=False  # ← marca como impresso ao finalizar
                 )
 
                 itens = []
@@ -171,50 +171,67 @@ class CaixaView(LoginRequiredMixin, View):
             }, status=500)
 
 
+
+# Novo endpoint de confirmação
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
+
+@csrf_exempt
+@require_POST
+def confirmar_impressao(request, pedido_id):
+    chave = request.headers.get('X-API-Key')
+    if chave != 'chave-secreta-restaurante-2026':
+        return JsonResponse({'erro': 'Não autorizado'}, status=401)
+
+    atualizado = Pedidos.objects.filter(id=pedido_id, impresso=False).update(impresso=True)
+    if atualizado:
+        return JsonResponse({'ok': True})
+    return JsonResponse({'erro': 'Pedido não encontrado ou já impresso'}, status=404)
+
+
 def pedidos_pendentes_impressao(request):
-    """Retorna pedidos com impresso=False e marca como impresso"""
-    if request.method == 'GET':
-        pedidos = Pedidos.objects.filter(
-            impresso=False
-        ).prefetch_related('itens__produto').order_by('criado_em')
+    """Retorna pedidos com impresso=False — NÃO marca como impresso aqui"""
+    if request.headers.get('X-API-Key') != 'chave-secreta-restaurante-2026':
+        return JsonResponse({'erro': 'Não autorizado'}, status=401)
 
-        resultado = []
-        ids_imprimir = []
+    if request.method != 'GET':
+        return JsonResponse({'erro': 'Método inválido'}, status=405)
 
-        for pedido in pedidos:
-            itens = []
-            for item in pedido.itens.all():
-                itens.append({
-                    'nome': item.produto.nome_produto if item.produto else 'Produto removido',
-                    'quantidade': item.quantidade,
-                    'preco_unitario': str(item.preco_unitario),
-                    'subtotal': str(item.subtotal),
-                    'adicionais': item.adicionais or []
-                })
+    pedidos = (
+        Pedidos.objects
+        .filter(impresso=False)
+        .prefetch_related('itens__produto')
+        .order_by('criado_em')
+    )
 
-            resultado.append({
-                'id': pedido.id,
-                'nome_cliente': pedido.nome_cliente,
-                'forma_pagamento': pedido.forma_pagamento,
-                'entrega': pedido.entrega,
-                'rua': pedido.rua or '',
-                'numero': pedido.numero or '',
-                'cep': pedido.cep or '',
-                'total': str(pedido.total),
-                'taxa_motoca': str(pedido.taxa_motoca),
-                'criado_em': pedido.criado_em.strftime('%d/%m/%Y %H:%M'),
-                'itens': itens
+    resultado = []
+    for pedido in pedidos:
+        itens = []
+        for item in pedido.itens.all():
+            itens.append({
+                'nome': item.produto.nome_produto if item.produto else 'Produto removido',
+                'quantidade': item.quantidade,
+                'preco_unitario': str(item.preco_unitario),
+                'subtotal': str(item.subtotal),
+                'adicionais': item.adicionais or []
             })
 
-            ids_imprimir.append(pedido.id)
+        resultado.append({
+            'id': pedido.id,
+            'nome_cliente': pedido.nome_cliente,
+            'forma_pagamento': pedido.forma_pagamento,
+            'entrega': pedido.entrega,
+            'rua': pedido.rua or '',
+            'numero': pedido.numero or '',
+            'cep': pedido.cep or '',
+            'total': str(pedido.total),
+            'taxa_motoca': str(pedido.taxa_motoca),
+            'criado_em': pedido.criado_em.strftime('%d/%m/%Y %H:%M'),
+            'itens': itens
+        })
 
-        # Marca todos como impressos de uma vez
-        if ids_imprimir:
-            Pedidos.objects.filter(id__in=ids_imprimir).update(impresso=True)
+    return JsonResponse({'pedidos': resultado})
 
-        return JsonResponse({'pedidos': resultado})
-
-    return JsonResponse({'erro': 'Método inválido'}, status=405)
 
 def adicionais_produto(request, produto_id):
     produto = get_object_or_404(Produtos, id=produto_id)
@@ -265,9 +282,12 @@ class PedidosView(LoginRequiredMixin, View):
 
         # Cálculo dos Totais
         total_dia = pedidos_hoje.aggregate(total=Sum('total'))['total'] or 0
-        total_dinheiro = pedidos_hoje.filter(forma_pagamento=Pedidos.FormaPagamento.DINHEIRO).aggregate(total=Sum('total'))['total'] or 0
-        total_pix = pedidos_hoje.filter(forma_pagamento=Pedidos.FormaPagamento.PIX).aggregate(total=Sum('total'))['total'] or 0
-        total_cartao = pedidos_hoje.filter(forma_pagamento=Pedidos.FormaPagamento.CARTAO).aggregate(total=Sum('total'))['total'] or 0
+        total_dinheiro = \
+        pedidos_hoje.filter(forma_pagamento=Pedidos.FormaPagamento.DINHEIRO).aggregate(total=Sum('total'))['total'] or 0
+        total_pix = pedidos_hoje.filter(forma_pagamento=Pedidos.FormaPagamento.PIX).aggregate(total=Sum('total'))[
+                        'total'] or 0
+        total_cartao = pedidos_hoje.filter(forma_pagamento=Pedidos.FormaPagamento.CARTAO).aggregate(total=Sum('total'))[
+                           'total'] or 0
 
         return render(request, 'pedidos.html', {
             'pedidos': pedidos,
@@ -279,13 +299,12 @@ class PedidosView(LoginRequiredMixin, View):
             'pagamento_options': Pedidos.FormaPagamento.choices
         })
 
-class VendasView(LoginRequiredMixin, View):
 
+class VendasView(LoginRequiredMixin, View):
     template_name = "vendas.html"
     login_url = "login"  # ajuste se sua url de login tiver outro nome
 
     def get(self, request, *args, **kwargs):
-
         pedidos_finalizados = Pedidos.objects.filter(
             status=Pedidos.StatusPedido.FINALIZADO
         ).prefetch_related('itens__produto')
@@ -294,16 +313,13 @@ class VendasView(LoginRequiredMixin, View):
             status=Pedidos.StatusPedido.CANCELADO
         ).prefetch_related('itens__produto')
 
-
         total_finalizados = pedidos_finalizados.aggregate(
             total=Sum('total')
         )['total'] or 0
 
-
         total_cancelados = pedidos_cancelados.aggregate(
             total=Sum('total')
         )['total'] or 0
-
 
         context = {
 
@@ -343,13 +359,13 @@ def avancar_status(request, pedido_id):
     return redirect('historico_pedidos')
 
 
-
 from .models import (
     ProdutosMaisClick,
     PratoDiaMaisClick,
 )
 from django.views.generic import TemplateView
 from django.utils.timezone import now
+
 
 class DashboardAnalyticsView(LoginRequiredMixin, TemplateView):
     template_name = "dashboards.html"
@@ -380,7 +396,7 @@ class DashboardAnalyticsView(LoginRequiredMixin, TemplateView):
 
         # Receita total
         context["receita_total"] = (
-            Pedidos.objects.aggregate(total=Sum("total"))["total"] or 0
+                Pedidos.objects.aggregate(total=Sum("total"))["total"] or 0
         )
 
         # Total pedidos
