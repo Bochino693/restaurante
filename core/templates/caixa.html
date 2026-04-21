@@ -1004,79 +1004,108 @@ function getCookie(name) {
     return cookieValue;
 }
 
+
 async function imprimirDuasVias(pedido) {
-
-    const impressora = "MP-4200 TH"; // nome exato da impressora no Windows
-
-    const texto = gerarTextoCupom(pedido);
+    const impressora = "MP-4200 TH";
 
     try {
-
-        await qz.websocket.connect();
+        if (!qz.websocket.isActive()) {
+            await qz.websocket.connect();
+        }
 
         const config = qz.configs.create(impressora);
 
-        const data = [{
+        // VIA 1: BALCÃO (Completa)
+        const textoBalcao = gerarTextoBalcao(pedido);
+        const dataBalcao = [{
             type: 'raw',
             format: 'plain',
-            data: texto
+            data: textoBalcao,
+            options: { language: 'escpos', dotDensity: 'double' }
         }];
+        await qz.print(config, dataBalcao);
 
-        await qz.print(config, data);
+        // Pequena pausa para a impressora processar o corte
+        await new Promise(resolve => setTimeout(resolve, 500));
 
-        qz.websocket.disconnect();
+        // VIA 2: COZINHA (Simplificada)
+        const textoCozinha = gerarTextoCozinha(pedido);
+        const dataCozinha = [{
+            type: 'raw',
+            format: 'plain',
+            data: textoCozinha,
+            options: { language: 'escpos', dotDensity: 'double' }
+        }];
+        await qz.print(config, dataCozinha);
 
     } catch (error) {
-
         console.error(error);
+        mostrarAlerta("Erro impressão", "Verifique se o QZ Tray está aberto e a impressora conectada.", "erro");
+    }
+}
 
-        mostrarAlerta(
-            "Erro impressão",
-            "Não foi possível conectar na impressora.",
-            "erro"
-        );
+// Comandos ESC/POS para a Bematech/Epson
+const ESC_POS = {
+    INIT: '\x1B\x40',        // Inicializa
+    CENTER: '\x1B\x61\x01',  // Centraliza
+    LEFT: '\x1B\x61\x00',    // Esquerda
+    BOLD_ON: '\x1B\x45\x01', // Negrito ON
+    BOLD_OFF: '\x1B\x45\x00',// Negrito OFF
+    CUT: '\x1D\x56\x41\x03', // Corte total (e avança o papel automaticamente)
+    LINE_SPACE: '\n\n\n\n'   // Espaço extra antes do corte
+};
 
+function gerarTextoBalcao(pedido) {
+    let t = ESC_POS.INIT + ESC_POS.CENTER + ESC_POS.BOLD_ON;
+    t += "VIA BALCAO\n";
+    t += "PEDIDO #" + pedido.id + "\n" + ESC_POS.BOLD_OFF;
+    t += "--------------------------------\n";
+    t += ESC_POS.LEFT;
+    t += "Data: " + pedido.criadoEm + "\n";
+    t += "Cliente: " + pedido.nomeCliente + "\n";
+    t += "Pagamento: " + pedido.metodo.toUpperCase() + "\n";
+    t += pedido.entrega ? "ENTREGA\n" : "RETIRADA\n";
+
+    if(pedido.entrega && pedido.endereco) {
+        t += "End: " + pedido.endereco.rua + ", " + pedido.endereco.numero + "\n";
     }
 
-}
-
-function gerarTextoCupom(pedido) {
-
-    let texto = "";
-
-    texto += "SEU RESTAURANTE\n";
-    texto += "PEDIDO #" + pedido.id + "\n";
-    texto += "-----------------------------\n";
-
-    texto += "Cliente: " + pedido.nomeCliente + "\n";
-    texto += "Pagamento: " + pedido.metodo.toUpperCase() + "\n";
-
-    texto += pedido.entrega
-        ? "Entrega\n"
-        : "Retirada\n";
-
-    texto += "-----------------------------\n";
+    t += "--------------------------------\n";
+    t += ESC_POS.BOLD_ON + "ITENS:\n" + ESC_POS.BOLD_OFF;
 
     pedido.itens.forEach(item => {
-
-        const adicionais = item.adicionais
-            .map(a => " + " + a.nome)
-            .join("");
-
-        texto += item.qtd + "x " + item.nome + adicionais + "\n";
-
+        t += item.qtd + "x " + item.nome + "\n";
+        item.adicionais.forEach(a => t += "  + " + a.nome + "\n");
     });
 
-    texto += "-----------------------------\n";
+    t += "--------------------------------\n";
+    t += ESC_POS.BOLD_ON + "TOTAL: R$ " + pedido.total.toFixed(2) + "\n" + ESC_POS.BOLD_OFF;
 
-    texto += "TOTAL: R$ " + pedido.total.toFixed(2) + "\n";
-
-    texto += "\n\n\n";
-
-    return texto;
-
+    t += ESC_POS.LINE_SPACE + ESC_POS.CUT; // Avança e Corta
+    return t;
 }
 
+function gerarTextoCozinha(pedido) {
+    let t = ESC_POS.INIT + ESC_POS.CENTER + ESC_POS.BOLD_ON;
+    t += "VIA COZINHA\n";
+    t += "PEDIDO #" + pedido.id + "\n" + ESC_POS.BOLD_OFF;
+    t += "--------------------------------\n";
+    t += ESC_POS.LEFT;
+    t += "Cliente: " + pedido.nomeCliente + "\n";
+    t += "--------------------------------\n";
+    t += ESC_POS.BOLD_ON;
+
+    pedido.itens.forEach(item => {
+        t += item.qtd + "x " + item.nome.toUpperCase() + "\n";
+        item.adicionais.forEach(a => t += "  + " + a.nome.toUpperCase() + "\n");
+    });
+
+    t += ESC_POS.BOLD_OFF + "--------------------------------\n";
+    t += ESC_POS.CENTER + "Bom trabalho!\n";
+
+    t += ESC_POS.LINE_SPACE + ESC_POS.CUT; // Avança e Corta
+    return t;
+}
 
 
 document.addEventListener('DOMContentLoaded', function () {
@@ -1086,4 +1115,6 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('retiradaInfo').classList.add('hidden');
 });
 </script>
+
+
 {% endblock %}
