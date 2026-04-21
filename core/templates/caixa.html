@@ -1043,45 +1043,111 @@ async function imprimirDuasVias(pedido) {
         mostrarAlerta("Erro impressão", "Verifique se o QZ Tray está aberto e a impressora conectada.", "erro");
     }
 }
-
-// Comandos ESC/POS para a Bematech/Epson
+// Comandos ESC/POS atualizados para MP-4200 TH
 const ESC_POS = {
-    INIT: '\x1B\x40',        // Inicializa
-    CENTER: '\x1B\x61\x01',  // Centraliza
-    LEFT: '\x1B\x61\x00',    // Esquerda
-    BOLD_ON: '\x1B\x45\x01', // Negrito ON
-    BOLD_OFF: '\x1B\x45\x00',// Negrito OFF
-    CUT: '\x1D\x56\x41\x03', // Corte total (e avança o papel automaticamente)
-    LINE_SPACE: '\n\n\n\n'   // Espaço extra antes do corte
+    INIT: '\x1B\x40',
+    CENTER: '\x1B\x61\x01',
+    LEFT: '\x1B\x61\x00',
+    BOLD_ON: '\x1B\x45\x01',
+    BOLD_OFF: '\x1B\x45\x00',
+    DOUBLE_ON: '\x1D\x21\x11', // Fonte Dobrada (Altura e Largura)
+    DOUBLE_OFF: '\x1D\x21\x00',
+    CUT: '\x1D\x56\x41\x03',
+    LINE_SPACE: '\n\n\n\n\n'
 };
 
+async function imprimirDuasVias(pedido) {
+    const impressora = "MP-4200 TH";
+
+    try {
+        if (!qz.websocket.isActive()) {
+            await qz.websocket.connect();
+        }
+
+        // IMPORTANTE: Definir encoding para aceitar acentos (Latin1/ISO-8859-1)
+        const config = qz.configs.create(impressora, { encoding: 'ISO-8859-1' });
+
+        // VIA 1: BALCÃO
+        const textoBalcao = gerarTextoBalcao(pedido);
+        await qz.print(config, [{ type: 'raw', format: 'plain', data: textoBalcao }]);
+
+        await new Promise(resolve => setTimeout(resolve, 600));
+
+        // VIA 2: COZINHA
+        const textoCozinha = gerarTextoCozinha(pedido);
+        await qz.print(config, [{ type: 'raw', format: 'plain', data: textoCozinha }]);
+
+    } catch (error) {
+        console.error(error);
+        mostrarAlerta("Erro impressão", "Verifique a conexão com a impressora.", "erro");
+    }
+}
+
 function gerarTextoBalcao(pedido) {
-    let t = ESC_POS.INIT + ESC_POS.CENTER + ESC_POS.BOLD_ON;
+    let t = ESC_POS.INIT;
+
+    // Cabeçalho Centralizado
+    t += ESC_POS.CENTER + ESC_POS.BOLD_ON + ESC_POS.DOUBLE_ON;
     t += "VIA BALCAO\n";
-    t += "PEDIDO #" + pedido.id + "\n" + ESC_POS.BOLD_OFF;
+    t += "PEDIDO #" + pedido.id + "\n";
+    t += ESC_POS.DOUBLE_OFF + ESC_POS.BOLD_OFF;
     t += "--------------------------------\n";
-    t += ESC_POS.LEFT;
+
+    // Info Cliente Centralizada
     t += "Data: " + pedido.criadoEm + "\n";
-    t += "Cliente: " + pedido.nomeCliente + "\n";
+    t += "Cliente: " + pedido.nomeCliente.toUpperCase() + "\n";
     t += "Pagamento: " + pedido.metodo.toUpperCase() + "\n";
-    t += pedido.entrega ? "ENTREGA\n" : "RETIRADA\n";
+    t += pedido.entrega ? "TIPO: ENTREGA\n" : "TIPO: RETIRADA\n";
 
     if(pedido.entrega && pedido.endereco) {
         t += "End: " + pedido.endereco.rua + ", " + pedido.endereco.numero + "\n";
     }
-
     t += "--------------------------------\n";
-    t += ESC_POS.BOLD_ON + "ITENS:\n" + ESC_POS.BOLD_OFF;
 
+    // Itens Centralizados (Nome das marmitas)
+    t += ESC_POS.BOLD_ON + "ITENS DO PEDIDO\n" + ESC_POS.BOLD_OFF;
     pedido.itens.forEach(item => {
-        t += item.qtd + "x " + item.nome + "\n";
-        item.adicionais.forEach(a => t += "  + " + a.nome + "\n");
+        // Centraliza o nome e quantidade
+        t += item.qtd + "x " + item.nome.toUpperCase() + "\n";
+        item.adicionais.forEach(a => {
+            t += " + " + a.nome.toLowerCase() + "\n";
+        });
     });
 
     t += "--------------------------------\n";
     t += ESC_POS.BOLD_ON + "TOTAL: R$ " + pedido.total.toFixed(2) + "\n" + ESC_POS.BOLD_OFF;
 
-    t += ESC_POS.LINE_SPACE + ESC_POS.CUT; // Avança e Corta
+    t += ESC_POS.LINE_SPACE + ESC_POS.CUT;
+    return t;
+}
+
+function gerarTextoCozinha(pedido) {
+    let t = ESC_POS.INIT + ESC_POS.CENTER;
+
+    t += ESC_POS.BOLD_ON + ESC_POS.DOUBLE_ON;
+    t += "COZINHA\n";
+    t += "PEDIDO #" + pedido.id + "\n";
+    t += ESC_POS.DOUBLE_OFF + ESC_POS.BOLD_OFF;
+    t += "--------------------------------\n";
+
+    t += "CLIENTE: " + pedido.nomeCliente.toUpperCase() + "\n";
+    t += "--------------------------------\n";
+
+    // Itens da Cozinha em destaque
+    t += ESC_POS.BOLD_ON;
+    pedido.itens.forEach(item => {
+        t += item.qtd + "x " + item.nome.toUpperCase() + "\n";
+        item.adicionais.forEach(a => {
+            t += ">> ADIC: " + a.nome.toUpperCase() + "\n";
+        });
+        t += "\n"; // Espaço entre marmitas
+    });
+    t += ESC_POS.BOLD_OFF;
+
+    t += "--------------------------------\n";
+    t += "BOM TRABALHO!\n";
+
+    t += ESC_POS.LINE_SPACE + ESC_POS.CUT;
     return t;
 }
 
