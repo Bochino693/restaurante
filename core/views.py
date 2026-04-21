@@ -126,7 +126,7 @@ class CaixaView(LoginRequiredMixin, View):
                     cep=cep,
                     rua=rua,
                     numero=numero,
-                    impresso=False  # ← marca como impresso ao finalizar
+                    impresso=True  # ← marca como impresso ao finalizar
                 )
 
                 itens = []
