@@ -4,7 +4,7 @@ from .views import (CaixaView, EstoqueView,
                     PedidosView, CardapioClienteView,
                     adicionais_produto, VendasView, DashboardAnalyticsView,
                     LoginView, LogoutView, GerenciarPratosDiaView, RemoverPratoDiaView, avancar_status,
-                    confirmar_impressao, pedidos_pendentes_impressao, co)
+                    confirmar_impressao, pedidos_pendentes_impressao)
 
 urlpatterns = [
     path('', CardapioClienteView.as_view(), name='cardapio'),
