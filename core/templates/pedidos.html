@@ -48,6 +48,12 @@
                     <span class="font-black text-sm leading-none">R$ {{ total_cartao|default:"0,00" }}</span>
                 </div>
 
+                <!-- NOVA JANELINHA -->
+                <div class="bg-violet-50 text-violet-600 px-4 py-2 rounded-2xl flex flex-col shadow-sm border border-violet-100 min-w-[120px]">
+                    <span class="text-[9px] font-black uppercase">Taxa Motoca Hoje</span>
+                    <span class="font-black text-sm leading-none">R$ {{ total_taxa_motoca|default:"0,00" }}</span>
+                </div>
+
                 <div class="bg-orange-100 text-orange-600 px-5 py-2 rounded-2xl flex flex-col shadow-sm border border-orange-200">
                     <span class="text-[10px] font-black uppercase">Total Hoje</span>
                     <span class="font-black text-lg leading-none">R$ {{ total_dia|default:"0,00" }}</span>
@@ -85,9 +91,23 @@
                         </div>
                     </div>
 
-                    <div class="flex justify-between items-center mb-4">
-                        <div class="text-lg font-black text-green-600">R$ {{ pedido.total }}</div>
-                        <div class="text-[10px] font-bold text-gray-400 uppercase">{{ pedido.get_forma_pagamento_display }}</div>
+                    <!-- TOTAL + TAXA MOTOCA -->
+                    <div class="flex justify-between items-start mb-4 gap-3">
+                        <div class="space-y-2">
+                            <div class="text-lg font-black text-green-600">R$ {{ pedido.total }}</div>
+
+                            {% if pedido.taxa_motoca and pedido.taxa_motoca > 0 %}
+                            <div class="inline-flex items-center gap-2 bg-violet-50 text-violet-600 px-3 py-1 rounded-xl border border-violet-100">
+                                <i class="fas fa-motorcycle text-[10px]"></i>
+                                <span class="text-[10px] font-black uppercase">Taxa Motoca</span>
+                                <span class="text-[11px] font-black">R$ {{ pedido.taxa_motoca }}</span>
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="text-[10px] font-bold text-gray-400 uppercase text-right">
+                            {{ pedido.get_forma_pagamento_display }}
+                        </div>
                     </div>
 
                     <div class="space-y-3 mb-4">
@@ -102,6 +122,27 @@
                             </span>
                             {% endif %}
                         </div>
+
+                        <!-- DESCRIÇÃO -->
+                        {% if pedido.descricao %}
+                        <div class="bg-amber-50 border border-amber-100 rounded-2xl p-3 shadow-sm">
+                            <div class="flex items-start gap-3">
+                                <div class="w-10 h-10 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
+                                    <i class="fas fa-note-sticky"></i>
+                                </div>
+
+                                <div class="min-w-0 flex-1">
+                                    <div class="text-[9px] font-black uppercase tracking-widest text-amber-500 mb-1">
+                                        Descrição
+                                    </div>
+
+                                    <div class="text-sm font-bold text-gray-800 leading-tight break-words whitespace-pre-line">
+                                        {{ pedido.descricao }}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
 
                         {% if pedido.entrega and pedido.rua %}
                         <div class="bg-gradient-to-r from-indigo-50 to-sky-50 border border-indigo-100 rounded-2xl p-3 shadow-sm">
@@ -194,7 +235,7 @@
         </div>
 
         <div id="statusTimeline" class="flex flex-col gap-3 mb-6 relative">
-            </div>
+        </div>
 
         <form id="formAvancarStatus" method="POST" action="">
             {% csrf_token %}
@@ -227,164 +268,104 @@
 
 .btnPeriodo,
 .btnPagamento {
-
 background:#f3f4f6;
 color:#6b7280;
-
 padding:8px 18px;
-
 border-radius:999px;
-
 font-size:11px;
-
 font-weight:900;
-
 letter-spacing:.08em;
-
 transition:.2s;
-
 }
 
 .btnPeriodo:hover,
 .btnPagamento:hover {
-
 background:#fed7aa;
-
 color:#ea580c;
-
 }
 
 .btnPeriodo.ativo,
 .btnPagamento.ativo {
-
 background:#f97316;
-
 color:white;
-
 box-shadow:0 6px 18px rgba(249,115,22,.25);
-
 }
 
-    .endereco-entrega-card {
+.endereco-entrega-card {
     background: linear-gradient(90deg, #eef2ff 0%, #f0f9ff 100%);
     border: 1px solid #c7d2fe;
 }
 </style>
 
 <script>
-// --- LÓGICA DE FILTROS ---
 let periodoAtual = "hoje";
-
 let pagamentosSelecionados = new Set();
 
 function setPeriodo(event, periodo){
-
-document.querySelectorAll(".btnPeriodo")
-.forEach(btn=>btn.classList.remove("ativo"));
-
-event.currentTarget.classList.add("ativo");
-
-periodoAtual = periodo;
-
-filtrarPedidos();
-
+    document.querySelectorAll(".btnPeriodo").forEach(btn=>btn.classList.remove("ativo"));
+    event.currentTarget.classList.add("ativo");
+    periodoAtual = periodo;
+    filtrarPedidos();
 }
 
 function togglePagamento(event, tipo){
-
-if(pagamentosSelecionados.has(tipo)){
-
-pagamentosSelecionados.delete(tipo);
-
-event.currentTarget.classList.remove("ativo");
-
-}else{
-
-pagamentosSelecionados.add(tipo);
-
-event.currentTarget.classList.add("ativo");
-
-}
-
-filtrarPedidos();
-
+    if(pagamentosSelecionados.has(tipo)){
+        pagamentosSelecionados.delete(tipo);
+        event.currentTarget.classList.remove("ativo");
+    }else{
+        pagamentosSelecionados.add(tipo);
+        event.currentTarget.classList.add("ativo");
+    }
+    filtrarPedidos();
 }
 
 function filtrarPedidos(){
+    const hoje = new Date();
+    const cards = document.querySelectorAll(".pedido-card");
 
-const hoje = new Date();
+    cards.forEach(card=>{
+        const dataPedido = new Date(card.dataset.data);
 
-const cards = document.querySelectorAll(".pedido-card");
+        let matchPeriodo = true;
 
-cards.forEach(card=>{
+        switch(periodoAtual){
+            case "hoje":
+                matchPeriodo = dataPedido.toDateString() === hoje.toDateString();
+                break;
 
-const dataPedido = new Date(card.dataset.data);
+            case "semana":
+                const inicioSemana = new Date();
+                inicioSemana.setDate(hoje.getDate()-7);
+                matchPeriodo = dataPedido >= inicioSemana;
+                break;
 
-let matchPeriodo = true;
+            case "quinzena":
+                const inicioQuinzena = new Date();
+                inicioQuinzena.setDate(hoje.getDate()-15);
+                matchPeriodo = dataPedido >= inicioQuinzena;
+                break;
 
-switch(periodoAtual){
+            case "mes":
+                matchPeriodo =
+                dataPedido.getMonth() === hoje.getMonth() &&
+                dataPedido.getFullYear() === hoje.getFullYear();
+                break;
 
-case "hoje":
+            case "todos":
+                matchPeriodo = true;
+                break;
+        }
 
-matchPeriodo =
-dataPedido.toDateString() === hoje.toDateString();
+        let matchPagamento = true;
 
-break;
+        if(pagamentosSelecionados.size > 0){
+            matchPagamento = pagamentosSelecionados.has(card.dataset.pagamento);
+        }
 
-case "semana":
-
-const inicioSemana = new Date();
-
-inicioSemana.setDate(hoje.getDate()-7);
-
-matchPeriodo = dataPedido >= inicioSemana;
-
-break;
-
-case "quinzena":
-
-const inicioQuinzena = new Date();
-
-inicioQuinzena.setDate(hoje.getDate()-15);
-
-matchPeriodo = dataPedido >= inicioQuinzena;
-
-break;
-
-case "mes":
-
-matchPeriodo =
-dataPedido.getMonth() === hoje.getMonth() &&
-dataPedido.getFullYear() === hoje.getFullYear();
-
-break;
-
-case "todos":
-
-matchPeriodo = true;
-
-break;
-
+        card.style.display = matchPeriodo && matchPagamento ? "flex" : "none";
+    });
 }
 
-let matchPagamento = true;
-
-if(pagamentosSelecionados.size > 0){
-
-matchPagamento =
-pagamentosSelecionados.has(card.dataset.pagamento);
-
-}
-
-card.style.display =
-matchPeriodo && matchPagamento
-? "flex"
-: "none";
-
-});
-
-}
-// --- LÓGICA DO MODAL DE STATUS ---
 const STATUS_FLUXO = [
     { key: 'PAGO', label: 'Pago', icon: 'fa-money-bill' },
     { key: 'PREPARO', label: 'Em Preparo', icon: 'fa-fire-burner' },
@@ -400,8 +381,6 @@ const inputConfirmacao = document.getElementById('inputConfirmacao');
 const btnConfirmar = document.getElementById('btnConfirmarStatus');
 
 function abrirModalStatus(pedidoId, statusAtual, formaPagamento) {
-    // 1. Gera a URL correta usando o nome da rota definido no urls.py
-    // Usamos o ID '0' como placeholder e substituímos pelo ID real do pedido
     const urlBase = "{% url 'avancar_status' 0 %}".replace('0', pedidoId);
     formStatus.action = urlBase;
 
@@ -451,7 +430,6 @@ function abrirModalStatus(pedidoId, statusAtual, formaPagamento) {
         btnConfirmar.classList.remove('opacity-50', 'cursor-not-allowed');
     }
 
-    // Resetar o botão para o estado padrão caso tenha dado erro em uma tentativa anterior
     resetarBotao();
 
     modal.classList.remove('hidden');
@@ -490,7 +468,6 @@ function validarConfirmacao() {
     }
 }
 
-// --- LÓGICA DE SUBMISSÃO AJAX E ANIMAÇÃO DO BOTÃO ---
 function resetarBotao() {
     btnConfirmar.className = "w-full bg-green-500 text-white font-black py-4 rounded-2xl shadow-lg shadow-green-500/30 hover:scale-[1.02] transition-all uppercase tracking-widest text-xs";
     btnConfirmar.innerHTML = "Confirmar Avanço";
@@ -523,27 +500,20 @@ formStatus.addEventListener('submit', function(e) {
         return data;
     })
     .then(data => {
-
         btnConfirmar.classList.remove('bg-green-500', 'shadow-green-500/30');
         btnConfirmar.classList.add('bg-blue-500', 'shadow-blue-500/30');
-
         btnConfirmar.innerHTML = '<i class="fas fa-check-circle text-lg"></i> Sucesso!';
-
         setTimeout(() => window.location.reload(), 800);
-
     })
     .catch(error => {
-
         btnConfirmar.classList.remove('bg-green-500', 'shadow-green-500/30');
         btnConfirmar.classList.add('bg-red-500', 'shadow-red-500/30');
-
         btnConfirmar.innerHTML = `<i class="fas fa-times-circle text-lg"></i> ${error.message}`;
 
         setTimeout(() => {
             resetarBotao();
             btnConfirmar.disabled = false;
         }, 2500);
-
     });
 });
 </script>

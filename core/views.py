@@ -298,17 +298,35 @@ class PedidosView(LoginRequiredMixin, View):
             .order_by('-criado_em')
         )
 
-        # Base de pedidos de hoje que não foram cancelados
-        pedidos_hoje = Pedidos.objects.filter(criado_em__date=hoje).exclude(status=Pedidos.StatusPedido.CANCELADO)
+        pedidos_hoje = (
+            Pedidos.objects
+            .filter(criado_em__date=hoje)
+            .exclude(status=Pedidos.StatusPedido.CANCELADO)
+        )
 
-        # Cálculo dos Totais
         total_dia = pedidos_hoje.aggregate(total=Sum('total'))['total'] or 0
-        total_dinheiro = \
-        pedidos_hoje.filter(forma_pagamento=Pedidos.FormaPagamento.DINHEIRO).aggregate(total=Sum('total'))['total'] or 0
-        total_pix = pedidos_hoje.filter(forma_pagamento=Pedidos.FormaPagamento.PIX).aggregate(total=Sum('total'))[
-                        'total'] or 0
-        total_cartao = pedidos_hoje.filter(forma_pagamento=Pedidos.FormaPagamento.CARTAO).aggregate(total=Sum('total'))[
-                           'total'] or 0
+        total_dinheiro = (
+            pedidos_hoje
+            .filter(forma_pagamento=Pedidos.FormaPagamento.DINHEIRO)
+            .aggregate(total=Sum('total'))['total'] or 0
+        )
+        total_pix = (
+            pedidos_hoje
+            .filter(forma_pagamento=Pedidos.FormaPagamento.PIX)
+            .aggregate(total=Sum('total'))['total'] or 0
+        )
+        total_cartao = (
+            pedidos_hoje
+            .filter(forma_pagamento=Pedidos.FormaPagamento.CARTAO)
+            .aggregate(total=Sum('total'))['total'] or 0
+        )
+
+        # NOVO TOTAL DE TAXA MOTOCA NO DIA
+        total_taxa_motoca = (
+            pedidos_hoje
+            .filter(entrega=True)
+            .aggregate(total=Sum('taxa_motoca'))['total'] or 0
+        )
 
         return render(request, 'pedidos.html', {
             'pedidos': pedidos,
@@ -316,6 +334,7 @@ class PedidosView(LoginRequiredMixin, View):
             'total_dinheiro': f"{total_dinheiro:.2f}".replace('.', ','),
             'total_pix': f"{total_pix:.2f}".replace('.', ','),
             'total_cartao': f"{total_cartao:.2f}".replace('.', ','),
+            'total_taxa_motoca': f"{total_taxa_motoca:.2f}".replace('.', ','),
             'status_options': Pedidos.StatusPedido.choices,
             'pagamento_options': Pedidos.FormaPagamento.choices
         })
