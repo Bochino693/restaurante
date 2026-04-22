@@ -44,6 +44,8 @@ class CardapioClienteView(View):
         })
 
 
+from decimal import Decimal, InvalidOperation
+
 class CaixaView(LoginRequiredMixin, View):
     login_url = "login"
 
