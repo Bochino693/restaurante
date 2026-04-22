@@ -1189,23 +1189,45 @@ function gerarTextoCozinha(pedido) {
 
 function gerarTextoCozinha(pedido) {
     let t = ESC_POS.INIT + ESC_POS.CENTER + ESC_POS.BOLD_ON;
+
     t += "VIA COZINHA\n";
-    t += "PEDIDO #" + pedido.id + "\n" + ESC_POS.BOLD_OFF;
+    t += "PEDIDO #" + pedido.id + "\n";
+    t += ESC_POS.BOLD_OFF;
+
     t += "--------------------------------\n";
+
     t += ESC_POS.LEFT;
     t += "Cliente: " + pedido.nomeCliente + "\n";
+
+    // DESCRIÇÃO / OBSERVAÇÃO DO PEDIDO
+    if (pedido.descricao && pedido.descricao.trim() !== "") {
+        t += "OBS: " + pedido.descricao.toUpperCase() + "\n";
+    }
+
     t += "--------------------------------\n";
+
     t += ESC_POS.BOLD_ON;
 
     pedido.itens.forEach(item => {
         t += item.qtd + "x " + item.nome.toUpperCase() + "\n";
-        item.adicionais.forEach(a => t += "  + " + a.nome.toUpperCase() + "\n");
+
+        if (item.adicionais && item.adicionais.length > 0) {
+            item.adicionais.forEach(a => {
+                t += "  + " + a.nome.toUpperCase() + "\n";
+            });
+        }
+
+        t += "\n";
     });
 
-    t += ESC_POS.BOLD_OFF + "--------------------------------\n";
-    t += ESC_POS.CENTER + "Bom trabalho!\n";
+    t += ESC_POS.BOLD_OFF;
+    t += "--------------------------------\n";
 
-    t += ESC_POS.LINE_SPACE + ESC_POS.CUT; // Avança e Corta
+    t += ESC_POS.CENTER;
+    t += "BOM TRABALHO!\n";
+
+    t += ESC_POS.LINE_SPACE + ESC_POS.CUT;
+
     return t;
 }
 
