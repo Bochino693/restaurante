@@ -87,16 +87,24 @@ class CaixaView(LoginRequiredMixin, View):
             data = json.loads(request.body)
 
             carrinho = data.get("carrinho", [])
-            total = data.get("total", 0)
-            taxa_motoca = data.get("taxa_motoca", 0)  # ← movido para cá, antes de usar
             metodo_pagamento = data.get("metodo_pagamento")
             tipo_entrega = data.get("tipo_entrega")
-            nome_cliente = data.get("nome_cliente")
+            nome_cliente = (data.get("nome_cliente") or "").strip()
+            descricao = (data.get("descricao") or "").strip()
 
-            endereco = data.get("endereco", {})
-            cep = endereco.get("cep")
-            rua = endereco.get("rua")
-            numero = endereco.get("numero")
+            endereco = data.get("endereco", {}) or {}
+            cep = (endereco.get("cep") or "").strip()
+            rua = (endereco.get("rua") or "").strip()
+            numero = (endereco.get("numero") or "").strip()
+
+            try:
+                total = Decimal(str(data.get("total", 0)))
+                taxa_motoca = Decimal(str(data.get("taxa_motoca", 0)))
+            except (InvalidOperation, TypeError, ValueError):
+                return JsonResponse(
+                    {"success": False, "message": "Valores monetários inválidos."},
+                    status=400
+                )
 
             if not carrinho:
                 return JsonResponse(
@@ -110,6 +118,12 @@ class CaixaView(LoginRequiredMixin, View):
                     status=400
                 )
 
+            if not metodo_pagamento:
+                return JsonResponse(
+                    {"success": False, "message": "Método de pagamento é obrigatório"},
+                    status=400
+                )
+
             if tipo_entrega == "entrega" and (not cep or not rua or not numero):
                 return JsonResponse(
                     {"success": False, "message": "CEP, rua e número são obrigatórios para entrega."},
@@ -119,14 +133,15 @@ class CaixaView(LoginRequiredMixin, View):
             with transaction.atomic():
                 pedido = Pedidos.objects.create(
                     nome_cliente=nome_cliente,
+                    descricao=descricao or None,
                     total=total,
-                    taxa_motoca=taxa_motoca,  # ← salvo direto no create
+                    taxa_motoca=taxa_motoca,
                     forma_pagamento=metodo_pagamento.upper(),
-                    entrega=True if tipo_entrega == "entrega" else False,
-                    cep=cep,
-                    rua=rua,
-                    numero=numero,
-                    impresso=True  # ← marca como impresso ao finalizar
+                    entrega=(tipo_entrega == "entrega"),
+                    cep=cep or None,
+                    rua=rua or None,
+                    numero=numero or None,
+                    impresso=False
                 )
 
                 itens = []
@@ -134,16 +149,20 @@ class CaixaView(LoginRequiredMixin, View):
                 for item in carrinho:
                     produto = Produtos.objects.get(id=item["id"])
 
-                    preco_base = float(item["precoBase"])
-                    adicionais = item.get("adicionais", [])
-                    soma_adicionais = sum(float(a["preco"]) for a in adicionais)
+                    qtd = int(item["qtd"])
+                    adicionais = item.get("adicionais", []) or []
+
+                    preco_base = Decimal(str(item["precoBase"]))
+                    soma_adicionais = sum(
+                        Decimal(str(a["preco"])) for a in adicionais
+                    )
 
                     preco_unitario = preco_base + soma_adicionais
-                    subtotal_item = preco_unitario * int(item["qtd"])
+                    subtotal_item = preco_unitario * qtd
 
                     item_pedido = ItensPedido.objects.create(
                         produto=produto,
-                        quantidade=item["qtd"],
+                        quantidade=qtd,
                         preco_unitario=preco_unitario,
                         subtotal=subtotal_item,
                         adicionais=adicionais

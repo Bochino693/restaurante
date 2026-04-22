@@ -202,6 +202,18 @@
         >
     </div>
 
+    <div>
+    <label for="descricaoPedido" class="block text-[10px] font-black uppercase tracking-wide text-gray-500 mb-1">
+        Descrição do Pedido
+    </label>
+    <textarea
+        id="descricaoPedido"
+        rows="2"
+        placeholder="Ex: s/macarrão, sem omelete, pouco sal..."
+        class="w-full border rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+    ></textarea>
+    </div>
+
     <!-- ENTREGA / RETIRADA MAIS BAIXOS -->
     <div class="grid grid-cols-3 gap-2">
         <button
@@ -767,11 +779,15 @@ function fecharModalSucesso() {
         metodoPagamento = '';
         tipoEntrega = true;
 
+
         document.getElementById('inputDesconto').value = "0,00";
+        document.getElementById('inputMotoca').value = "0,00";
         document.getElementById('nomeCliente').value = "";
+        document.getElementById('descricaoPedido').value = "";
         document.getElementById('cep').value = "";
         document.getElementById('rua').value = "";
         document.getElementById('numero').value = "";
+
 
         document.querySelectorAll('.metodo-btn').forEach(b =>
             b.classList.remove('selected', 'bg-blue-600', 'text-white')
@@ -899,8 +915,11 @@ async function buscarCepAuto() {
 
 async function finalizarVenda() {
     const nomeCliente = document.getElementById('nomeCliente').value.trim();
+    const descricaoPedido = document.getElementById('descricaoPedido').value.trim();
+
     const motocaRaw = document.getElementById('inputMotoca').value.replace(/[^\d]/g, '');
     const taxaMotoca = parseFloat(motocaRaw) / 100 || 0;
+
     const descRaw = document.getElementById('inputDesconto').value.replace(/[^\d]/g, '');
     const desconto = parseFloat(descRaw) / 100 || 0;
 
@@ -931,14 +950,17 @@ async function finalizarVenda() {
     }
 
     const valores = atualizarTotais();
-    const totalComMotoca = valores.total + taxaMotoca;
+    const totalPedido = valores.total;
+    const totalComMotoca = totalPedido + taxaMotoca;
 
     const dadosVenda = {
         carrinho: carrinho,
         subtotal: valores.subtotal,
         desconto: desconto,
-        total: valores.total,
+        total: totalPedido,
         taxa_motoca: taxaMotoca,
+        total_final: totalComMotoca,
+        descricao: descricaoPedido,
         metodo_pagamento: metodoPagamento,
         nome_cliente: nomeCliente,
         tipo_entrega: tipoEntrega ? "entrega" : "retirada",
@@ -965,10 +987,12 @@ async function finalizarVenda() {
             imprimirDuasVias({
                 id: resultado.pedido_id,
                 nomeCliente: nomeCliente,
+                descricao: descricaoPedido,
                 itens: carrinho,
-                total: totalComMotoca,
-                desconto: desconto,
+                totalPedido: totalPedido,
                 taxaMotoca: taxaMotoca,
+                totalFinal: totalComMotoca,
+                desconto: desconto,
                 metodo: metodoPagamento,
                 entrega: tipoEntrega,
                 endereco: dadosVenda.endereco,
@@ -984,6 +1008,7 @@ async function finalizarVenda() {
         mostrarAlerta("Erro conexão", "Servidor indisponível: " + error.message, "erro");
     }
 }
+
 
 function getCookie(name) {
     let cookieValue = null;
@@ -1013,36 +1038,23 @@ async function imprimirDuasVias(pedido) {
             await qz.websocket.connect();
         }
 
-        const config = qz.configs.create(impressora);
+        const config = qz.configs.create(impressora, { encoding: 'ISO-8859-1' });
 
-        // VIA 1: BALCÃO (Completa)
         const textoBalcao = gerarTextoBalcao(pedido);
-        const dataBalcao = [{
-            type: 'raw',
-            format: 'plain',
-            data: textoBalcao,
-            options: { language: 'escpos', dotDensity: 'double' }
-        }];
-        await qz.print(config, dataBalcao);
+        await qz.print(config, [{ type: 'raw', format: 'plain', data: textoBalcao }]);
 
-        // Pequena pausa para a impressora processar o corte
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise(resolve => setTimeout(resolve, 600));
 
-        // VIA 2: COZINHA (Simplificada)
         const textoCozinha = gerarTextoCozinha(pedido);
-        const dataCozinha = [{
-            type: 'raw',
-            format: 'plain',
-            data: textoCozinha,
-            options: { language: 'escpos', dotDensity: 'double' }
-        }];
-        await qz.print(config, dataCozinha);
+        await qz.print(config, [{ type: 'raw', format: 'plain', data: textoCozinha }]);
 
     } catch (error) {
         console.error(error);
-        mostrarAlerta("Erro impressão", "Verifique se o QZ Tray está aberto e a impressora conectada.", "erro");
+        mostrarAlerta("Erro impressão", "Verifique a conexão com a impressora.", "erro");
     }
 }
+
+
 // Comandos ESC/POS atualizados para MP-4200 TH
 const ESC_POS = {
     INIT: '\x1B\x40',
@@ -1085,71 +1097,95 @@ async function imprimirDuasVias(pedido) {
 
 function gerarTextoBalcao(pedido) {
     let t = ESC_POS.INIT;
-
-    // Cabeçalho Centralizado
     t += ESC_POS.CENTER + ESC_POS.BOLD_ON + ESC_POS.DOUBLE_ON;
     t += "VIA BALCAO\n";
     t += "PEDIDO #" + pedido.id + "\n";
     t += ESC_POS.DOUBLE_OFF + ESC_POS.BOLD_OFF;
     t += "--------------------------------\n";
 
-    // Info Cliente Centralizada
+    t += ESC_POS.LEFT;
     t += "Data: " + pedido.criadoEm + "\n";
     t += "Cliente: " + pedido.nomeCliente.toUpperCase() + "\n";
-    t += "Pagamento: " + pedido.metodo.toUpperCase() + "\n";
-    t += pedido.entrega ? "TIPO: ENTREGA\n" : "TIPO: RETIRADA\n";
 
-    if(pedido.entrega && pedido.endereco) {
-        t += "End: " + pedido.endereco.rua + ", " + pedido.endereco.numero + "\n";
+    if (pedido.descricao && pedido.descricao.trim() !== "") {
+        t += "Descricao: " + pedido.descricao + "\n";
     }
-    t += "--------------------------------\n";
 
-    // Itens Centralizados (Nome das marmitas)
+    t += "Pagamento: " + pedido.metodo.toUpperCase() + "\n";
+    t += pedido.entrega ? "Tipo: ENTREGA\n" : "Tipo: RETIRADA\n";
+
+    if (pedido.entrega && pedido.endereco) {
+        t += "End: " + (pedido.endereco.rua || "") + ", " + (pedido.endereco.numero || "") + "\n";
+        if (pedido.endereco.cep) {
+            t += "CEP: " + pedido.endereco.cep + "\n";
+        }
+    }
+
+    t += "--------------------------------\n";
     t += ESC_POS.BOLD_ON + "ITENS DO PEDIDO\n" + ESC_POS.BOLD_OFF;
+
     pedido.itens.forEach(item => {
-        // Centraliza o nome e quantidade
         t += item.qtd + "x " + item.nome.toUpperCase() + "\n";
-        item.adicionais.forEach(a => {
-            t += " + " + a.nome.toLowerCase() + "\n";
-        });
+
+        if (item.adicionais && item.adicionais.length) {
+            item.adicionais.forEach(a => {
+                t += "  + " + a.nome + "\n";
+            });
+        }
     });
 
     t += "--------------------------------\n";
-    t += ESC_POS.BOLD_ON + "TOTAL: R$ " + pedido.total.toFixed(2) + "\n" + ESC_POS.BOLD_OFF;
 
-    t += ESC_POS.LINE_SPACE + ESC_POS.CUT;
-    return t;
-}
+    t += "Total Pedido: R$ " + Number(pedido.totalPedido || 0).toFixed(2) + "\n";
+    t += "Taxa Motoca:  R$ " + Number(pedido.taxaMotoca || 0).toFixed(2) + "\n";
 
-function gerarTextoCozinha(pedido) {
-    let t = ESC_POS.INIT + ESC_POS.CENTER;
-
-    t += ESC_POS.BOLD_ON + ESC_POS.DOUBLE_ON;
-    t += "COZINHA\n";
-    t += "PEDIDO #" + pedido.id + "\n";
-    t += ESC_POS.DOUBLE_OFF + ESC_POS.BOLD_OFF;
-    t += "--------------------------------\n";
-
-    t += "CLIENTE: " + pedido.nomeCliente.toUpperCase() + "\n";
-    t += "--------------------------------\n";
-
-    // Itens da Cozinha em destaque
     t += ESC_POS.BOLD_ON;
-    pedido.itens.forEach(item => {
-        t += item.qtd + "x " + item.nome.toUpperCase() + "\n";
-        item.adicionais.forEach(a => {
-            t += ">> ADIC: " + a.nome.toUpperCase() + "\n";
-        });
-        t += "\n"; // Espaço entre marmitas
-    });
+    t += "Total Final:  R$ " + Number(pedido.totalFinal || 0).toFixed(2) + "\n";
     t += ESC_POS.BOLD_OFF;
 
-    t += "--------------------------------\n";
-    t += "BOM TRABALHO!\n";
-
     t += ESC_POS.LINE_SPACE + ESC_POS.CUT;
     return t;
 }
+
+
+
+function gerarTextoCozinha(pedido) {
+    let t = ESC_POS.INIT + ESC_POS.CENTER + ESC_POS.BOLD_ON;
+    t += "VIA COZINHA\n";
+    t += "PEDIDO #" + pedido.id + "\n";
+    t += ESC_POS.BOLD_OFF;
+    t += "--------------------------------\n";
+
+    t += ESC_POS.LEFT;
+    t += "Cliente: " + pedido.nomeCliente + "\n";
+
+    if (pedido.descricao && pedido.descricao.trim() !== "") {
+        t += "Obs: " + pedido.descricao + "\n";
+    }
+
+    t += "--------------------------------\n";
+    t += ESC_POS.BOLD_ON;
+
+    pedido.itens.forEach(item => {
+        t += item.qtd + "x " + item.nome.toUpperCase() + "\n";
+
+        if (item.adicionais && item.adicionais.length) {
+            item.adicionais.forEach(a => {
+                t += "  + " + a.nome.toUpperCase() + "\n";
+            });
+        }
+
+        t += "\n";
+    });
+
+    t += ESC_POS.BOLD_OFF;
+    t += "--------------------------------\n";
+    t += ESC_POS.CENTER + "Bom trabalho!\n";
+    t += ESC_POS.LINE_SPACE + ESC_POS.CUT;
+
+    return t;
+}
+
 
 function gerarTextoCozinha(pedido) {
     let t = ESC_POS.INIT + ESC_POS.CENTER + ESC_POS.BOLD_ON;

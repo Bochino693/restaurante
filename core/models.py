@@ -175,6 +175,9 @@ class Pedidos(Prime):
     nome_cliente = models.CharField(max_length=90, blank=True, null=True)
     impresso = models.BooleanField(default=False)
 
+    # NOVO CAMPO
+    descricao = models.TextField(blank=True, null=True)
+
     entrega = models.BooleanField(default=False)
     cpf = models.CharField(max_length=14, blank=True, null=True)
 
