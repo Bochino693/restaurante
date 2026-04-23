@@ -417,6 +417,7 @@ from django.views.generic import TemplateView
 from django.utils.timezone import now
 
 
+
 class DashboardAnalyticsView(LoginRequiredMixin, TemplateView):
     template_name = "dashboards.html"
 
@@ -425,43 +426,64 @@ class DashboardAnalyticsView(LoginRequiredMixin, TemplateView):
 
         hoje = now()
 
-        # Produtos mais clicados
+        # Top 5 - Produtos mais clicados
         context["produtos_click"] = (
             ProdutosMaisClick.objects.select_related("produto")
             .order_by("-quantidade")[:5]
         )
 
-        # Pratos do dia mais clicados
+        # Ranking geral - Produtos mais clicados
+        context["produtos_click_todos"] = (
+            ProdutosMaisClick.objects.select_related("produto")
+            .order_by("-quantidade")
+        )
+
+        # Top 5 - Pratos do dia mais clicados
         context["pratos_click"] = (
             PratoDiaMaisClick.objects.select_related("prato")
             .order_by("-quantidade")[:5]
         )
 
-        # Produtos mais vendidos
+        # Top 5 - Produtos mais vendidos
         context["mais_vendidos"] = (
             ItensPedido.objects.values("produto__nome_produto")
-            .annotate(total=Sum("quantidade"))
+            .annotate(total=Coalesce(Sum("quantidade"), 0))
             .order_by("-total")[:5]
+        )
+
+        # Ranking geral - Produtos mais vendidos
+        context["mais_vendidos_todos"] = (
+            ItensPedido.objects.values("produto__nome_produto")
+            .annotate(total=Coalesce(Sum("quantidade"), 0))
+            .order_by("-total")
         )
 
         # Receita total
         context["receita_total"] = (
-                Pedidos.objects.aggregate(total=Sum("total"))["total"] or 0
+            Pedidos.objects.aggregate(total=Coalesce(Sum("total"), 0))["total"] or 0
         )
 
         # Total pedidos
         context["total_pedidos"] = Pedidos.objects.count()
 
         # Ticket médio
-        pedidos = Pedidos.objects.aggregate(
-            media=Sum("total") / Count("id")
+        context["ticket_medio"] = (
+            Pedidos.objects.aggregate(
+                media=Coalesce(
+                    ExpressionWrapper(
+                        Sum("total") / Count("id"),
+                        output_field=FloatField()
+                    ),
+                    0.0
+                )
+            )["media"] or 0
         )
-        context["ticket_medio"] = pedidos["media"] or 0
 
         # Pedidos por status
         context["pedidos_status"] = (
             Pedidos.objects.values("status")
             .annotate(total=Count("id"))
+            .order_by("status")
         )
 
         return context
