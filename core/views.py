@@ -415,8 +415,8 @@ from .models import (
 )
 from django.views.generic import TemplateView
 from django.utils.timezone import now
-
-
+from django.db.models.functions import Coalesce
+from django.db.models import Sum, Count, F, FloatField, ExpressionWrapper
 
 class DashboardAnalyticsView(LoginRequiredMixin, TemplateView):
     template_name = "dashboards.html"
