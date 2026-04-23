@@ -126,9 +126,9 @@ class CaixaView(LoginRequiredMixin, View):
                     status=400
                 )
 
-            if tipo_entrega == "entrega" and (not cep or not rua or not numero):
+            if tipo_entrega == "entrega" and (not rua or not numero):
                 return JsonResponse(
-                    {"success": False, "message": "CEP, rua e número são obrigatórios para entrega."},
+                    {"success": False, "message": "Rua e número são obrigatórios para entrega."},
                     status=400
                 )
 
@@ -192,10 +192,10 @@ class CaixaView(LoginRequiredMixin, View):
             }, status=500)
 
 
-
 # Novo endpoint de confirmação
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
+
 
 @csrf_exempt
 @require_POST
