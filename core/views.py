@@ -418,6 +418,14 @@ from django.utils.timezone import now
 from django.db.models.functions import Coalesce
 from django.db.models import Sum, Count, F, FloatField, ExpressionWrapper
 
+from decimal import Decimal
+
+from django.contrib.auth.mixins import LoginRequiredMixin
+from django.views.generic import TemplateView
+from django.db.models import Sum, Count, Value, DecimalField, IntegerField, FloatField
+from django.db.models.functions import Coalesce
+from django.utils.timezone import now
+
 class DashboardAnalyticsView(LoginRequiredMixin, TemplateView):
     template_name = "dashboards.html"
 
@@ -446,21 +454,41 @@ class DashboardAnalyticsView(LoginRequiredMixin, TemplateView):
 
         # Top 5 - Produtos mais vendidos
         context["mais_vendidos"] = (
-            ItensPedido.objects.values("produto__nome_produto")
-            .annotate(total=Coalesce(Sum("quantidade"), 0))
+            ItensPedido.objects
+            .values("produto__nome_produto")
+            .annotate(
+                total=Coalesce(
+                    Sum("quantidade"),
+                    Value(0),
+                    output_field=IntegerField()
+                )
+            )
             .order_by("-total")[:5]
         )
 
         # Ranking geral - Produtos mais vendidos
         context["mais_vendidos_todos"] = (
-            ItensPedido.objects.values("produto__nome_produto")
-            .annotate(total=Coalesce(Sum("quantidade"), 0))
+            ItensPedido.objects
+            .values("produto__nome_produto")
+            .annotate(
+                total=Coalesce(
+                    Sum("quantidade"),
+                    Value(0),
+                    output_field=IntegerField()
+                )
+            )
             .order_by("-total")
         )
 
         # Receita total
         context["receita_total"] = (
-            Pedidos.objects.aggregate(total=Coalesce(Sum("total"), 0))["total"] or 0
+            Pedidos.objects.aggregate(
+                total=Coalesce(
+                    Sum("total"),
+                    Value(Decimal("0.00")),
+                    output_field=DecimalField(max_digits=12, decimal_places=2)
+                )
+            )["total"] or Decimal("0.00")
         )
 
         # Total pedidos
@@ -470,13 +498,11 @@ class DashboardAnalyticsView(LoginRequiredMixin, TemplateView):
         context["ticket_medio"] = (
             Pedidos.objects.aggregate(
                 media=Coalesce(
-                    ExpressionWrapper(
-                        Sum("total") / Count("id"),
-                        output_field=FloatField()
-                    ),
-                    0.0
+                    Sum("total") / Count("id", distinct=True),
+                    Value(Decimal("0.00")),
+                    output_field=DecimalField(max_digits=12, decimal_places=2)
                 )
-            )["media"] or 0
+            )["media"] or Decimal("0.00")
         )
 
         # Pedidos por status
