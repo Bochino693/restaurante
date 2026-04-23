@@ -930,14 +930,14 @@ async function finalizarVenda() {
     }
 
     if (tipoEntrega) {
-        const cep = document.getElementById('cep').value.trim();
-        const rua = document.getElementById('rua').value.trim();
-        const numero = document.getElementById('numero').value.trim();
-        if (!cep || !rua || !numero) {
-            mostrarAlerta("Endereço incompleto", "Preencha CEP, rua e número.", "aviso");
-            return;
-        }
+    const rua = document.getElementById('rua').value.trim();
+    const numero = document.getElementById('numero').value.trim();
+
+    if (!rua || !numero) {
+        mostrarAlerta("Endereço incompleto", "Preencha rua e número.", "aviso");
+        return;
     }
+}
 
     if (carrinho.length === 0) {
         mostrarAlerta("Carrinho Vazio", "Adicione pelo menos um item.", "aviso");
