@@ -286,6 +286,13 @@ class EstoqueView(LoginRequiredMixin, View):
         })
 
 
+from django.contrib.auth.mixins import LoginRequiredMixin
+from django.shortcuts import render
+from django.views import View
+from django.db.models import Sum
+from django.utils import timezone
+from decimal import Decimal
+
 class PedidosView(LoginRequiredMixin, View):
     login_url = "login"
 
@@ -304,38 +311,41 @@ class PedidosView(LoginRequiredMixin, View):
             .exclude(status=Pedidos.StatusPedido.CANCELADO)
         )
 
-        # 1. Calculamos o total bruto das vendas e o total das taxas primeiro
         stats_dia = pedidos_hoje.aggregate(
             bruto=Sum('total'),
             taxas=Sum('taxa_motoca')
         )
 
-        valor_bruto = stats_dia['bruto'] or 0
-        valor_taxas = stats_dia['taxas'] or 0
+        valor_bruto = stats_dia['bruto'] or Decimal('0.00')
+        valor_taxas = stats_dia['taxas'] or Decimal('0.00')
 
-        # 2. O total do dia para o estabelecimento é o Bruto - Taxas do Motoboy
-        total_dia = valor_bruto - valor_taxas
+        # NÃO subtrai mais a taxa do total
+        total_dia = valor_bruto
 
-        # Totais por forma de pagamento (Mantendo a lógica de soma do campo 'total')
-        # Se quiser que estes totais também excluam a taxa, será necessário subtrair
-        # a taxa correspondente a cada filtro.
         total_dinheiro = (
-                pedidos_hoje
-                .filter(forma_pagamento=Pedidos.FormaPagamento.DINHEIRO)
-                .aggregate(total=Sum('total'))['total'] or 0
-        )
-        total_pix = (
-                pedidos_hoje
-                .filter(forma_pagamento=Pedidos.FormaPagamento.PIX)
-                .aggregate(total=Sum('total'))['total'] or 0
-        )
-        total_cartao = (
-                pedidos_hoje
-                .filter(forma_pagamento=Pedidos.FormaPagamento.CARTAO)
-                .aggregate(total=Sum('total'))['total'] or 0
+            pedidos_hoje
+            .filter(forma_pagamento=Pedidos.FormaPagamento.DINHEIRO)
+            .aggregate(total=Sum('total'))['total'] or Decimal('0.00')
         )
 
-        # Valor que deve ser repassado ou separado para os motoboys
+        total_pix = (
+            pedidos_hoje
+            .filter(forma_pagamento=Pedidos.FormaPagamento.PIX)
+            .aggregate(total=Sum('total'))['total'] or Decimal('0.00')
+        )
+
+        total_cartao = (
+            pedidos_hoje
+            .filter(forma_pagamento=Pedidos.FormaPagamento.CARTAO)
+            .aggregate(total=Sum('total'))['total'] or Decimal('0.00')
+        )
+
+        total_misto = (
+            pedidos_hoje
+            .filter(forma_pagamento=Pedidos.FormaPagamento.MISTO)
+            .aggregate(total=Sum('total'))['total'] or Decimal('0.00')
+        )
+
         total_taxa_motoca = valor_taxas
 
         return render(request, 'pedidos.html', {
@@ -344,6 +354,7 @@ class PedidosView(LoginRequiredMixin, View):
             'total_dinheiro': f"{total_dinheiro:.2f}".replace('.', ','),
             'total_pix': f"{total_pix:.2f}".replace('.', ','),
             'total_cartao': f"{total_cartao:.2f}".replace('.', ','),
+            'total_misto': f"{total_misto:.2f}".replace('.', ','),
             'total_taxa_motoca': f"{total_taxa_motoca:.2f}".replace('.', ','),
             'status_options': Pedidos.StatusPedido.choices,
             'pagamento_options': Pedidos.FormaPagamento.choices
