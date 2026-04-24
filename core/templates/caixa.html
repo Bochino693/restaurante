@@ -1062,11 +1062,15 @@ const ESC_POS = {
     LEFT: '\x1B\x61\x00',
     BOLD_ON: '\x1B\x45\x01',
     BOLD_OFF: '\x1B\x45\x00',
-    DOUBLE_ON: '\x1D\x21\x11', // Fonte Dobrada (Altura e Largura)
+    DOUBLE_ON: '\x1D\x21\x11',
     DOUBLE_OFF: '\x1D\x21\x00',
     CUT: '\x1D\x56\x41\x03',
     LINE_SPACE: '\n\n\n\n\n'
 };
+
+function moeda(v) {
+    return Number(v || 0).toFixed(2).replace('.', ',');
+}
 
 async function imprimirDuasVias(pedido) {
     const impressora = "MP-4200 TH";
@@ -1076,18 +1080,19 @@ async function imprimirDuasVias(pedido) {
             await qz.websocket.connect();
         }
 
-        // IMPORTANTE: Definir encoding para aceitar acentos (Latin1/ISO-8859-1)
-        const config = qz.configs.create(impressora, { encoding: 'ISO-8859-1' });
+        const config = qz.configs.create(impressora, {
+            encoding: 'UTF-8'
+        });
 
-        // VIA 1: BALCÃO
-        const textoBalcao = gerarTextoBalcao(pedido);
-        await qz.print(config, [{ type: 'raw', format: 'plain', data: textoBalcao }]);
+        await qz.print(config, [
+            { type: 'raw', format: 'plain', data: gerarTextoBalcao(pedido) }
+        ]);
 
         await new Promise(resolve => setTimeout(resolve, 600));
 
-        // VIA 2: COZINHA
-        const textoCozinha = gerarTextoCozinha(pedido);
-        await qz.print(config, [{ type: 'raw', format: 'plain', data: textoCozinha }]);
+        await qz.print(config, [
+            { type: 'raw', format: 'plain', data: gerarTextoCozinha(pedido) }
+        ]);
 
     } catch (error) {
         console.error(error);
@@ -1097,8 +1102,9 @@ async function imprimirDuasVias(pedido) {
 
 function gerarTextoBalcao(pedido) {
     let t = ESC_POS.INIT;
+
     t += ESC_POS.CENTER + ESC_POS.BOLD_ON + ESC_POS.DOUBLE_ON;
-    t += "VIA BALCAO\n";
+    t += "VIA BALCÃO\n";
     t += "PEDIDO #" + pedido.id + "\n";
     t += ESC_POS.DOUBLE_OFF + ESC_POS.BOLD_OFF;
     t += "--------------------------------\n";
@@ -1108,7 +1114,7 @@ function gerarTextoBalcao(pedido) {
     t += "Cliente: " + pedido.nomeCliente.toUpperCase() + "\n";
 
     if (pedido.descricao && pedido.descricao.trim() !== "") {
-        t += "Descricao: " + pedido.descricao + "\n";
+        t += "Descrição: " + pedido.descricao + "\n";
     }
 
     t += "Pagamento: " + pedido.metodo.toUpperCase() + "\n";
@@ -1123,129 +1129,81 @@ function gerarTextoBalcao(pedido) {
 
     t += "--------------------------------\n";
     t += ESC_POS.BOLD_ON + "ITENS DO PEDIDO\n" + ESC_POS.BOLD_OFF;
+    t += "--------------------------------\n";
 
     pedido.itens.forEach(item => {
-        t += item.qtd + "x " + item.nome.toUpperCase() + "\n";
+        const adicionais = item.adicionais || [];
+        const precoAdicionais = adicionais.reduce((acc, a) => acc + Number(a.preco || 0), 0);
+        const precoUnitario = Number(item.precoBase || 0) + precoAdicionais;
+        const subtotalItem = precoUnitario * Number(item.qtd || 1);
 
-        if (item.adicionais && item.adicionais.length) {
-            item.adicionais.forEach(a => {
-                t += "  + " + a.nome + "\n";
-            });
-        }
+        t += item.qtd + "x " + item.nome.toUpperCase() + "  R$ " + moeda(subtotalItem) + "\n";
+        t += "   Unitário: R$ " + moeda(precoUnitario) + "\n";
+
+        adicionais.forEach(a => {
+            t += "   + " + a.nome + "  R$ " + moeda(a.preco) + "\n";
+        });
+
+        t += "\n";
     });
 
     t += "--------------------------------\n";
-
-    t += "Total Pedido: R$ " + Number(pedido.totalPedido || 0).toFixed(2) + "\n";
-    t += "Taxa Motoca:  R$ " + Number(pedido.taxaMotoca || 0).toFixed(2) + "\n";
+    t += "Total Pedido: R$ " + moeda(pedido.totalPedido) + "\n";
+    t += "Taxa Motoca:  R$ " + moeda(pedido.taxaMotoca) + "\n";
 
     t += ESC_POS.BOLD_ON;
-    t += "Total Final:  R$ " + Number(pedido.totalFinal || 0).toFixed(2) + "\n";
+    t += "Total Final:  R$ " + moeda(pedido.totalFinal) + "\n";
     t += ESC_POS.BOLD_OFF;
 
     t += ESC_POS.LINE_SPACE + ESC_POS.CUT;
     return t;
 }
 
-
 function gerarTextoCozinha(pedido) {
-    let t = ESC_POS.INIT + ESC_POS.CENTER + ESC_POS.BOLD_ON;
+    let t = ESC_POS.INIT;
 
+    t += ESC_POS.CENTER + ESC_POS.BOLD_ON + ESC_POS.DOUBLE_ON;
     t += "VIA COZINHA\n";
     t += "PEDIDO #" + pedido.id + "\n";
-    t += ESC_POS.BOLD_OFF;
-
+    t += ESC_POS.DOUBLE_OFF + ESC_POS.BOLD_OFF;
     t += "--------------------------------\n";
 
     t += ESC_POS.LEFT;
-    t += "Cliente: " + pedido.nomeCliente + "\n";
+    t += "Cliente: " + pedido.nomeCliente.toUpperCase() + "\n";
 
     if (pedido.descricao && pedido.descricao.trim() !== "") {
         t += "OBS: " + pedido.descricao.toUpperCase() + "\n";
     }
 
     t += "--------------------------------\n";
-    t += ESC_POS.BOLD_ON;
-    t += "ITENS DO PEDIDO\n";
-    t += ESC_POS.BOLD_OFF;
+    t += ESC_POS.BOLD_ON + "ITENS DO PEDIDO\n" + ESC_POS.BOLD_OFF;
     t += "--------------------------------\n";
 
     pedido.itens.forEach(item => {
-        const precoAdicionais = item.adicionais
-            ? item.adicionais.reduce((acc, a) => acc + Number(a.preco || 0), 0)
-            : 0;
-
+        const adicionais = item.adicionais || [];
+        const precoAdicionais = adicionais.reduce((acc, a) => acc + Number(a.preco || 0), 0);
         const precoUnitario = Number(item.precoBase || 0) + precoAdicionais;
         const subtotalItem = precoUnitario * Number(item.qtd || 1);
 
         t += ESC_POS.BOLD_ON;
-        t += item.qtd + "x " + item.nome.toUpperCase();
-        t += "  R$ " + subtotalItem.toFixed(2) + "\n";
+        t += item.qtd + "x " + item.nome.toUpperCase() + "  R$ " + moeda(subtotalItem) + "\n";
         t += ESC_POS.BOLD_OFF;
 
-        t += "   Unit: R$ " + precoUnitario.toFixed(2) + "\n";
+        t += "   Unitário: R$ " + moeda(precoUnitario) + "\n";
 
-        if (item.adicionais && item.adicionais.length > 0) {
-            item.adicionais.forEach(a => {
-                t += "   + " + a.nome.toUpperCase();
-                t += "  R$ " + Number(a.preco || 0).toFixed(2) + "\n";
-            });
-        }
+        adicionais.forEach(a => {
+            t += "   + " + a.nome.toUpperCase() + "  R$ " + moeda(a.preco) + "\n";
+        });
 
         t += "\n";
     });
 
     t += "--------------------------------\n";
-    t += ESC_POS.CENTER;
+    t += ESC_POS.CENTER + ESC_POS.BOLD_ON;
     t += "BOM TRABALHO!\n";
-
-    t += ESC_POS.LINE_SPACE + ESC_POS.CUT;
-
-    return t;
-}
-
-
-function gerarTextoCozinha(pedido) {
-    let t = ESC_POS.INIT + ESC_POS.CENTER + ESC_POS.BOLD_ON;
-
-    t += "VIA COZINHA\n";
-    t += "PEDIDO #" + pedido.id + "\n";
     t += ESC_POS.BOLD_OFF;
 
-    t += "--------------------------------\n";
-
-    t += ESC_POS.LEFT;
-    t += "Cliente: " + pedido.nomeCliente + "\n";
-
-    // DESCRIÇÃO / OBSERVAÇÃO DO PEDIDO
-    if (pedido.descricao && pedido.descricao.trim() !== "") {
-        t += "OBS: " + pedido.descricao.toUpperCase() + "\n";
-    }
-
-    t += "--------------------------------\n";
-
-    t += ESC_POS.BOLD_ON;
-
-    pedido.itens.forEach(item => {
-        t += item.qtd + "x " + item.nome.toUpperCase() + "\n";
-
-        if (item.adicionais && item.adicionais.length > 0) {
-            item.adicionais.forEach(a => {
-                t += "  + " + a.nome.toUpperCase() + "\n";
-            });
-        }
-
-        t += "\n";
-    });
-
-    t += ESC_POS.BOLD_OFF;
-    t += "--------------------------------\n";
-
-    t += ESC_POS.CENTER;
-    t += "BOM TRABALHO!\n";
-
     t += ESC_POS.LINE_SPACE + ESC_POS.CUT;
-
     return t;
 }
 
