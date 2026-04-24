@@ -1148,39 +1148,57 @@ function gerarTextoBalcao(pedido) {
 }
 
 
-
 function gerarTextoCozinha(pedido) {
     let t = ESC_POS.INIT + ESC_POS.CENTER + ESC_POS.BOLD_ON;
+
     t += "VIA COZINHA\n";
     t += "PEDIDO #" + pedido.id + "\n";
     t += ESC_POS.BOLD_OFF;
+
     t += "--------------------------------\n";
 
     t += ESC_POS.LEFT;
     t += "Cliente: " + pedido.nomeCliente + "\n";
 
     if (pedido.descricao && pedido.descricao.trim() !== "") {
-        t += "Obs: " + pedido.descricao + "\n";
+        t += "OBS: " + pedido.descricao.toUpperCase() + "\n";
     }
 
     t += "--------------------------------\n";
     t += ESC_POS.BOLD_ON;
+    t += "ITENS DO PEDIDO\n";
+    t += ESC_POS.BOLD_OFF;
+    t += "--------------------------------\n";
 
     pedido.itens.forEach(item => {
-        t += item.qtd + "x " + item.nome.toUpperCase() + "\n";
+        const precoAdicionais = item.adicionais
+            ? item.adicionais.reduce((acc, a) => acc + Number(a.preco || 0), 0)
+            : 0;
 
-        if (item.adicionais && item.adicionais.length) {
+        const precoUnitario = Number(item.precoBase || 0) + precoAdicionais;
+        const subtotalItem = precoUnitario * Number(item.qtd || 1);
+
+        t += ESC_POS.BOLD_ON;
+        t += item.qtd + "x " + item.nome.toUpperCase();
+        t += "  R$ " + subtotalItem.toFixed(2) + "\n";
+        t += ESC_POS.BOLD_OFF;
+
+        t += "   Unit: R$ " + precoUnitario.toFixed(2) + "\n";
+
+        if (item.adicionais && item.adicionais.length > 0) {
             item.adicionais.forEach(a => {
-                t += "  + " + a.nome.toUpperCase() + "\n";
+                t += "   + " + a.nome.toUpperCase();
+                t += "  R$ " + Number(a.preco || 0).toFixed(2) + "\n";
             });
         }
 
         t += "\n";
     });
 
-    t += ESC_POS.BOLD_OFF;
     t += "--------------------------------\n";
-    t += ESC_POS.CENTER + "Bom trabalho!\n";
+    t += ESC_POS.CENTER;
+    t += "BOM TRABALHO!\n";
+
     t += ESC_POS.LINE_SPACE + ESC_POS.CUT;
 
     return t;
