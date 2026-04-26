@@ -361,6 +361,63 @@ class PedidosView(LoginRequiredMixin, View):
         })
 
 
+class ResumoPedidosView(LoginRequiredMixin, View):
+
+    def get(self, request):
+        periodo = request.GET.get('periodo', 'hoje')
+        hoje = timezone.localdate()
+
+        if periodo == 'hoje':
+            inicio = hoje
+            label = "Total Hoje"
+
+        elif periodo == 'semana':
+            inicio = hoje - timedelta(days=7)
+            label = "Últimos 7 dias"
+
+        elif periodo == 'quinzena':
+            inicio = hoje - timedelta(days=15)
+            label = "Últimos 15 dias"
+
+        elif periodo == 'mes':
+            inicio = hoje.replace(day=1)
+            label = "Este mês"
+
+        else:
+            inicio = None
+            label = "Total Geral"
+
+        pedidos = Pedidos.objects.exclude(status=Pedidos.StatusPedido.CANCELADO)
+
+        if inicio:
+            pedidos = pedidos.filter(criado_em__date__gte=inicio)
+
+        total = pedidos.aggregate(
+            total=Sum('total'),
+            taxa=Sum('taxa_motoca')
+        )
+
+        total_dinheiro = pedidos.filter(
+            forma_pagamento=Pedidos.FormaPagamento.DINHEIRO
+        ).aggregate(total=Sum('total'))['total'] or Decimal('0.00')
+
+        total_pix = pedidos.filter(
+            forma_pagamento=Pedidos.FormaPagamento.PIX
+        ).aggregate(total=Sum('total'))['total'] or Decimal('0.00')
+
+        total_cartao = pedidos.filter(
+            forma_pagamento=Pedidos.FormaPagamento.CARTAO
+        ).aggregate(total=Sum('total'))['total'] or Decimal('0.00')
+
+        return JsonResponse({
+            "total_dia": f"{(total['total'] or 0):.2f}".replace('.', ','),
+            "total_taxa": f"{(total['taxa'] or 0):.2f}".replace('.', ','),
+            "total_dinheiro": f"{total_dinheiro:.2f}".replace('.', ','),
+            "total_pix": f"{total_pix:.2f}".replace('.', ','),
+            "total_cartao": f"{total_cartao:.2f}".replace('.', ','),
+            "label": label
+        })
+
 class PedidoReimprimirView(LoginRequiredMixin, View):
     def post(self, request, pedido_id):
         pedido = get_object_or_404(Pedidos, id=pedido_id)

@@ -333,8 +333,37 @@ let pagamentosSelecionados = new Set();
 function setPeriodo(event, periodo){
     document.querySelectorAll(".btnPeriodo").forEach(btn=>btn.classList.remove("ativo"));
     event.currentTarget.classList.add("ativo");
+
     periodoAtual = periodo;
-    filtrarPedidos();
+
+    atualizarResumo(); // 🔥 novo
+    filtrarPedidos(); // opcional (ou remove se backend já filtrar)
+}
+
+
+async function atualizarResumo(){
+    try {
+        const response = await fetch(`/pedidos/resumo/?periodo=${periodoAtual}`, {
+            headers: {
+                "X-Requested-With": "XMLHttpRequest"
+            }
+        });
+
+        const data = await response.json();
+
+        // atualizar valores na tela
+        document.querySelector("[data-total-dia]").innerText = `R$ ${data.total_dia}`;
+        document.querySelector("[data-dinheiro]").innerText = `R$ ${data.total_dinheiro}`;
+        document.querySelector("[data-pix]").innerText = `R$ ${data.total_pix}`;
+        document.querySelector("[data-cartao]").innerText = `R$ ${data.total_cartao}`;
+        document.querySelector("[data-taxa]").innerText = `R$ ${data.total_taxa}`;
+
+        // 🔥 atualizar título
+        document.querySelector("[data-label-total]").innerText = data.label;
+
+    } catch (e) {
+        console.error(e);
+    }
 }
 
 function togglePagamento(event, tipo){

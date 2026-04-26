@@ -25,6 +25,7 @@ urlpatterns = [
 
     path('api/pedidos-impressao/', pedidos_pendentes_impressao),
     path('api/confirmar-impressao/<int:pedido_id>/', confirmar_impressao),
+    path('pedidos/resumo/', ResumoPedidosView.as_view(), name='resumo_pedidos'),
 
 
     path("logout/", LogoutView.as_view(), name="logout"),
