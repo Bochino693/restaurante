@@ -361,6 +361,42 @@ class PedidosView(LoginRequiredMixin, View):
         })
 
 
+class PedidoReimprimirView(LoginRequiredMixin, View):
+    def post(self, request, pedido_id):
+        pedido = get_object_or_404(Pedidos, id=pedido_id)
+
+        # marca como impresso
+        pedido.impresso = True
+        pedido.save()
+
+        data = {
+            "id": pedido.id,
+            "criadoEm": pedido.criado_em.strftime("%d/%m/%Y %H:%M"),
+            "nomeCliente": pedido.nome_cliente or "SEM NOME",
+            "metodo": pedido.get_forma_pagamento_display(),
+            "entrega": pedido.entrega,
+            "descricao": pedido.descricao or "",
+            "totalPedido": float(pedido.total),
+            "taxaMotoca": float(pedido.taxa_motoca),
+            "totalFinal": float(pedido.total + pedido.taxa_motoca),
+            "endereco": {
+                "rua": pedido.rua,
+                "numero": pedido.numero,
+                "cep": pedido.cep,
+            },
+            "itens": [
+                {
+                    "nome": item.produto.nome_produto if item.produto else "Item",
+                    "qtd": item.quantidade,
+                    "precoBase": float(item.preco_unitario),
+                    "adicionais": item.adicionais or []
+                }
+                for item in pedido.itens.all()
+            ]
+        }
+
+        return JsonResponse(data)
+
 class VendasView(LoginRequiredMixin, View):
     template_name = "vendas.html"
     login_url = "login"  # ajuste se sua url de login tiver outro nome

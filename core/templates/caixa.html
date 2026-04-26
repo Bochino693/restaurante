@@ -1170,6 +1170,7 @@ function gerarTextoCozinha(pedido) {
 
     t += ESC_POS.LEFT;
     t += "Cliente: " + pedido.nomeCliente.toUpperCase() + "\n";
+    t += "Pagamento: " + (pedido.metodo || "").toUpperCase() + "\n";
 
     if (pedido.descricao && pedido.descricao.trim() !== "") {
         t += "OBS: " + pedido.descricao.toUpperCase() + "\n";
