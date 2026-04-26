@@ -413,6 +413,8 @@ class ResumoPedidosView(LoginRequiredMixin, View):
             "total_cartao": f"{(totais['cartao'] or 0):.2f}".replace('.', ','),
             "label": label
         })
+
+
 class PedidoReimprimirView(LoginRequiredMixin, View):
     def post(self, request, pedido_id):
         pedido = get_object_or_404(Pedidos, id=pedido_id)
