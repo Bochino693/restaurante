@@ -369,14 +369,14 @@ class ResumoPedidosView(LoginRequiredMixin, View):
 
         if periodo == 'hoje':
             inicio = hoje
-            label = "Total Hoje"
+            label = "Hoje"
 
         elif periodo == 'semana':
-            inicio = hoje - timedelta(days=7)
+            inicio = hoje - timedelta(days=6)
             label = "Últimos 7 dias"
 
         elif periodo == 'quinzena':
-            inicio = hoje - timedelta(days=15)
+            inicio = hoje - timedelta(days=14)
             label = "Últimos 15 dias"
 
         elif periodo == 'mes':
@@ -387,37 +387,32 @@ class ResumoPedidosView(LoginRequiredMixin, View):
             inicio = None
             label = "Total Geral"
 
-        pedidos = Pedidos.objects.exclude(status=Pedidos.StatusPedido.CANCELADO)
-
-        if inicio:
-            pedidos = pedidos.filter(criado_em__date__gte=inicio)
-
-        total = pedidos.aggregate(
-            total=Sum('total'),
-            taxa=Sum('taxa_motoca')
+        pedidos = Pedidos.objects.exclude(
+            status=Pedidos.StatusPedido.CANCELADO
         )
 
-        total_dinheiro = pedidos.filter(
-            forma_pagamento=Pedidos.FormaPagamento.DINHEIRO
-        ).aggregate(total=Sum('total'))['total'] or Decimal('0.00')
+        if inicio:
+            inicio_dt = timezone.make_aware(datetime.combine(inicio, datetime.min.time()))
+            pedidos = pedidos.filter(criado_em__gte=inicio_dt)
 
-        total_pix = pedidos.filter(
-            forma_pagamento=Pedidos.FormaPagamento.PIX
-        ).aggregate(total=Sum('total'))['total'] or Decimal('0.00')
+        totais = pedidos.aggregate(
+            total=Sum('total'),
+            taxa=Sum('taxa_motoca'),
 
-        total_cartao = pedidos.filter(
-            forma_pagamento=Pedidos.FormaPagamento.CARTAO
-        ).aggregate(total=Sum('total'))['total'] or Decimal('0.00')
+            dinheiro=Sum('total', filter=Q(forma_pagamento=Pedidos.FormaPagamento.DINHEIRO)),
+            pix=Sum('total', filter=Q(forma_pagamento=Pedidos.FormaPagamento.PIX)),
+            cartao=Sum('total', filter=Q(forma_pagamento=Pedidos.FormaPagamento.CARTAO)),
+            misto=Sum('total', filter=Q(forma_pagamento=Pedidos.FormaPagamento.MISTO)),
+        )
 
         return JsonResponse({
-            "total_dia": f"{(total['total'] or 0):.2f}".replace('.', ','),
-            "total_taxa": f"{(total['taxa'] or 0):.2f}".replace('.', ','),
-            "total_dinheiro": f"{total_dinheiro:.2f}".replace('.', ','),
-            "total_pix": f"{total_pix:.2f}".replace('.', ','),
-            "total_cartao": f"{total_cartao:.2f}".replace('.', ','),
+            "total_dia": f"{(totais['total'] or 0):.2f}".replace('.', ','),
+            "total_taxa": f"{(totais['taxa'] or 0):.2f}".replace('.', ','),
+            "total_dinheiro": f"{(totais['dinheiro'] or 0):.2f}".replace('.', ','),
+            "total_pix": f"{(totais['pix'] or 0):.2f}".replace('.', ','),
+            "total_cartao": f"{(totais['cartao'] or 0):.2f}".replace('.', ','),
             "label": label
         })
-
 class PedidoReimprimirView(LoginRequiredMixin, View):
     def post(self, request, pedido_id):
         pedido = get_object_or_404(Pedidos, id=pedido_id)
