@@ -1199,10 +1199,21 @@ function gerarTextoCozinha(pedido) {
         t += "\n";
     });
 
-    t += "--------------------------------\n";
-    t += ESC_POS.CENTER + ESC_POS.BOLD_ON;
-    t += "BOM TRABALHO!\n";
-    t += ESC_POS.BOLD_OFF;
+t += "--------------------------------\n";
+
+t += ESC_POS.LEFT;
+t += "Total Pedido: R$ " + moeda(pedido.totalPedido) + "\n";
+t += "Taxa Motoca:  R$ " + moeda(pedido.taxaMotoca) + "\n";
+
+t += ESC_POS.BOLD_ON;
+t += "TOTAL FINAL:  R$ " + moeda(pedido.totalFinal) + "\n";
+t += ESC_POS.BOLD_OFF;
+
+t += "--------------------------------\n";
+
+t += ESC_POS.CENTER + ESC_POS.BOLD_ON;
+t += "BOM TRABALHO!\n";
+t += ESC_POS.BOLD_OFF;
 
     t += ESC_POS.LINE_SPACE + ESC_POS.CUT;
     return t;
