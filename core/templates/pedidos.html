@@ -16,18 +16,18 @@
 
                 <div class="flex flex-col gap-3 w-full sm:w-auto">
                     <div class="flex flex-wrap gap-2">
-                        <button onclick="setPeriodo(event,'hoje')" class="btnPeriodo ativo">Hoje</button>
-                        <button onclick="setPeriodo(event,'semana')" class="btnPeriodo">Semana</button>
-                        <button onclick="setPeriodo(event,'quinzena')" class="btnPeriodo">Quinzena</button>
-                        <button onclick="setPeriodo(event,'mes')" class="btnPeriodo">Mês</button>
-                        <button onclick="setPeriodo(event,'todos')" class="btnPeriodo">Todos</button>
+                        <button onclick="setPeriodo('hoje')" class="btnPeriodo {% if periodo_atual == 'hoje' %}ativo{% endif %}">Hoje</button>
+                        <button onclick="setPeriodo('semana')" class="btnPeriodo {% if periodo_atual == 'semana' %}ativo{% endif %}">Semana</button>
+                        <button onclick="setPeriodo('quinzena')" class="btnPeriodo {% if periodo_atual == 'quinzena' %}ativo{% endif %}">Quinzena</button>
+                        <button onclick="setPeriodo('mes')" class="btnPeriodo {% if periodo_atual == 'mes' %}ativo{% endif %}">Mês</button>
+                        <button onclick="setPeriodo('todos')" class="btnPeriodo {% if periodo_atual == 'todos' %}ativo{% endif %}">Todos</button>
                     </div>
 
                     <div class="flex flex-wrap gap-2">
-                        <button onclick="togglePagamento(event,'DINHEIRO')" class="btnPagamento">Dinheiro</button>
-                        <button onclick="togglePagamento(event,'PIX')" class="btnPagamento">Pix</button>
-                        <button onclick="togglePagamento(event,'CARTAO')" class="btnPagamento">Cartão</button>
-                        <button onclick="togglePagamento(event,'MISTO')" class="btnPagamento">Misto</button>
+                        <button onclick="togglePagamento('DINHEIRO')" class="btnPagamento {% if 'DINHEIRO' in pagamentos_atuais %}ativo{% endif %}">Dinheiro</button>
+                        <button onclick="togglePagamento('PIX')" class="btnPagamento {% if 'PIX' in pagamentos_atuais %}ativo{% endif %}">Pix</button>
+                        <button onclick="togglePagamento('CARTAO')" class="btnPagamento {% if 'CARTAO' in pagamentos_atuais %}ativo{% endif %}">Cartão</button>
+                        <button onclick="togglePagamento('MISTO')" class="btnPagamento {% if 'MISTO' in pagamentos_atuais %}ativo{% endif %}">Misto</button>
                     </div>
                 </div>
             </div>
@@ -327,17 +327,34 @@ box-shadow:0 6px 18px rgba(249,115,22,.25);
 </style>
 
 <script>
-let periodoAtual = "hoje";
-let pagamentosSelecionados = new Set();
+let periodoAtual = "{{ periodo_atual|default:'hoje' }}";
+let pagamentosSelecionados = new Set({{ pagamentos_atuais|safe|default:"[]" }});
 
-function setPeriodo(event, periodo){
-    document.querySelectorAll(".btnPeriodo").forEach(btn=>btn.classList.remove("ativo"));
-    event.currentTarget.classList.add("ativo");
+function aplicarFiltros() {
+    const params = new URLSearchParams();
 
+    params.set("periodo", periodoAtual);
+
+    if (pagamentosSelecionados.size > 0) {
+        params.set("pagamentos", Array.from(pagamentosSelecionados).join(","));
+    }
+
+    window.location.href = `/pedidos/?${params.toString()}`;
+}
+
+function setPeriodo(periodo) {
     periodoAtual = periodo;
+    aplicarFiltros();
+}
 
-    atualizarResumo(); // 🔥 novo
-    filtrarPedidos(); // opcional (ou remove se backend já filtrar)
+function togglePagamento(tipo) {
+    if (pagamentosSelecionados.has(tipo)) {
+        pagamentosSelecionados.delete(tipo);
+    } else {
+        pagamentosSelecionados.add(tipo);
+    }
+
+    aplicarFiltros();
 }
 
 
@@ -366,16 +383,6 @@ async function atualizarResumo(){
     }
 }
 
-function togglePagamento(event, tipo){
-    if(pagamentosSelecionados.has(tipo)){
-        pagamentosSelecionados.delete(tipo);
-        event.currentTarget.classList.remove("ativo");
-    }else{
-        pagamentosSelecionados.add(tipo);
-        event.currentTarget.classList.add("ativo");
-    }
-    filtrarPedidos();
-}
 
 function filtrarPedidos(){
     const hoje = new Date();

@@ -286,134 +286,184 @@ class EstoqueView(LoginRequiredMixin, View):
         })
 
 
-from django.contrib.auth.mixins import LoginRequiredMixin
-from django.shortcuts import render
-from django.views import View
-from django.db.models import Sum
-from django.utils import timezone
+
+from datetime import datetime, time, timedelta
 from decimal import Decimal
+from django.contrib.auth.mixins import LoginRequiredMixin
+from django.db.models import Sum, Q
+from django.http import JsonResponse
+from django.shortcuts import render
+from django.utils import timezone
+from django.views import View
+
+from .models import Pedidos
+
+
+def _range_periodo(periodo):
+    hoje = timezone.localdate()
+
+    if periodo == "hoje":
+        inicio = hoje
+        fim = hoje + timedelta(days=1)
+        label = "Total Hoje"
+
+    elif periodo == "semana":
+        inicio = hoje - timedelta(days=6)
+        fim = hoje + timedelta(days=1)
+        label = "Últimos 7 dias"
+
+    elif periodo == "quinzena":
+        inicio = hoje - timedelta(days=14)
+        fim = hoje + timedelta(days=1)
+        label = "Últimos 15 dias"
+
+    elif periodo == "mes":
+        inicio = hoje.replace(day=1)
+
+        if inicio.month == 12:
+            fim = inicio.replace(year=inicio.year + 1, month=1, day=1)
+        else:
+            fim = inicio.replace(month=inicio.month + 1, day=1)
+
+        label = "Este mês"
+
+    else:
+        inicio = None
+        fim = None
+        label = "Total Geral"
+
+    if inicio and fim:
+        inicio_dt = timezone.make_aware(datetime.combine(inicio, time.min))
+        fim_dt = timezone.make_aware(datetime.combine(fim, time.min))
+        return inicio_dt, fim_dt, label
+
+    return None, None, label
+
+
+def _filtrar_pedidos(request):
+    periodo = request.GET.get("periodo", "hoje")
+    pagamentos_raw = request.GET.get("pagamentos", "")
+
+    pagamentos = [
+        p.strip()
+        for p in pagamentos_raw.split(",")
+        if p.strip()
+    ]
+
+    inicio_dt, fim_dt, label = _range_periodo(periodo)
+
+    pedidos = (
+        Pedidos.objects
+        .prefetch_related("itens__produto")
+        .order_by("-criado_em")
+    )
+
+    if inicio_dt and fim_dt:
+        pedidos = pedidos.filter(
+            criado_em__gte=inicio_dt,
+            criado_em__lt=fim_dt
+        )
+
+    if pagamentos:
+        pedidos = pedidos.filter(forma_pagamento__in=pagamentos)
+
+    return pedidos, periodo, pagamentos, label
+
+
+def _formatar_moeda(valor):
+    valor = valor or Decimal("0.00")
+    return f"{valor:.2f}".replace(".", ",")
+
 
 class PedidosView(LoginRequiredMixin, View):
     login_url = "login"
 
     def get(self, request):
-        hoje = timezone.localdate()
+        pedidos, periodo, pagamentos, label = _filtrar_pedidos(request)
 
-        pedidos = (
-            Pedidos.objects
-            .prefetch_related('itens__produto')
-            .order_by('-criado_em')
+        pedidos_totais = pedidos.exclude(
+            status=Pedidos.StatusPedido.CANCELADO
         )
 
-        pedidos_hoje = (
-            Pedidos.objects
-            .filter(criado_em__date=hoje)
-            .exclude(status=Pedidos.StatusPedido.CANCELADO)
+        totais = pedidos_totais.aggregate(
+            total=Sum("total"),
+            taxa=Sum("taxa_motoca"),
+            dinheiro=Sum(
+                "total",
+                filter=Q(forma_pagamento=Pedidos.FormaPagamento.DINHEIRO)
+            ),
+            pix=Sum(
+                "total",
+                filter=Q(forma_pagamento=Pedidos.FormaPagamento.PIX)
+            ),
+            cartao=Sum(
+                "total",
+                filter=Q(forma_pagamento=Pedidos.FormaPagamento.CARTAO)
+            ),
+            misto=Sum(
+                "total",
+                filter=Q(forma_pagamento=Pedidos.FormaPagamento.MISTO)
+            ),
         )
 
-        stats_dia = pedidos_hoje.aggregate(
-            bruto=Sum('total'),
-            taxas=Sum('taxa_motoca')
-        )
+        return render(request, "pedidos.html", {
+            "pedidos": pedidos,
+            "periodo_atual": periodo,
+            "pagamentos_atuais": pagamentos,
 
-        valor_bruto = stats_dia['bruto'] or Decimal('0.00')
-        valor_taxas = stats_dia['taxas'] or Decimal('0.00')
+            "label_total": label,
+            "total_dia": _formatar_moeda(totais["total"]),
+            "total_dinheiro": _formatar_moeda(totais["dinheiro"]),
+            "total_pix": _formatar_moeda(totais["pix"]),
+            "total_cartao": _formatar_moeda(totais["cartao"]),
+            "total_misto": _formatar_moeda(totais["misto"]),
+            "total_taxa_motoca": _formatar_moeda(totais["taxa"]),
 
-        # NÃO subtrai mais a taxa do total
-        total_dia = valor_bruto
-
-        total_dinheiro = (
-            pedidos_hoje
-            .filter(forma_pagamento=Pedidos.FormaPagamento.DINHEIRO)
-            .aggregate(total=Sum('total'))['total'] or Decimal('0.00')
-        )
-
-        total_pix = (
-            pedidos_hoje
-            .filter(forma_pagamento=Pedidos.FormaPagamento.PIX)
-            .aggregate(total=Sum('total'))['total'] or Decimal('0.00')
-        )
-
-        total_cartao = (
-            pedidos_hoje
-            .filter(forma_pagamento=Pedidos.FormaPagamento.CARTAO)
-            .aggregate(total=Sum('total'))['total'] or Decimal('0.00')
-        )
-
-        total_misto = (
-            pedidos_hoje
-            .filter(forma_pagamento=Pedidos.FormaPagamento.MISTO)
-            .aggregate(total=Sum('total'))['total'] or Decimal('0.00')
-        )
-
-        total_taxa_motoca = valor_taxas
-
-        return render(request, 'pedidos.html', {
-            'pedidos': pedidos,
-            'total_dia': f"{total_dia:.2f}".replace('.', ','),
-            'total_dinheiro': f"{total_dinheiro:.2f}".replace('.', ','),
-            'total_pix': f"{total_pix:.2f}".replace('.', ','),
-            'total_cartao': f"{total_cartao:.2f}".replace('.', ','),
-            'total_misto': f"{total_misto:.2f}".replace('.', ','),
-            'total_taxa_motoca': f"{total_taxa_motoca:.2f}".replace('.', ','),
-            'status_options': Pedidos.StatusPedido.choices,
-            'pagamento_options': Pedidos.FormaPagamento.choices
+            "status_options": Pedidos.StatusPedido.choices,
+            "pagamento_options": Pedidos.FormaPagamento.choices,
         })
 
 
 class ResumoPedidosView(LoginRequiredMixin, View):
+    login_url = "login"
 
     def get(self, request):
-        periodo = request.GET.get('periodo', 'hoje')
-        hoje = timezone.localdate()
+        pedidos, periodo, pagamentos, label = _filtrar_pedidos(request)
 
-        if periodo == 'hoje':
-            inicio = hoje
-            label = "Hoje"
-
-        elif periodo == 'semana':
-            inicio = hoje - timedelta(days=6)
-            label = "Últimos 7 dias"
-
-        elif periodo == 'quinzena':
-            inicio = hoje - timedelta(days=14)
-            label = "Últimos 15 dias"
-
-        elif periodo == 'mes':
-            inicio = hoje.replace(day=1)
-            label = "Este mês"
-
-        else:
-            inicio = None
-            label = "Total Geral"
-
-        pedidos = Pedidos.objects.exclude(
+        pedidos_totais = pedidos.exclude(
             status=Pedidos.StatusPedido.CANCELADO
         )
 
-        if inicio:
-            inicio_dt = timezone.make_aware(datetime.combine(inicio, datetime.min.time()))
-            pedidos = pedidos.filter(criado_em__gte=inicio_dt)
-
-        totais = pedidos.aggregate(
-            total=Sum('total'),
-            taxa=Sum('taxa_motoca'),
-
-            dinheiro=Sum('total', filter=Q(forma_pagamento=Pedidos.FormaPagamento.DINHEIRO)),
-            pix=Sum('total', filter=Q(forma_pagamento=Pedidos.FormaPagamento.PIX)),
-            cartao=Sum('total', filter=Q(forma_pagamento=Pedidos.FormaPagamento.CARTAO)),
-            misto=Sum('total', filter=Q(forma_pagamento=Pedidos.FormaPagamento.MISTO)),
+        totais = pedidos_totais.aggregate(
+            total=Sum("total"),
+            taxa=Sum("taxa_motoca"),
+            dinheiro=Sum(
+                "total",
+                filter=Q(forma_pagamento=Pedidos.FormaPagamento.DINHEIRO)
+            ),
+            pix=Sum(
+                "total",
+                filter=Q(forma_pagamento=Pedidos.FormaPagamento.PIX)
+            ),
+            cartao=Sum(
+                "total",
+                filter=Q(forma_pagamento=Pedidos.FormaPagamento.CARTAO)
+            ),
+            misto=Sum(
+                "total",
+                filter=Q(forma_pagamento=Pedidos.FormaPagamento.MISTO)
+            ),
         )
 
         return JsonResponse({
-            "total_dia": f"{(totais['total'] or 0):.2f}".replace('.', ','),
-            "total_taxa": f"{(totais['taxa'] or 0):.2f}".replace('.', ','),
-            "total_dinheiro": f"{(totais['dinheiro'] or 0):.2f}".replace('.', ','),
-            "total_pix": f"{(totais['pix'] or 0):.2f}".replace('.', ','),
-            "total_cartao": f"{(totais['cartao'] or 0):.2f}".replace('.', ','),
-            "label": label
+            "label": label,
+            "total_dia": _formatar_moeda(totais["total"]),
+            "total_taxa": _formatar_moeda(totais["taxa"]),
+            "total_dinheiro": _formatar_moeda(totais["dinheiro"]),
+            "total_pix": _formatar_moeda(totais["pix"]),
+            "total_cartao": _formatar_moeda(totais["cartao"]),
+            "total_misto": _formatar_moeda(totais["misto"]),
         })
-
 
 class PedidoReimprimirView(LoginRequiredMixin, View):
     def post(self, request, pedido_id):
