@@ -386,21 +386,22 @@ class PedidosView(LoginRequiredMixin, View):
         )
 
         totais = pedidos_totais.aggregate(
-            total=Sum("total"),
-            taxa=Sum("taxa_motoca"),
-            dinheiro=Sum(
+            soma_total=Sum("total"),
+            soma_taxa=Sum("taxa_motoca"),
+
+            soma_dinheiro=Sum(
                 "total",
                 filter=Q(forma_pagamento=Pedidos.FormaPagamento.DINHEIRO)
             ),
-            pix=Sum(
+            soma_pix=Sum(
                 "total",
                 filter=Q(forma_pagamento=Pedidos.FormaPagamento.PIX)
             ),
-            cartao=Sum(
+            soma_cartao=Sum(
                 "total",
                 filter=Q(forma_pagamento=Pedidos.FormaPagamento.CARTAO)
             ),
-            misto=Sum(
+            soma_misto=Sum(
                 "total",
                 filter=Q(forma_pagamento=Pedidos.FormaPagamento.MISTO)
             ),
@@ -412,12 +413,12 @@ class PedidosView(LoginRequiredMixin, View):
             "pagamentos_atuais": pagamentos,
 
             "label_total": label,
-            "total_dia": _formatar_moeda(totais["total"]),
-            "total_dinheiro": _formatar_moeda(totais["dinheiro"]),
-            "total_pix": _formatar_moeda(totais["pix"]),
-            "total_cartao": _formatar_moeda(totais["cartao"]),
-            "total_misto": _formatar_moeda(totais["misto"]),
-            "total_taxa_motoca": _formatar_moeda(totais["taxa"]),
+            "total_dia": _formatar_moeda(totais["soma_total"]),
+            "total_dinheiro": _formatar_moeda(totais["soma_dinheiro"]),
+            "total_pix": _formatar_moeda(totais["soma_pix"]),
+            "total_cartao": _formatar_moeda(totais["soma_cartao"]),
+            "total_misto": _formatar_moeda(totais["soma_misto"]),
+            "total_taxa_motoca": _formatar_moeda(totais["soma_taxa"]),
 
             "status_options": Pedidos.StatusPedido.choices,
             "pagamento_options": Pedidos.FormaPagamento.choices,
@@ -435,21 +436,22 @@ class ResumoPedidosView(LoginRequiredMixin, View):
         )
 
         totais = pedidos_totais.aggregate(
-            total=Sum("total"),
-            taxa=Sum("taxa_motoca"),
-            dinheiro=Sum(
+            soma_total=Sum("total"),
+            soma_taxa=Sum("taxa_motoca"),
+
+            soma_dinheiro=Sum(
                 "total",
                 filter=Q(forma_pagamento=Pedidos.FormaPagamento.DINHEIRO)
             ),
-            pix=Sum(
+            soma_pix=Sum(
                 "total",
                 filter=Q(forma_pagamento=Pedidos.FormaPagamento.PIX)
             ),
-            cartao=Sum(
+            soma_cartao=Sum(
                 "total",
                 filter=Q(forma_pagamento=Pedidos.FormaPagamento.CARTAO)
             ),
-            misto=Sum(
+            soma_misto=Sum(
                 "total",
                 filter=Q(forma_pagamento=Pedidos.FormaPagamento.MISTO)
             ),
@@ -457,12 +459,12 @@ class ResumoPedidosView(LoginRequiredMixin, View):
 
         return JsonResponse({
             "label": label,
-            "total_dia": _formatar_moeda(totais["total"]),
-            "total_taxa": _formatar_moeda(totais["taxa"]),
-            "total_dinheiro": _formatar_moeda(totais["dinheiro"]),
-            "total_pix": _formatar_moeda(totais["pix"]),
-            "total_cartao": _formatar_moeda(totais["cartao"]),
-            "total_misto": _formatar_moeda(totais["misto"]),
+            "total_dia": _formatar_moeda(totais["soma_total"]),
+            "total_taxa": _formatar_moeda(totais["soma_taxa"]),
+            "total_dinheiro": _formatar_moeda(totais["soma_dinheiro"]),
+            "total_pix": _formatar_moeda(totais["soma_pix"]),
+            "total_cartao": _formatar_moeda(totais["soma_cartao"]),
+            "total_misto": _formatar_moeda(totais["soma_misto"]),
         })
 
 class PedidoReimprimirView(LoginRequiredMixin, View):
