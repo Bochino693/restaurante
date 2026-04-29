@@ -1071,30 +1071,6 @@ function getCookie(name) {
 }
 
 
-async function imprimirDuasVias(pedido) {
-    const impressora = "MP-4200 TH";
-
-    try {
-        if (!qz.websocket.isActive()) {
-            await qz.websocket.connect();
-        }
-
-        const config = qz.configs.create(impressora, { encoding: 'ISO-8859-1' });
-
-        const textoBalcao = gerarTextoBalcao(pedido);
-        await qz.print(config, [{ type: 'raw', format: 'plain', data: textoBalcao }]);
-
-        await new Promise(resolve => setTimeout(resolve, 600));
-
-        const textoCozinha = gerarTextoCozinha(pedido);
-        await qz.print(config, [{ type: 'raw', format: 'plain', data: textoCozinha }]);
-
-    } catch (error) {
-        console.error(error);
-        mostrarAlerta("Erro impressão", "Verifique a conexão com a impressora.", "erro");
-    }
-}
-
 
 // Comandos ESC/POS atualizados para MP-4200 TH
 const ESC_POS = {
@@ -1112,7 +1088,6 @@ const ESC_POS = {
 function moeda(v) {
     return Number(v || 0).toFixed(2).replace('.', ',');
 }
-
 async function imprimirDuasVias(pedido) {
     const impressora = "MP-4200 TH";
 
@@ -1122,14 +1097,14 @@ async function imprimirDuasVias(pedido) {
         }
 
         const config = qz.configs.create(impressora, {
-            encoding: 'UTF-8'
+            encoding: 'ISO-8859-1' // 🔥 CORRETO
         });
 
         await qz.print(config, [
             { type: 'raw', format: 'plain', data: gerarTextoBalcao(pedido) }
         ]);
 
-        await new Promise(resolve => setTimeout(resolve, 600));
+        await new Promise(resolve => setTimeout(resolve, 500));
 
         await qz.print(config, [
             { type: 'raw', format: 'plain', data: gerarTextoCozinha(pedido) }
@@ -1137,8 +1112,16 @@ async function imprimirDuasVias(pedido) {
 
     } catch (error) {
         console.error(error);
-        mostrarAlerta("Erro impressão", "Verifique a conexão com a impressora.", "erro");
+        mostrarAlerta("Erro impressão", "Falha ao imprimir. Verifique QZ Tray.", "erro");
     }
+}
+
+
+function limparTexto(str) {
+    return (str || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "") // remove acentos
+        .replace(/[^\x00-\x7F]/g, "");   // força ASCII
 }
 
 function gerarTextoBalcao(pedido) {
@@ -1186,7 +1169,7 @@ function gerarTextoBalcao(pedido) {
             const qtdAdd = Number(a.qtd || 1);
             const totalAdd = Number(a.preco || 0) * qtdAdd;
 
-            t += "   + " + qtdAdd + "x " + a.nome + "  R$ " + moeda(totalAdd) + "\n";
+            t += "   + " + qtdAdd + "x " + limparTexto(a.nome) + "  R$ " + moeda(totalAdd) + "\n";
         });
 
         t += "\n";

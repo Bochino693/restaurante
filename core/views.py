@@ -156,7 +156,8 @@ class CaixaView(LoginRequiredMixin, View):
 
                     preco_base = Decimal(str(item["precoBase"]))
                     soma_adicionais = sum(
-                        Decimal(str(a["preco"])) for a in adicionais
+                        Decimal(str(a["preco"])) * Decimal(str(a.get("qtd", 1)))
+                        for a in adicionais
                     )
 
                     preco_unitario = preco_base + soma_adicionais
