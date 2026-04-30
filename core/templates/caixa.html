@@ -1099,8 +1099,8 @@ async function imprimirDuasVias(pedido) {
         }
 
         const config = qz.configs.create(impressora, {
-            encoding: 'ISO-8859-1' // 🔥 CORRETO
-        });
+    encoding: 'CP437' // 🔥 MAIS COMPATÍVEL COM ESC/POS
+});
 
         const pedidoOK = normalizarPedidoImpressao(pedido);
 
