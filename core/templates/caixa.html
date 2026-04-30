@@ -1129,6 +1129,17 @@ async function imprimirDuasVias(pedido) {
 }
 
 
+
+function quebrarLinha(texto, max = 32) {
+    const linhas = [];
+    while (texto.length > max) {
+        linhas.push(texto.slice(0, max));
+        texto = texto.slice(max);
+    }
+    linhas.push(texto);
+    return linhas;
+}
+
 function limparTexto(str) {
     return (str || "")
         .normalize("NFD")
@@ -1181,7 +1192,16 @@ function gerarTextoBalcao(pedido) {
 
         const nomeItem = limparTexto(item.nome || "ITEM");
 
-        t += `${item.qtd}x ${nomeItem}  R$ ${moeda(subtotalItem)}\n`;
+        const nomeLinhas = quebrarLinha(`${item.qtd}x ${nomeItem}`, 32);
+
+        nomeLinhas.forEach((linha, i) => {
+            if (i === 0) {
+                t += `${linha.padEnd(22)} R$ ${moeda(subtotalItem)}\n`;
+            } else {
+                t += `${linha}\n`;
+            }
+        });
+
         t += `   Unitario: R$ ${moeda(precoUnitario)}\n`;
 
         adicionais.forEach(a => {
@@ -1261,7 +1281,9 @@ function gerarTextoCozinha(pedido) {
     t += ESC_POS.BOLD_ON + "ITENS DO PEDIDO\n" + ESC_POS.BOLD_OFF;
     t += "--------------------------------\n";
 
-    pedido.itens.forEach(item => {
+   const itensAgrupados = agruparItens(pedido.itens || []);
+
+itensAgrupados.forEach(item => {
         const adicionais = item.adicionais || [];
         const precoAdicionais = calcularPrecoAdicionais(adicionais);
         const precoUnitario = Number(item.precoBase || 0) + precoAdicionais;
