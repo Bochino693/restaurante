@@ -1132,13 +1132,16 @@ async function imprimirDuasVias(pedido) {
 
 function quebrarLinha(texto, max = 32) {
     const linhas = [];
+
     while (texto.length > max) {
         linhas.push(texto.slice(0, max));
         texto = texto.slice(max);
     }
+
     linhas.push(texto);
     return linhas;
 }
+
 
 function limparTexto(str) {
     return (str || "")
@@ -1148,7 +1151,6 @@ function limparTexto(str) {
 }
 
 
-
 function gerarTextoBalcao(pedido) {
     let t = ESC_POS.INIT;
 
@@ -1156,6 +1158,7 @@ function gerarTextoBalcao(pedido) {
     t += "VIA BALCAO\n";
     t += "PEDIDO #" + pedido.id + "\n";
     t += ESC_POS.DOUBLE_OFF + ESC_POS.BOLD_OFF;
+
     t += "--------------------------------\n";
 
     t += ESC_POS.LEFT;
@@ -1180,7 +1183,6 @@ function gerarTextoBalcao(pedido) {
     t += ESC_POS.BOLD_ON + "ITENS DO PEDIDO\n" + ESC_POS.BOLD_OFF;
     t += "--------------------------------\n";
 
-    // 🔥 AGRUPAMENTO CORRETO
     const itensAgrupados = agruparItens(pedido.itens || []);
 
     itensAgrupados.forEach(item => {
@@ -1196,7 +1198,8 @@ function gerarTextoBalcao(pedido) {
 
         nomeLinhas.forEach((linha, i) => {
             if (i === 0) {
-                t += `${linha.padEnd(22)} R$ ${moeda(subtotalItem)}\n`;
+                const linhaFormatada = linha.length > 22 ? linha : linha.padEnd(22);
+                t += `${linhaFormatada} R$ ${moeda(subtotalItem)}\n`;
             } else {
                 t += `${linha}\n`;
             }
@@ -1223,11 +1226,6 @@ function gerarTextoBalcao(pedido) {
     t += ESC_POS.BOLD_OFF;
 
     t += ESC_POS.LINE_SPACE + ESC_POS.CUT;
-
-    // 🔥 GARANTE QUE NUNCA VAI VAZIO
-    if (!t || t.length < 20) {
-        return ESC_POS.INIT + "ERRO AO GERAR PEDIDO\n\n\n" + ESC_POS.CUT;
-    }
 
     return t;
 }
@@ -1259,6 +1257,7 @@ function agruparItens(itens) {
 }
 
 
+
 function gerarTextoCozinha(pedido) {
     let t = ESC_POS.INIT;
 
@@ -1266,47 +1265,48 @@ function gerarTextoCozinha(pedido) {
     t += "VIA COZINHA\n";
     t += "PEDIDO #" + pedido.id + "\n";
     t += ESC_POS.DOUBLE_OFF + ESC_POS.BOLD_OFF;
+
     t += "--------------------------------\n";
 
     t += ESC_POS.LEFT;
-    t += "Cliente: " + pedido.nomeCliente.toUpperCase() + "\n";
+    t += "Cliente: " + limparTexto(pedido.nomeCliente).toUpperCase() + "\n";
     t += "Pagamento: " + (pedido.metodo || "").toUpperCase() + "\n";
     t += pedido.entrega ? "Tipo: ENTREGA\n" : "Tipo: RETIRADA\n";
 
     if (pedido.descricao && pedido.descricao.trim() !== "") {
-        t += "OBS: " + pedido.descricao.toUpperCase() + "\n";
+        t += "OBS: " + limparTexto(pedido.descricao).toUpperCase() + "\n";
     }
 
     t += "--------------------------------\n";
     t += ESC_POS.BOLD_ON + "ITENS DO PEDIDO\n" + ESC_POS.BOLD_OFF;
     t += "--------------------------------\n";
 
-   const itensAgrupados = agruparItens(pedido.itens || []);
+    const itensAgrupados = agruparItens(pedido.itens || []);
 
-itensAgrupados.forEach(item => {
+    itensAgrupados.forEach(item => {
         const adicionais = item.adicionais || [];
+
         const precoAdicionais = calcularPrecoAdicionais(adicionais);
         const precoUnitario = Number(item.precoBase || 0) + precoAdicionais;
         const subtotalItem = precoUnitario * Number(item.qtd || 1);
 
         t += ESC_POS.BOLD_ON;
-        t += item.qtd + "x " + item.nome.toUpperCase() + "  R$ " + moeda(subtotalItem) + "\n";
+        t += `${item.qtd}x ${limparTexto(item.nome).toUpperCase()}  R$ ${moeda(subtotalItem)}\n`;
         t += ESC_POS.BOLD_OFF;
 
-        t += "   Unitário: R$ " + moeda(precoUnitario) + "\n";
+        t += `   Unitario: R$ ${moeda(precoUnitario)}\n`;
 
         adicionais.forEach(a => {
             const qtdAdd = Number(a.qtd || 1);
             const totalAdd = Number(a.preco || 0) * qtdAdd;
 
-            t += "   + " + qtdAdd + "x " + a.nome.toUpperCase() + "  R$ " + moeda(totalAdd) + "\n";
+            t += `   + ${qtdAdd}x ${limparTexto(a.nome).toUpperCase()}  R$ ${moeda(totalAdd)}\n`;
         });
 
         t += "\n";
     });
 
     t += "--------------------------------\n";
-    t += ESC_POS.LEFT;
     t += "Total Pedido: R$ " + moeda(pedido.totalPedido) + "\n";
     t += "Taxa Motoca:  R$ " + moeda(pedido.taxaMotoca) + "\n";
 
@@ -1324,7 +1324,6 @@ itensAgrupados.forEach(item => {
 
     return t;
 }
-
 
 function normalizarPedidoImpressao(p) {
     return {
