@@ -1088,6 +1088,8 @@ const ESC_POS = {
 function moeda(v) {
     return Number(v || 0).toFixed(2).replace('.', ',');
 }
+
+
 async function imprimirDuasVias(pedido) {
     const impressora = "MP-4200 TH";
 
@@ -1100,15 +1102,25 @@ async function imprimirDuasVias(pedido) {
             encoding: 'ISO-8859-1' // 🔥 CORRETO
         });
 
+        const pedidoOK = normalizarPedidoImpressao(pedido);
+
+        const textoBalcao = gerarTextoBalcao(pedidoOK);
+        const textoCozinha = gerarTextoCozinha(pedidoOK);
+
+        if (!textoBalcao || textoBalcao.trim() === "") {
+            throw new Error("Texto balcão vazio");
+        }
+
         await qz.print(config, [
-            { type: 'raw', format: 'plain', data: gerarTextoBalcao(pedido) }
+            { type: 'raw', format: 'plain', data: textoBalcao }
         ]);
 
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise(r => setTimeout(r, 700));
 
         await qz.print(config, [
-            { type: 'raw', format: 'plain', data: gerarTextoCozinha(pedido) }
+            { type: 'raw', format: 'plain', data: textoCozinha }
         ]);
+
 
     } catch (error) {
         console.error(error);
@@ -1124,29 +1136,30 @@ function limparTexto(str) {
         .replace(/[^\x00-\x7F]/g, "");   // força ASCII
 }
 
+
+
 function gerarTextoBalcao(pedido) {
     let t = ESC_POS.INIT;
 
     t += ESC_POS.CENTER + ESC_POS.BOLD_ON + ESC_POS.DOUBLE_ON;
-    t += "VIA BALCÃO\n";
+    t += "VIA BALCAO\n";
     t += "PEDIDO #" + pedido.id + "\n";
     t += ESC_POS.DOUBLE_OFF + ESC_POS.BOLD_OFF;
     t += "--------------------------------\n";
 
     t += ESC_POS.LEFT;
-    t += "Data: " + pedido.criadoEm + "\n";
-    t += "Cliente: " + pedido.nomeCliente.toUpperCase() + "\n";
+    t += "Data: " + (pedido.criadoEm || "") + "\n";
+    t += "Cliente: " + limparTexto(pedido.nomeCliente || "SEM NOME") + "\n";
 
-    if (pedido.descricao && pedido.descricao.trim() !== "") {
-        t += "Descrição: " + pedido.descricao + "\n";
+    if (pedido.descricao) {
+        t += "Descricao: " + limparTexto(pedido.descricao) + "\n";
     }
 
-    t += "Pagamento: " + pedido.metodo.toUpperCase() + "\n";
+    t += "Pagamento: " + (pedido.metodo || "").toUpperCase() + "\n";
     t += pedido.entrega ? "Tipo: ENTREGA\n" : "Tipo: RETIRADA\n";
 
     if (pedido.entrega && pedido.endereco) {
-        t += "End: " + (pedido.endereco.rua || "") + ", " + (pedido.endereco.numero || "") + "\n";
-
+        t += "End: " + limparTexto(pedido.endereco.rua || "") + ", " + (pedido.endereco.numero || "") + "\n";
         if (pedido.endereco.cep) {
             t += "CEP: " + pedido.endereco.cep + "\n";
         }
@@ -1156,20 +1169,26 @@ function gerarTextoBalcao(pedido) {
     t += ESC_POS.BOLD_ON + "ITENS DO PEDIDO\n" + ESC_POS.BOLD_OFF;
     t += "--------------------------------\n";
 
-    pedido.itens.forEach(item => {
+    // 🔥 AGRUPAMENTO CORRETO
+    const itensAgrupados = agruparItens(pedido.itens || []);
+
+    itensAgrupados.forEach(item => {
         const adicionais = item.adicionais || [];
+
         const precoAdicionais = calcularPrecoAdicionais(adicionais);
         const precoUnitario = Number(item.precoBase || 0) + precoAdicionais;
         const subtotalItem = precoUnitario * Number(item.qtd || 1);
 
-        t += item.qtd + "x " + item.nome.toUpperCase() + "  R$ " + moeda(subtotalItem) + "\n";
-        t += "   Unitário: R$ " + moeda(precoUnitario) + "\n";
+        const nomeItem = limparTexto(item.nome || "ITEM");
+
+        t += `${item.qtd}x ${nomeItem}  R$ ${moeda(subtotalItem)}\n`;
+        t += `   Unitario: R$ ${moeda(precoUnitario)}\n`;
 
         adicionais.forEach(a => {
             const qtdAdd = Number(a.qtd || 1);
             const totalAdd = Number(a.preco || 0) * qtdAdd;
 
-            t += "   + " + qtdAdd + "x " + limparTexto(a.nome) + "  R$ " + moeda(totalAdd) + "\n";
+            t += `   + ${qtdAdd}x ${limparTexto(a.nome)}  R$ ${moeda(totalAdd)}\n`;
         });
 
         t += "\n";
@@ -1185,7 +1204,38 @@ function gerarTextoBalcao(pedido) {
 
     t += ESC_POS.LINE_SPACE + ESC_POS.CUT;
 
+    // 🔥 GARANTE QUE NUNCA VAI VAZIO
+    if (!t || t.length < 20) {
+        return ESC_POS.INIT + "ERRO AO GERAR PEDIDO\n\n\n" + ESC_POS.CUT;
+    }
+
     return t;
+}
+
+function agruparItens(itens) {
+    const mapa = {};
+
+    itens.forEach(item => {
+        const adicionaisKey = (item.adicionais || [])
+            .map(a => `${a.nome}:${a.preco}:${a.qtd || 1}`)
+            .sort()
+            .join('|');
+
+        const chave = `${item.nome}_${adicionaisKey}`;
+
+        if (!mapa[chave]) {
+            mapa[chave] = {
+                nome: item.nome,
+                qtd: Number(item.qtd || 1),
+                precoBase: Number(item.precoBase || 0),
+                adicionais: item.adicionais || []
+            };
+        } else {
+            mapa[chave].qtd += Number(item.qtd || 1);
+        }
+    });
+
+    return Object.values(mapa);
 }
 
 
@@ -1253,6 +1303,40 @@ function gerarTextoCozinha(pedido) {
     return t;
 }
 
+
+function normalizarPedidoImpressao(p) {
+    return {
+        id: p.id,
+        criadoEm: p.criadoEm || new Date().toLocaleString('pt-BR'),
+
+        nomeCliente: (p.nomeCliente || "SEM NOME"),
+        metodo: (p.metodo || "").toUpperCase(),
+        entrega: !!p.entrega,
+        descricao: p.descricao || "",
+
+        endereco: {
+            rua: p.endereco?.rua || "",
+            numero: p.endereco?.numero || "",
+            cep: p.endereco?.cep || ""
+        },
+
+        itens: (p.itens || []).map(i => ({
+            nome: (i.nome || "").toString(),
+            qtd: Number(i.qtd || i.quantidade || 1),
+            precoBase: Number(i.precoBase || i.preco_unitario || 0),
+
+            adicionais: (i.adicionais || []).map(a => ({
+                nome: a.nome || "",
+                qtd: Number(a.qtd || 1),
+                preco: Number(a.preco || 0)
+            }))
+        })),
+
+        totalPedido: Number(p.totalPedido || 0),
+        taxaMotoca: Number(p.taxaMotoca || 0),
+        totalFinal: Number(p.totalFinal || 0)
+    };
+}
 
 document.addEventListener('DOMContentLoaded', function () {
     aplicarFiltros();
