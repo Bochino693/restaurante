@@ -608,7 +608,8 @@ function fecharModalPrint() {
         })
         const pedido = await response.json();
 
-        await imprimirMultiplasVias(pedido, qtd);
+        const pedidoNormalizado = normalizarPedido(pedido);
+        await imprimirMultiplasVias(pedidoNormalizado, qtd);
 
         fecharModalPrint();
 
@@ -618,16 +619,60 @@ function fecharModalPrint() {
     }
 }
 
+function normalizarPedido(p) {
+    return {
+        id: p.id,
+
+        criadoEm: p.criado_em_formatado || p.criado_em || "",
+
+        nomeCliente: (p.nome_cliente || "SEM NOME"),
+
+        metodo: p.forma_pagamento || "",
+
+        entrega: p.entrega || false,
+
+        descricao: p.descricao || "",
+
+        endereco: {
+            rua: p.rua || "",
+            numero: p.numero || "",
+            cep: p.cep || ""
+        },
+
+        itens: (p.itens || []).map(i => ({
+            nome: i.produto?.nome_produto || i.nome || "ITEM",
+            qtd: i.quantidade || i.qtd || 1,
+            precoBase: Number(i.preco || i.preco_base || 0),
+
+            adicionais: (i.adicionais || []).map(a => ({
+                nome: a.nome,
+                qtd: a.quantidade || a.qtd || 1,
+                preco: Number(a.preco || 0)
+            }))
+        })),
+
+        totalPedido: Number(p.total || 0),
+        taxaMotoca: Number(p.taxa_motoca || 0),
+        totalFinal: Number(p.total || 0) + Number(p.taxa_motoca || 0)
+    };
+}
+
+
 async function imprimirMultiplasVias(pedido, vias) {
     const impressora = "MP-4200 TH";
 
     try {
         if (!qz.websocket.isActive()) {
-            await qz.websocket.connect();
-        }
+    try {
+        await qz.websocket.connect();
+    } catch (e) {
+        alert("QZ Tray não conectado!");
+        return;
+    }
+}
 
         const config = qz.configs.create(impressora, {
-            encoding: 'UTF-8'
+            encoding: 'ISO-8859-1'
         });
 
         for (let i = 0; i < vias; i++) {
@@ -644,7 +689,7 @@ async function imprimirMultiplasVias(pedido, vias) {
                 { type: 'raw', format: 'plain', data: gerarTextoCozinha(pedido) }
             ]);
 
-            await new Promise(r => setTimeout(r, 400));
+            await new Promise(r => setTimeout(r, 700));
         }
 
     } catch (error) {
