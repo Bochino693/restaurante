@@ -690,47 +690,42 @@ class DashboardAnalyticsView(LoginRequiredMixin, TemplateView):
         hoje = now().date()
 
         # =========================
-        # FILTRO DE DATAS
+        # FILTROS
         # =========================
         data_inicio = self.request.GET.get("data_inicio")
         data_fim = self.request.GET.get("data_fim")
 
-        if data_inicio:
-            data_inicio = datetime.strptime(data_inicio, "%Y-%m-%d").date()
-        else:
-            data_inicio = hoje - timedelta(days=30)
+        try:
+            data_inicio = (
+                datetime.strptime(data_inicio, "%Y-%m-%d").date()
+                if data_inicio else hoje - timedelta(days=30)
+            )
 
-        if data_fim:
-            data_fim = datetime.strptime(data_fim, "%Y-%m-%d").date()
-        else:
+            data_fim = (
+                datetime.strptime(data_fim, "%Y-%m-%d").date()
+                if data_fim else hoje
+            )
+
+        except:
+            data_inicio = hoje - timedelta(days=30)
             data_fim = hoje
 
         # =========================
-        # QUERY BASE FILTRADA
+        # PEDIDOS FILTRADOS
         # =========================
         pedidos = Pedidos.objects.filter(
             criado_em__date__range=[data_inicio, data_fim]
         )
 
+        # =========================
+        # ITENS FILTRADOS
+        # =========================
         itens_pedido = ItensPedido.objects.filter(
-            pedido__criado_em__date__range=[data_inicio, data_fim]
-        )
+            pedidos__criado_em__date__range=[data_inicio, data_fim]
+        ).distinct()
 
         # =========================
-        # PRODUTOS MAIS CLICADOS
-        # =========================
-        context["produtos_click"] = (
-            ProdutosMaisClick.objects.select_related("produto")
-            .order_by("-quantidade")[:5]
-        )
-
-        context["produtos_click_todos"] = (
-            ProdutosMaisClick.objects.select_related("produto")
-            .order_by("-quantidade")
-        )
-
-        # =========================
-        # PRODUTOS MAIS VENDIDOS
+        # TOP PRODUTOS VENDIDOS
         # =========================
         context["mais_vendidos"] = (
             itens_pedido
@@ -745,6 +740,9 @@ class DashboardAnalyticsView(LoginRequiredMixin, TemplateView):
             .order_by("-total")[:5]
         )
 
+        # =========================
+        # RANKING GERAL
+        # =========================
         context["mais_vendidos_todos"] = (
             itens_pedido
             .values("produto__nome_produto")
@@ -759,19 +757,39 @@ class DashboardAnalyticsView(LoginRequiredMixin, TemplateView):
         )
 
         # =========================
+        # MAIS CLICADOS
+        # =========================
+        context["produtos_click"] = (
+            ProdutosMaisClick.objects
+            .select_related("produto")
+            .order_by("-quantidade")[:5]
+        )
+
+        context["produtos_click_todos"] = (
+            ProdutosMaisClick.objects
+            .select_related("produto")
+            .order_by("-quantidade")
+        )
+
+        # =========================
         # RECEITA TOTAL
         # =========================
-        context["receita_total"] = (
-            pedidos.aggregate(
-                total=Coalesce(
-                    Sum("total"),
-                    Value(Decimal("0.00")),
-                    output_field=DecimalField(
-                        max_digits=12,
-                        decimal_places=2
-                    )
+        receita_total = pedidos.aggregate(
+            total=Coalesce(
+                Sum("total"),
+                Value(Decimal("0.00")),
+                output_field=DecimalField(
+                    max_digits=12,
+                    decimal_places=2
                 )
-            )["total"] or Decimal("0.00")
+            )
+        )["total"]
+
+        context["receita_total"] = (
+            f"{receita_total:,.2f}"
+            .replace(",", "X")
+            .replace(".", ",")
+            .replace("X", ".")
         )
 
         # =========================
@@ -782,17 +800,22 @@ class DashboardAnalyticsView(LoginRequiredMixin, TemplateView):
         # =========================
         # TICKET MÉDIO
         # =========================
-        context["ticket_medio"] = (
-            pedidos.aggregate(
-                media=Coalesce(
-                    Sum("total") / Count("id"),
-                    Value(Decimal("0.00")),
-                    output_field=DecimalField(
-                        max_digits=12,
-                        decimal_places=2
-                    )
+        ticket_medio = pedidos.aggregate(
+            media=Coalesce(
+                Sum("total") / Count("id"),
+                Value(Decimal("0.00")),
+                output_field=DecimalField(
+                    max_digits=12,
+                    decimal_places=2
                 )
-            )["media"] or Decimal("0.00")
+            )
+        )["media"]
+
+        context["ticket_medio"] = (
+            f"{ticket_medio:,.2f}"
+            .replace(",", "X")
+            .replace(".", ",")
+            .replace("X", ".")
         )
 
         # =========================
@@ -805,7 +828,7 @@ class DashboardAnalyticsView(LoginRequiredMixin, TemplateView):
         )
 
         # =========================
-        # DATAS PARA O TEMPLATE
+        # DATAS
         # =========================
         context["data_inicio"] = data_inicio
         context["data_fim"] = data_fim
