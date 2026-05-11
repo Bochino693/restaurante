@@ -580,93 +580,7 @@ from django.db.models import Sum, Count, Value, DecimalField, IntegerField, Floa
 from django.db.models.functions import Coalesce
 from django.utils.timezone import now
 
-class DashboardAnalyticsView(LoginRequiredMixin, TemplateView):
-    template_name = "dashboards.html"
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-
-        hoje = now()
-
-        # Top 5 - Produtos mais clicados
-        context["produtos_click"] = (
-            ProdutosMaisClick.objects.select_related("produto")
-            .order_by("-quantidade")[:5]
-        )
-
-        # Ranking geral - Produtos mais clicados
-        context["produtos_click_todos"] = (
-            ProdutosMaisClick.objects.select_related("produto")
-            .order_by("-quantidade")
-        )
-
-        # Top 5 - Pratos do dia mais clicados
-        context["pratos_click"] = (
-            PratoDiaMaisClick.objects.select_related("prato")
-            .order_by("-quantidade")[:5]
-        )
-
-        # Top 5 - Produtos mais vendidos
-        context["mais_vendidos"] = (
-            ItensPedido.objects
-            .values("produto__nome_produto")
-            .annotate(
-                total=Coalesce(
-                    Sum("quantidade"),
-                    Value(0),
-                    output_field=IntegerField()
-                )
-            )
-            .order_by("-total")[:5]
-        )
-
-        # Ranking geral - Produtos mais vendidos
-        context["mais_vendidos_todos"] = (
-            ItensPedido.objects
-            .values("produto__nome_produto")
-            .annotate(
-                total=Coalesce(
-                    Sum("quantidade"),
-                    Value(0),
-                    output_field=IntegerField()
-                )
-            )
-            .order_by("-total")
-        )
-
-        # Receita total
-        context["receita_total"] = (
-            Pedidos.objects.aggregate(
-                total=Coalesce(
-                    Sum("total"),
-                    Value(Decimal("0.00")),
-                    output_field=DecimalField(max_digits=12, decimal_places=2)
-                )
-            )["total"] or Decimal("0.00")
-        )
-
-        # Total pedidos
-        context["total_pedidos"] = Pedidos.objects.count()
-
-        # Ticket médio
-        context["ticket_medio"] = (
-            Pedidos.objects.aggregate(
-                media=Coalesce(
-                    Sum("total") / Count("id", distinct=True),
-                    Value(Decimal("0.00")),
-                    output_field=DecimalField(max_digits=12, decimal_places=2)
-                )
-            )["media"] or Decimal("0.00")
-        )
-
-        # Pedidos por status
-        context["pedidos_status"] = (
-            Pedidos.objects.values("status")
-            .annotate(total=Count("id"))
-            .order_by("status")
-        )
-
-        return context
 
 
 class GerenciarPratosDiaView(LoginRequiredMixin, View):
@@ -759,7 +673,141 @@ class LoginView(View):
         return render(request, self.template_name)
 
 
+
 class LogoutView(View):
     def get(self, request):
         logout(request)
         return redirect("login")
+
+
+
+class DashboardAnalyticsView(LoginRequiredMixin, TemplateView):
+    template_name = "dashboards.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        hoje = now().date()
+
+        # =========================
+        # FILTRO DE DATAS
+        # =========================
+        data_inicio = self.request.GET.get("data_inicio")
+        data_fim = self.request.GET.get("data_fim")
+
+        if data_inicio:
+            data_inicio = datetime.strptime(data_inicio, "%Y-%m-%d").date()
+        else:
+            data_inicio = hoje - timedelta(days=30)
+
+        if data_fim:
+            data_fim = datetime.strptime(data_fim, "%Y-%m-%d").date()
+        else:
+            data_fim = hoje
+
+        # =========================
+        # QUERY BASE FILTRADA
+        # =========================
+        pedidos = Pedidos.objects.filter(
+            criado_em__date__range=[data_inicio, data_fim]
+        )
+
+        itens_pedido = ItensPedido.objects.filter(
+            pedido__criado_em__date__range=[data_inicio, data_fim]
+        )
+
+        # =========================
+        # PRODUTOS MAIS CLICADOS
+        # =========================
+        context["produtos_click"] = (
+            ProdutosMaisClick.objects.select_related("produto")
+            .order_by("-quantidade")[:5]
+        )
+
+        context["produtos_click_todos"] = (
+            ProdutosMaisClick.objects.select_related("produto")
+            .order_by("-quantidade")
+        )
+
+        # =========================
+        # PRODUTOS MAIS VENDIDOS
+        # =========================
+        context["mais_vendidos"] = (
+            itens_pedido
+            .values("produto__nome_produto")
+            .annotate(
+                total=Coalesce(
+                    Sum("quantidade"),
+                    Value(0),
+                    output_field=IntegerField()
+                )
+            )
+            .order_by("-total")[:5]
+        )
+
+        context["mais_vendidos_todos"] = (
+            itens_pedido
+            .values("produto__nome_produto")
+            .annotate(
+                total=Coalesce(
+                    Sum("quantidade"),
+                    Value(0),
+                    output_field=IntegerField()
+                )
+            )
+            .order_by("-total")
+        )
+
+        # =========================
+        # RECEITA TOTAL
+        # =========================
+        context["receita_total"] = (
+            pedidos.aggregate(
+                total=Coalesce(
+                    Sum("total"),
+                    Value(Decimal("0.00")),
+                    output_field=DecimalField(
+                        max_digits=12,
+                        decimal_places=2
+                    )
+                )
+            )["total"] or Decimal("0.00")
+        )
+
+        # =========================
+        # TOTAL PEDIDOS
+        # =========================
+        context["total_pedidos"] = pedidos.count()
+
+        # =========================
+        # TICKET MÉDIO
+        # =========================
+        context["ticket_medio"] = (
+            pedidos.aggregate(
+                media=Coalesce(
+                    Sum("total") / Count("id"),
+                    Value(Decimal("0.00")),
+                    output_field=DecimalField(
+                        max_digits=12,
+                        decimal_places=2
+                    )
+                )
+            )["media"] or Decimal("0.00")
+        )
+
+        # =========================
+        # STATUS PEDIDOS
+        # =========================
+        context["pedidos_status"] = (
+            pedidos.values("status")
+            .annotate(total=Count("id"))
+            .order_by("status")
+        )
+
+        # =========================
+        # DATAS PARA O TEMPLATE
+        # =========================
+        context["data_inicio"] = data_inicio
+        context["data_fim"] = data_fim
+
+        return context
