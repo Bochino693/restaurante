@@ -684,153 +684,111 @@ class LogoutView(View):
 class DashboardAnalyticsView(LoginRequiredMixin, TemplateView):
     template_name = "dashboards.html"
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
+    def _format_money(self, valor):
+        return (
+            f"{valor or Decimal('0.00'):,.2f}"
+            .replace(",", "X")
+            .replace(".", ",")
+            .replace("X", ".")
+        )
 
+    def _get_datas(self):
         hoje = now().date()
 
-        # =========================
-        # FILTROS
-        # =========================
         data_inicio = self.request.GET.get("data_inicio")
         data_fim = self.request.GET.get("data_fim")
 
         try:
-            data_inicio = (
-                datetime.strptime(data_inicio, "%Y-%m-%d").date()
-                if data_inicio else hoje - timedelta(days=30)
-            )
-
-            data_fim = (
-                datetime.strptime(data_fim, "%Y-%m-%d").date()
-                if data_fim else hoje
-            )
-
-        except:
+            data_inicio = datetime.strptime(data_inicio, "%Y-%m-%d").date() if data_inicio else hoje - timedelta(days=30)
+            data_fim = datetime.strptime(data_fim, "%Y-%m-%d").date() if data_fim else hoje
+        except Exception:
             data_inicio = hoje - timedelta(days=30)
             data_fim = hoje
 
-        # =========================
-        # PEDIDOS FILTRADOS
-        # =========================
+        return data_inicio, data_fim
+
+    def _get_dashboard_data(self):
+        data_inicio, data_fim = self._get_datas()
+
         pedidos = Pedidos.objects.filter(
             criado_em__date__range=[data_inicio, data_fim]
         )
 
-        # =========================
-        # ITENS FILTRADOS
-        # =========================
         itens_pedido = ItensPedido.objects.filter(
             pedidos__criado_em__date__range=[data_inicio, data_fim]
         ).distinct()
 
-        # =========================
-        # TOP PRODUTOS VENDIDOS
-        # =========================
-        context["mais_vendidos"] = (
+        mais_vendidos_qs = (
             itens_pedido
             .values("produto__nome_produto")
-            .annotate(
-                total=Coalesce(
-                    Sum("quantidade"),
-                    Value(0),
-                    output_field=IntegerField()
-                )
-            )
-            .order_by("-total")[:5]
-        )
-
-        # =========================
-        # RANKING GERAL
-        # =========================
-        context["mais_vendidos_todos"] = (
-            itens_pedido
-            .values("produto__nome_produto")
-            .annotate(
-                total=Coalesce(
-                    Sum("quantidade"),
-                    Value(0),
-                    output_field=IntegerField()
-                )
-            )
+            .annotate(total=Coalesce(Sum("quantidade"), Value(0), output_field=IntegerField()))
             .order_by("-total")
         )
 
-        # =========================
-        # MAIS CLICADOS
-        # =========================
-        context["produtos_click"] = (
-            ProdutosMaisClick.objects
-            .select_related("produto")
-            .order_by("-quantidade")[:5]
-        )
-
-        context["produtos_click_todos"] = (
+        produtos_click_qs = (
             ProdutosMaisClick.objects
             .select_related("produto")
             .order_by("-quantidade")
         )
 
-        # =========================
-        # RECEITA TOTAL
-        # =========================
         receita_total = pedidos.aggregate(
             total=Coalesce(
                 Sum("total"),
                 Value(Decimal("0.00")),
-                output_field=DecimalField(
-                    max_digits=12,
-                    decimal_places=2
-                )
+                output_field=DecimalField(max_digits=12, decimal_places=2)
             )
         )["total"]
 
-        context["receita_total"] = (
-            f"{receita_total:,.2f}"
-            .replace(",", "X")
-            .replace(".", ",")
-            .replace("X", ".")
-        )
+        total_pedidos = pedidos.count()
 
-        # =========================
-        # TOTAL PEDIDOS
-        # =========================
-        context["total_pedidos"] = pedidos.count()
+        ticket_medio = Decimal("0.00")
+        if total_pedidos > 0:
+            ticket_medio = receita_total / total_pedidos
 
-        # =========================
-        # TICKET MÉDIO
-        # =========================
-        ticket_medio = pedidos.aggregate(
-            media=Coalesce(
-                Sum("total") / Count("id"),
-                Value(Decimal("0.00")),
-                output_field=DecimalField(
-                    max_digits=12,
-                    decimal_places=2
-                )
-            )
-        )["media"]
-
-        context["ticket_medio"] = (
-            f"{ticket_medio:,.2f}"
-            .replace(",", "X")
-            .replace(".", ",")
-            .replace("X", ".")
-        )
-
-        # =========================
-        # STATUS PEDIDOS
-        # =========================
-        context["pedidos_status"] = (
+        pedidos_status = list(
             pedidos.values("status")
             .annotate(total=Count("id"))
             .order_by("status")
         )
 
-        # =========================
-        # DATAS
-        # =========================
-        context["data_inicio"] = data_inicio
-        context["data_fim"] = data_fim
+        mais_vendidos_todos = list(mais_vendidos_qs)
+        mais_vendidos = mais_vendidos_todos[:5]
 
+        produtos_click_todos = [
+            {
+                "produto": {
+                    "nome_produto": item.produto.nome_produto if item.produto else "Sem produto"
+                },
+                "quantidade": item.quantidade
+            }
+            for item in produtos_click_qs
+        ]
+
+        produtos_click = produtos_click_todos[:5]
+
+        return {
+            "data_inicio": data_inicio,
+            "data_fim": data_fim,
+            "receita_total": self._format_money(receita_total),
+            "total_pedidos": total_pedidos,
+            "ticket_medio": self._format_money(ticket_medio),
+            "mais_vendidos": mais_vendidos,
+            "mais_vendidos_todos": mais_vendidos_todos,
+            "produtos_click": produtos_click,
+            "produtos_click_todos": produtos_click_todos,
+            "pedidos_status": pedidos_status,
+            "produtos_vendidos_total": len(mais_vendidos_todos),
+        }
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.update(self._get_dashboard_data())
         return context
+
+    def get(self, request, *args, **kwargs):
+        if request.GET.get("ajax") == "1":
+            return JsonResponse(self._get_dashboard_data(), safe=False)
+
+        context = self.get_context_data(**kwargs)
+        return self.render_to_response(context)
+

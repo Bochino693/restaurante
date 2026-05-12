@@ -59,22 +59,22 @@ Analytics PDV
     <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div class="kpi-card">
             <span>Receita total</span>
-            <h2>R$ {{ receita_total }}</h2>
+            <h2 id="kpiReceita">R$ {{ receita_total }}</h2>
         </div>
 
         <div class="kpi-card">
             <span>Total pedidos</span>
-            <h2>{{ total_pedidos }}</h2>
+            <h2 id="kpiPedidos">{{ total_pedidos }}</h2>
         </div>
 
         <div class="kpi-card">
             <span>Ticket médio</span>
-            <h2>R$ {{ ticket_medio }}</h2>
+            <h2 id="kpiTicket">R$ {{ ticket_medio }}</h2>
         </div>
 
         <div class="kpi-card">
             <span>Produtos vendidos</span>
-            <h2>{{ mais_vendidos_todos|length }}</h2>
+            <h2 id="kpiProdutos">{{ mais_vendidos_todos|length }}</h2>
         </div>
     </div>
 
@@ -829,6 +829,39 @@ document.addEventListener('click', function(e){
     if (e.target === modalCliques) {
         fecharModalRanking('modalRankingCliques');
     }
+});
+
+
+    const formFiltros = document.getElementById("formFiltros");
+
+async function carregarDashboard() {
+    const dataInicio = document.querySelector("input[name='data_inicio']").value;
+    const dataFim = document.querySelector("input[name='data_fim']").value;
+
+    const params = new URLSearchParams({
+        data_inicio: dataInicio,
+        data_fim: dataFim,
+        ajax: "1"
+    });
+
+    const response = await fetch(`${window.location.pathname}?${params.toString()}`);
+    const data = await response.json();
+
+    document.getElementById("kpiReceita").innerText = `R$ ${data.receita_total}`;
+    document.getElementById("kpiPedidos").innerText = data.total_pedidos;
+    document.getElementById("kpiTicket").innerText = `R$ ${data.ticket_medio}`;
+    document.getElementById("kpiProdutos").innerText = data.produtos_vendidos_total;
+
+    console.log("Dashboard atualizado:", data);
+}
+
+formFiltros.addEventListener("submit", function(e) {
+    e.preventDefault();
+    carregarDashboard();
+});
+
+document.addEventListener("DOMContentLoaded", function() {
+    carregarDashboard();
 });
 </script>
 
