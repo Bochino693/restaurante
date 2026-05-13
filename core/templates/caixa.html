@@ -1075,10 +1075,11 @@ function getCookie(name) {
 // Comandos ESC/POS atualizados para MP-4200 TH
 const IMPRESSORA_PADRAO = "MP-4200 TH";
 const ENCODING_IMPRESSAO = "CP850";
-const DELAY_ENTRE_VIAS_MS = 1200;
+const DELAY_IMPRESSAO_MS = 1500;
 
 const ESC_POS = {
     INIT: '\x1B\x40',
+    CP850: '\x1B\x74\x02',
     CENTER: '\x1B\x61\x01',
     LEFT: '\x1B\x61\x00',
     BOLD_ON: '\x1B\x45\x01',
@@ -1111,16 +1112,13 @@ function quebrarLinha(texto, max = 32) {
         texto = texto.slice(max);
     }
 
-    if (texto.length > 0) {
-        linhas.push(texto);
-    }
-
+    if (texto.length > 0) linhas.push(texto);
     return linhas;
 }
 
 async function conectarQZ() {
     if (!window.qz) {
-        throw new Error("QZ Tray não carregado na página.");
+        throw new Error("QZ Tray não carregado.");
     }
 
     if (!qz.websocket.isActive()) {
@@ -1128,11 +1126,20 @@ async function conectarQZ() {
     }
 }
 
-function configImpressora() {
-    return qz.configs.create(IMPRESSORA_PADRAO, {
-        encoding: ENCODING_IMPRESSAO,
-        copies: 1
-    });
+async function obterImpressora() {
+    await conectarQZ();
+
+    const impressoras = await qz.printers.find();
+
+    const encontrada = impressoras.find(p =>
+        p.toUpperCase().includes("MP-4200") ||
+        p.toUpperCase().includes("BEMATECH") ||
+        p.toUpperCase().includes("ELGIN")
+    );
+
+    if (encontrada) return encontrada;
+
+    return IMPRESSORA_PADRAO;
 }
 
 async function imprimirRaw(texto) {
@@ -1140,14 +1147,19 @@ async function imprimirRaw(texto) {
         throw new Error("Texto de impressão vazio.");
     }
 
-    await conectarQZ();
+    const nomeImpressora = await obterImpressora();
 
-    const config = configImpressora();
+    const config = qz.configs.create(nomeImpressora, {
+        encoding: ENCODING_IMPRESSAO,
+        copies: 1
+    });
+
+    const dataFinal = ESC_POS.INIT + ESC_POS.CP850 + texto;
 
     await qz.print(config, [{
-        type: 'raw',
-        format: 'plain',
-        data: ESC_POS.INIT + texto
+        type: "raw",
+        format: "plain",
+        data: dataFinal
     }]);
 }
 
@@ -1157,10 +1169,10 @@ async function imprimirPedidoPadronizado(pedido, vias = 1) {
 
     for (let i = 0; i < totalVias; i++) {
         await imprimirRaw(gerarTextoBalcao(pedidoOK));
-        await new Promise(r => setTimeout(r, DELAY_ENTRE_VIAS_MS));
+        await new Promise(r => setTimeout(r, DELAY_IMPRESSAO_MS));
 
         await imprimirRaw(gerarTextoCozinha(pedidoOK));
-        await new Promise(r => setTimeout(r, DELAY_ENTRE_VIAS_MS));
+        await new Promise(r => setTimeout(r, DELAY_IMPRESSAO_MS));
     }
 }
 
@@ -1169,7 +1181,11 @@ async function imprimirDuasVias(pedido) {
         await imprimirPedidoPadronizado(pedido, 1);
     } catch (error) {
         console.error(error);
-        mostrarAlerta("Erro impressão", error.message || "Falha ao imprimir. Verifique QZ Tray.", "erro");
+        mostrarAlerta(
+            "Erro impressão",
+            error.message || "Falha ao imprimir. Verifique QZ Tray e impressora.",
+            "erro"
+        );
     }
 }
 
@@ -1195,7 +1211,6 @@ function gerarTextoBalcao(pedido) {
 
     if (pedido.entrega && pedido.endereco) {
         t += "End: " + limparTexto(pedido.endereco.rua || "") + ", " + limparTexto(pedido.endereco.numero || "") + "\n";
-
         if (pedido.endereco.cep) {
             t += "CEP: " + limparTexto(pedido.endereco.cep) + "\n";
         }
@@ -1205,19 +1220,13 @@ function gerarTextoBalcao(pedido) {
     t += ESC_POS.BOLD_ON + "ITENS DO PEDIDO\n" + ESC_POS.BOLD_OFF;
     t += "--------------------------------\n";
 
-    const itensAgrupados = agruparItens(pedido.itens || []);
-
-    itensAgrupados.forEach(item => {
+    agruparItens(pedido.itens || []).forEach(item => {
         const adicionais = item.adicionais || [];
         const precoAdicionais = calcularPrecoAdicionais(adicionais);
         const precoUnitario = Number(item.precoBase || 0) + precoAdicionais;
         const subtotalItem = precoUnitario * Number(item.qtd || 1);
 
         const linhasNome = quebrarLinha(`${item.qtd}x ${item.nome}`, 24);
-
-        if (linhasNome.length === 0) {
-            linhasNome.push("ITEM");
-        }
 
         linhasNome.forEach((linha, index) => {
             if (index === 0) {
@@ -1232,7 +1241,6 @@ function gerarTextoBalcao(pedido) {
         adicionais.forEach(a => {
             const qtdAdd = Number(a.qtd || 1);
             const totalAdd = Number(a.preco || 0) * qtdAdd;
-
             t += "   + " + qtdAdd + "x " + limparTexto(a.nome) + " R$ " + moeda(totalAdd) + "\n";
         });
 
@@ -1264,7 +1272,7 @@ function gerarTextoCozinha(pedido) {
     t += "Pagamento: " + limparTexto(pedido.metodo || "").toUpperCase() + "\n";
     t += pedido.entrega ? "Tipo: ENTREGA\n" : "Tipo: RETIRADA\n";
 
-    if (pedido.descricao && pedido.descricao.trim() !== "") {
+    if (pedido.descricao) {
         t += "OBS: " + limparTexto(pedido.descricao).toUpperCase() + "\n";
     }
 
@@ -1272,9 +1280,7 @@ function gerarTextoCozinha(pedido) {
     t += ESC_POS.BOLD_ON + "ITENS DO PEDIDO\n" + ESC_POS.BOLD_OFF;
     t += "--------------------------------\n";
 
-    const itensAgrupados = agruparItens(pedido.itens || []);
-
-    itensAgrupados.forEach(item => {
+    agruparItens(pedido.itens || []).forEach(item => {
         const adicionais = item.adicionais || [];
         const precoAdicionais = calcularPrecoAdicionais(adicionais);
         const precoUnitario = Number(item.precoBase || 0) + precoAdicionais;
@@ -1283,13 +1289,11 @@ function gerarTextoCozinha(pedido) {
         t += ESC_POS.BOLD_ON;
         t += `${item.qtd}x ${limparTexto(item.nome).toUpperCase()} R$ ${moeda(subtotalItem)}\n`;
         t += ESC_POS.BOLD_OFF;
-
         t += "   Unitario: R$ " + moeda(precoUnitario) + "\n";
 
         adicionais.forEach(a => {
             const qtdAdd = Number(a.qtd || 1);
             const totalAdd = Number(a.preco || 0) * qtdAdd;
-
             t += "   + " + qtdAdd + "x " + limparTexto(a.nome).toUpperCase() + " R$ " + moeda(totalAdd) + "\n";
         });
 
@@ -1297,11 +1301,7 @@ function gerarTextoCozinha(pedido) {
     });
 
     t += "--------------------------------\n";
-    t += "Total Pedido: R$ " + moeda(pedido.totalPedido) + "\n";
-    t += "Taxa Motoca:  R$ " + moeda(pedido.taxaMotoca) + "\n";
-    t += ESC_POS.BOLD_ON;
-    t += "TOTAL FINAL:  R$ " + moeda(pedido.totalFinal) + "\n";
-    t += ESC_POS.BOLD_OFF;
+    t += "TOTAL FINAL: R$ " + moeda(pedido.totalFinal) + "\n";
     t += "--------------------------------\n";
     t += ESC_POS.CENTER + ESC_POS.BOLD_ON + "BOM TRABALHO!\n" + ESC_POS.BOLD_OFF;
     t += ESC_POS.FEED + ESC_POS.CUT;
@@ -1360,7 +1360,11 @@ function normalizarPedidoImpressao(p) {
         })),
         totalPedido: Number(p.totalPedido || p.total || 0),
         taxaMotoca: Number(p.taxaMotoca || p.taxa_motoca || 0),
-        totalFinal: Number(p.totalFinal || p.total_final || ((Number(p.totalPedido || p.total || 0)) + Number(p.taxaMotoca || p.taxa_motoca || 0)))
+        totalFinal: Number(
+            p.totalFinal ||
+            p.total_final ||
+            (Number(p.totalPedido || p.total || 0) + Number(p.taxaMotoca || p.taxa_motoca || 0))
+        )
     };
 }
 

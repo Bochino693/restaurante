@@ -589,10 +589,11 @@ let pedidoSelecionado = null;
 
 const IMPRESSORA_PADRAO = "MP-4200 TH";
 const ENCODING_IMPRESSAO = "CP850";
-const DELAY_ENTRE_VIAS_MS = 1200;
+const DELAY_IMPRESSAO_MS = 1500;
 
-const ESC_POS = {
+const ESC_POS_PRINT = {
     INIT: '\x1B\x40',
+    CP850: '\x1B\x74\x02',
     CENTER: '\x1B\x61\x01',
     LEFT: '\x1B\x61\x00',
     BOLD_ON: '\x1B\x45\x01',
@@ -606,23 +607,36 @@ const ESC_POS = {
 function abrirModalImpressao(pedidoId) {
     pedidoSelecionado = pedidoId;
 
+    const modalPrint = document.getElementById("modalPrint");
     const qtdInput = document.getElementById("qtdVias");
+
+    if (!modalPrint) {
+        alert("Modal de impressão não encontrado no HTML.");
+        return;
+    }
+
     if (qtdInput) {
         qtdInput.value = 1;
     }
 
-    document.getElementById("modalPrint").classList.remove("hidden");
-    document.getElementById("modalPrint").classList.add("flex");
+    modalPrint.classList.remove("hidden");
+    modalPrint.classList.add("flex");
 }
 
 function fecharModalPrint() {
-    document.getElementById("modalPrint").classList.add("hidden");
-    document.getElementById("modalPrint").classList.remove("flex");
+    const modalPrint = document.getElementById("modalPrint");
+
+    if (modalPrint) {
+        modalPrint.classList.add("hidden");
+        modalPrint.classList.remove("flex");
+    }
+
     pedidoSelecionado = null;
 }
 
 async function confirmarImpressao() {
-    const qtd = Math.max(1, parseInt(document.getElementById("qtdVias").value || "1"));
+    const qtdInput = document.getElementById("qtdVias");
+    const qtd = Math.max(1, parseInt(qtdInput?.value || "1"));
 
     if (!pedidoSelecionado) {
         alert("Nenhum pedido selecionado.");
@@ -633,7 +647,7 @@ async function confirmarImpressao() {
         const response = await fetch(`/pedido/${pedidoSelecionado}/reimprimir/`, {
             method: "POST",
             headers: {
-                "X-CSRFToken": getCookie('csrftoken'),
+                "X-CSRFToken": getCookie("csrftoken"),
                 "X-Requested-With": "XMLHttpRequest"
             }
         });
@@ -643,9 +657,9 @@ async function confirmarImpressao() {
         }
 
         const pedido = await response.json();
-        const pedidoNormalizado = normalizarPedidoImpressao(pedido);
+        const pedidoNormalizado = normalizarPedidoReimpressao(pedido);
 
-        await imprimirPedidoPadronizado(pedidoNormalizado, qtd);
+        await imprimirPedidoReimpressao(pedidoNormalizado, qtd);
 
         fecharModalPrint();
 
@@ -655,11 +669,30 @@ async function confirmarImpressao() {
     }
 }
 
-function moeda(v) {
-    return Number(v || 0).toFixed(2).replace('.', ',');
+function getCookie(name) {
+    let cookieValue = null;
+
+    if (document.cookie && document.cookie !== "") {
+        const cookies = document.cookie.split(";");
+
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+
+            if (cookie.substring(0, name.length + 1) === (name + "=")) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+
+    return cookieValue;
 }
 
-function limparTexto(str) {
+function moedaPrint(v) {
+    return Number(v || 0).toFixed(2).replace(".", ",");
+}
+
+function limparTextoPrint(str) {
     return (str || "")
         .toString()
         .normalize("NFD")
@@ -668,31 +701,15 @@ function limparTexto(str) {
         .trim();
 }
 
-function quebrarLinha(texto, max = 32) {
-    texto = limparTexto(texto);
-    const linhas = [];
-
-    while (texto.length > max) {
-        linhas.push(texto.slice(0, max));
-        texto = texto.slice(max);
-    }
-
-    if (texto.length > 0) {
-        linhas.push(texto);
-    }
-
-    return linhas;
-}
-
-function calcularPrecoAdicionaisImpressao(adicionais) {
+function calcularPrecoAdicionaisPrint(adicionais) {
     return (adicionais || []).reduce((acc, a) => {
         return acc + (Number(a.preco || 0) * Number(a.qtd || 1));
     }, 0);
 }
 
-async function conectarQZ() {
+async function conectarQZPrint() {
     if (!window.qz) {
-        throw new Error("QZ Tray não carregado na página.");
+        throw new Error("QZ Tray não carregado nesta tela.");
     }
 
     if (!qz.websocket.isActive()) {
@@ -700,205 +717,165 @@ async function conectarQZ() {
     }
 }
 
-function configImpressora() {
-    return qz.configs.create(IMPRESSORA_PADRAO, {
-        encoding: ENCODING_IMPRESSAO,
-        copies: 1
-    });
+async function obterImpressoraPrint() {
+    await conectarQZPrint();
+
+    const impressoras = await qz.printers.find();
+
+    const encontrada = impressoras.find(p =>
+        p.toUpperCase().includes("MP-4200") ||
+        p.toUpperCase().includes("BEMATECH") ||
+        p.toUpperCase().includes("ELGIN")
+    );
+
+    if (encontrada) return encontrada;
+
+    return IMPRESSORA_PADRAO;
 }
 
-async function imprimirRaw(texto) {
+async function imprimirRawPrint(texto) {
     if (!texto || texto.trim() === "") {
         throw new Error("Texto de impressão vazio.");
     }
 
-    await conectarQZ();
+    const nomeImpressora = await obterImpressoraPrint();
 
-    const config = configImpressora();
+    const config = qz.configs.create(nomeImpressora, {
+        encoding: ENCODING_IMPRESSAO,
+        copies: 1
+    });
 
     await qz.print(config, [{
-        type: 'raw',
-        format: 'plain',
-        data: ESC_POS.INIT + texto
+        type: "raw",
+        format: "plain",
+        data: ESC_POS_PRINT.INIT + ESC_POS_PRINT.CP850 + texto
     }]);
 }
 
-async function imprimirPedidoPadronizado(pedido, vias = 1) {
-    const pedidoOK = normalizarPedidoImpressao(pedido);
+async function imprimirPedidoReimpressao(pedido, vias) {
     const totalVias = Math.max(1, parseInt(vias || 1));
 
     for (let i = 0; i < totalVias; i++) {
-        await imprimirRaw(gerarTextoBalcao(pedidoOK));
-        await new Promise(r => setTimeout(r, DELAY_ENTRE_VIAS_MS));
+        await imprimirRawPrint(gerarTextoBalcaoPrint(pedido));
+        await new Promise(r => setTimeout(r, DELAY_IMPRESSAO_MS));
 
-        await imprimirRaw(gerarTextoCozinha(pedidoOK));
-        await new Promise(r => setTimeout(r, DELAY_ENTRE_VIAS_MS));
+        await imprimirRawPrint(gerarTextoCozinhaPrint(pedido));
+        await new Promise(r => setTimeout(r, DELAY_IMPRESSAO_MS));
     }
 }
 
-function gerarTextoBalcao(pedido) {
+function gerarTextoBalcaoPrint(pedido) {
     let t = "";
 
-    t += ESC_POS.CENTER + ESC_POS.BOLD_ON + ESC_POS.DOUBLE_ON;
+    t += ESC_POS_PRINT.CENTER + ESC_POS_PRINT.BOLD_ON + ESC_POS_PRINT.DOUBLE_ON;
     t += "VIA BALCAO\n";
     t += "PEDIDO #" + pedido.id + "\n";
-    t += ESC_POS.DOUBLE_OFF + ESC_POS.BOLD_OFF;
+    t += ESC_POS_PRINT.DOUBLE_OFF + ESC_POS_PRINT.BOLD_OFF;
 
     t += "--------------------------------\n";
-    t += ESC_POS.LEFT;
-    t += "Data: " + limparTexto(pedido.criadoEm || "") + "\n";
-    t += "Cliente: " + limparTexto(pedido.nomeCliente || "SEM NOME") + "\n";
+    t += ESC_POS_PRINT.LEFT;
+    t += "Data: " + limparTextoPrint(pedido.criadoEm || "") + "\n";
+    t += "Cliente: " + limparTextoPrint(pedido.nomeCliente || "SEM NOME") + "\n";
 
     if (pedido.descricao) {
-        t += "Descricao: " + limparTexto(pedido.descricao) + "\n";
+        t += "Descricao: " + limparTextoPrint(pedido.descricao) + "\n";
     }
 
-    t += "Pagamento: " + limparTexto(pedido.metodo || "").toUpperCase() + "\n";
+    t += "Pagamento: " + limparTextoPrint(pedido.metodo || "").toUpperCase() + "\n";
     t += pedido.entrega ? "Tipo: ENTREGA\n" : "Tipo: RETIRADA\n";
 
     if (pedido.entrega && pedido.endereco) {
-        t += "End: " + limparTexto(pedido.endereco.rua || "") + ", " + limparTexto(pedido.endereco.numero || "") + "\n";
-
-        if (pedido.endereco.cep) {
-            t += "CEP: " + limparTexto(pedido.endereco.cep) + "\n";
-        }
+        t += "End: " + limparTextoPrint(pedido.endereco.rua || "") + ", " + limparTextoPrint(pedido.endereco.numero || "") + "\n";
     }
 
     t += "--------------------------------\n";
-    t += ESC_POS.BOLD_ON + "ITENS DO PEDIDO\n" + ESC_POS.BOLD_OFF;
+    t += ESC_POS_PRINT.BOLD_ON + "ITENS DO PEDIDO\n" + ESC_POS_PRINT.BOLD_OFF;
     t += "--------------------------------\n";
 
-    const itensAgrupados = agruparItensImpressao(pedido.itens || []);
-
-    itensAgrupados.forEach(item => {
+    pedido.itens.forEach(item => {
         const adicionais = item.adicionais || [];
-        const precoAdicionais = calcularPrecoAdicionaisImpressao(adicionais);
+        const precoAdicionais = calcularPrecoAdicionaisPrint(adicionais);
         const precoUnitario = Number(item.precoBase || 0) + precoAdicionais;
         const subtotalItem = precoUnitario * Number(item.qtd || 1);
 
-        const linhasNome = quebrarLinha(`${item.qtd}x ${item.nome}`, 24);
-
-        if (linhasNome.length === 0) {
-            linhasNome.push("ITEM");
-        }
-
-        linhasNome.forEach((linha, index) => {
-            if (index === 0) {
-                t += linha.padEnd(24).slice(0, 24) + " R$ " + moeda(subtotalItem) + "\n";
-            } else {
-                t += linha + "\n";
-            }
-        });
-
-        t += "   Unitario: R$ " + moeda(precoUnitario) + "\n";
+        t += `${item.qtd}x ${limparTextoPrint(item.nome)}\n`;
+        t += "   Unitario: R$ " + moedaPrint(precoUnitario) + "\n";
+        t += "   Subtotal: R$ " + moedaPrint(subtotalItem) + "\n";
 
         adicionais.forEach(a => {
             const qtdAdd = Number(a.qtd || 1);
             const totalAdd = Number(a.preco || 0) * qtdAdd;
-
-            t += "   + " + qtdAdd + "x " + limparTexto(a.nome) + " R$ " + moeda(totalAdd) + "\n";
+            t += "   + " + qtdAdd + "x " + limparTextoPrint(a.nome) + " R$ " + moedaPrint(totalAdd) + "\n";
         });
 
         t += "\n";
     });
 
     t += "--------------------------------\n";
-    t += "Total Pedido: R$ " + moeda(pedido.totalPedido) + "\n";
-    t += "Taxa Motoca:  R$ " + moeda(pedido.taxaMotoca) + "\n";
-    t += ESC_POS.BOLD_ON;
-    t += "Total Final:  R$ " + moeda(pedido.totalFinal) + "\n";
-    t += ESC_POS.BOLD_OFF;
-    t += ESC_POS.FEED + ESC_POS.CUT;
+    t += "Total Pedido: R$ " + moedaPrint(pedido.totalPedido) + "\n";
+    t += "Taxa Motoca:  R$ " + moedaPrint(pedido.taxaMotoca) + "\n";
+    t += ESC_POS_PRINT.BOLD_ON;
+    t += "Total Final:  R$ " + moedaPrint(pedido.totalFinal) + "\n";
+    t += ESC_POS_PRINT.BOLD_OFF;
+    t += ESC_POS_PRINT.FEED + ESC_POS_PRINT.CUT;
 
     return t;
 }
 
-function gerarTextoCozinha(pedido) {
+function gerarTextoCozinhaPrint(pedido) {
     let t = "";
 
-    t += ESC_POS.CENTER + ESC_POS.BOLD_ON + ESC_POS.DOUBLE_ON;
+    t += ESC_POS_PRINT.CENTER + ESC_POS_PRINT.BOLD_ON + ESC_POS_PRINT.DOUBLE_ON;
     t += "VIA COZINHA\n";
     t += "PEDIDO #" + pedido.id + "\n";
-    t += ESC_POS.DOUBLE_OFF + ESC_POS.BOLD_OFF;
+    t += ESC_POS_PRINT.DOUBLE_OFF + ESC_POS_PRINT.BOLD_OFF;
 
     t += "--------------------------------\n";
-    t += ESC_POS.LEFT;
-    t += "Cliente: " + limparTexto(pedido.nomeCliente || "SEM NOME").toUpperCase() + "\n";
-    t += "Pagamento: " + limparTexto(pedido.metodo || "").toUpperCase() + "\n";
+    t += ESC_POS_PRINT.LEFT;
+    t += "Cliente: " + limparTextoPrint(pedido.nomeCliente || "SEM NOME").toUpperCase() + "\n";
+    t += "Pagamento: " + limparTextoPrint(pedido.metodo || "").toUpperCase() + "\n";
     t += pedido.entrega ? "Tipo: ENTREGA\n" : "Tipo: RETIRADA\n";
 
-    if (pedido.descricao && pedido.descricao.trim() !== "") {
-        t += "OBS: " + limparTexto(pedido.descricao).toUpperCase() + "\n";
+    if (pedido.descricao) {
+        t += "OBS: " + limparTextoPrint(pedido.descricao).toUpperCase() + "\n";
     }
 
     t += "--------------------------------\n";
-    t += ESC_POS.BOLD_ON + "ITENS DO PEDIDO\n" + ESC_POS.BOLD_OFF;
+    t += ESC_POS_PRINT.BOLD_ON + "ITENS DO PEDIDO\n" + ESC_POS_PRINT.BOLD_OFF;
     t += "--------------------------------\n";
 
-    const itensAgrupados = agruparItensImpressao(pedido.itens || []);
-
-    itensAgrupados.forEach(item => {
+    pedido.itens.forEach(item => {
         const adicionais = item.adicionais || [];
-        const precoAdicionais = calcularPrecoAdicionaisImpressao(adicionais);
+        const precoAdicionais = calcularPrecoAdicionaisPrint(adicionais);
         const precoUnitario = Number(item.precoBase || 0) + precoAdicionais;
         const subtotalItem = precoUnitario * Number(item.qtd || 1);
 
-        t += ESC_POS.BOLD_ON;
-        t += `${item.qtd}x ${limparTexto(item.nome).toUpperCase()} R$ ${moeda(subtotalItem)}\n`;
-        t += ESC_POS.BOLD_OFF;
+        t += ESC_POS_PRINT.BOLD_ON;
+        t += `${item.qtd}x ${limparTextoPrint(item.nome).toUpperCase()}\n`;
+        t += ESC_POS_PRINT.BOLD_OFF;
 
-        t += "   Unitario: R$ " + moeda(precoUnitario) + "\n";
+        t += "   Unitario: R$ " + moedaPrint(precoUnitario) + "\n";
+        t += "   Subtotal: R$ " + moedaPrint(subtotalItem) + "\n";
 
         adicionais.forEach(a => {
             const qtdAdd = Number(a.qtd || 1);
             const totalAdd = Number(a.preco || 0) * qtdAdd;
-
-            t += "   + " + qtdAdd + "x " + limparTexto(a.nome).toUpperCase() + " R$ " + moeda(totalAdd) + "\n";
+            t += "   + " + qtdAdd + "x " + limparTextoPrint(a.nome).toUpperCase() + " R$ " + moedaPrint(totalAdd) + "\n";
         });
 
         t += "\n";
     });
 
     t += "--------------------------------\n";
-    t += "Total Pedido: R$ " + moeda(pedido.totalPedido) + "\n";
-    t += "Taxa Motoca:  R$ " + moeda(pedido.taxaMotoca) + "\n";
-    t += ESC_POS.BOLD_ON;
-    t += "TOTAL FINAL:  R$ " + moeda(pedido.totalFinal) + "\n";
-    t += ESC_POS.BOLD_OFF;
+    t += "TOTAL FINAL: R$ " + moedaPrint(pedido.totalFinal) + "\n";
     t += "--------------------------------\n";
-    t += ESC_POS.CENTER + ESC_POS.BOLD_ON + "BOM TRABALHO!\n" + ESC_POS.BOLD_OFF;
-    t += ESC_POS.FEED + ESC_POS.CUT;
+    t += ESC_POS_PRINT.CENTER + ESC_POS_PRINT.BOLD_ON + "BOM TRABALHO!\n" + ESC_POS_PRINT.BOLD_OFF;
+    t += ESC_POS_PRINT.FEED + ESC_POS_PRINT.CUT;
 
     return t;
 }
 
-function agruparItensImpressao(itens) {
-    const mapa = {};
-
-    itens.forEach(item => {
-        const adicionaisKey = (item.adicionais || [])
-            .map(a => `${a.nome}:${a.preco}:${a.qtd || 1}`)
-            .sort()
-            .join('|');
-
-        const chave = `${item.nome}_${adicionaisKey}`;
-
-        if (!mapa[chave]) {
-            mapa[chave] = {
-                nome: item.nome,
-                qtd: Number(item.qtd || 1),
-                precoBase: Number(item.precoBase || 0),
-                adicionais: item.adicionais || []
-            };
-        } else {
-            mapa[chave].qtd += Number(item.qtd || 1);
-        }
-    });
-
-    return Object.values(mapa);
-}
-
-function normalizarPedidoImpressao(p) {
+function normalizarPedidoReimpressao(p) {
     return {
         id: p.id,
         criadoEm: p.criadoEm || p.criado_em_formatado || p.criado_em || "",
@@ -923,9 +900,14 @@ function normalizarPedidoImpressao(p) {
         })),
         totalPedido: Number(p.totalPedido || p.total || 0),
         taxaMotoca: Number(p.taxaMotoca || p.taxa_motoca || 0),
-        totalFinal: Number(p.totalFinal || p.total_final || ((Number(p.totalPedido || p.total || 0)) + Number(p.taxaMotoca || p.taxa_motoca || 0)))
+        totalFinal: Number(
+            p.totalFinal ||
+            p.total_final ||
+            (Number(p.totalPedido || p.total || 0) + Number(p.taxaMotoca || p.taxa_motoca || 0))
+        )
     };
 }
 
 </script>
+
 {% endblock %}
