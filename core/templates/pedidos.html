@@ -326,6 +326,9 @@ box-shadow:0 6px 18px rgba(249,115,22,.25);
 }
 </style>
 
+
+<script src="https://cdn.jsdelivr.net/npm/qz-tray/qz-tray.js"></script>
+
 <script>
 let periodoAtual = "{{ periodo_atual|default:'hoje' }}";
 let pagamentosSelecionados = new Set({{ pagamentos_atuais|safe|default:"[]" }});
