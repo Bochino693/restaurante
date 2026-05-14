@@ -359,6 +359,8 @@ box-shadow:0 6px 18px rgba(249,115,22,.25);
 <script src="https://cdn.jsdelivr.net/npm/qz-tray/qz-tray.js"></script>
 
 <script>
+
+
 (function () {
     "use strict";
 
@@ -527,14 +529,40 @@ box-shadow:0 6px 18px rgba(249,115,22,.25);
         }
     };
 
-    window.confirmarImpressao = function () {
-        if (!pedidoSelecionado) {
-            alert("Nenhum pedido selecionado.");
-            return;
+    window.confirmarImpressao = async function () {
+    if (!pedidoSelecionado) {
+        alert("Nenhum pedido selecionado.");
+        return;
+    }
+
+    var qtdInput = byId("qtdVias");
+    var qtd = Math.max(1, parseInt(qtdInput && qtdInput.value ? qtdInput.value : "1"));
+
+    try {
+        var response = await fetch("/pedido/" + pedidoSelecionado + "/reimprimir/", {
+            method: "POST",
+            headers: {
+                "X-CSRFToken": getCookie("csrftoken"),
+                "X-Requested-With": "XMLHttpRequest"
+            }
+        });
+
+        var pedido = await response.json();
+
+        if (!response.ok) {
+            throw new Error(pedido.mensagem || pedido.message || "Erro ao buscar pedido.");
         }
 
-        alert("Reimpressão acionada para o pedido #" + pedidoSelecionado + ".");
-    };
+        await imprimirPedidoPadronizado(pedido, qtd);
+
+        fecharModalPrint();
+        alert("Pedido reimpresso com sucesso.");
+
+    } catch (error) {
+        console.error(error);
+        alert(error.message || "Erro ao reimprimir. Verifique QZ Tray e impressora.");
+    }
+};
 
     document.addEventListener("click", function (e) {
         var alvo = e.target;
@@ -610,6 +638,327 @@ box-shadow:0 6px 18px rgba(249,115,22,.25);
     });
 
 })();
+
+
+
+    const IMPRESSORA_PADRAO = "MP-4200 TH";
+const ENCODING_IMPRESSAO = "CP850";
+const DELAY_IMPRESSAO_MS = 1500;
+
+const ESC_POS = {
+    INIT: '\x1B\x40',
+    CP850: '\x1B\x74\x02',
+    CENTER: '\x1B\x61\x01',
+    LEFT: '\x1B\x61\x00',
+    BOLD_ON: '\x1B\x45\x01',
+    BOLD_OFF: '\x1B\x45\x00',
+    DOUBLE_ON: '\x1D\x21\x11',
+    DOUBLE_OFF: '\x1D\x21\x00',
+    CUT: '\x1D\x56\x41\x03',
+    FEED: '\n\n\n\n\n'
+};
+
+function moeda(v) {
+    return Number(v || 0).toFixed(2).replace(".", ",");
+}
+
+function limparTexto(str) {
+    return (str || "")
+        .toString()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^\x20-\x7E\n\r]/g, "")
+        .trim();
+}
+
+async function conectarQZ() {
+    if (!window.qz) {
+        throw new Error("QZ Tray não carregado.");
+    }
+
+    if (!qz.websocket.isActive()) {
+        await qz.websocket.connect();
+    }
+}
+
+async function obterImpressora() {
+    await conectarQZ();
+
+    var impressoras = await qz.printers.find();
+
+    for (var i = 0; i < impressoras.length; i++) {
+        var nome = impressoras[i].toUpperCase();
+
+        if (
+            nome.indexOf("MP-4200") >= 0 ||
+            nome.indexOf("BEMATECH") >= 0 ||
+            nome.indexOf("ELGIN") >= 0
+        ) {
+            return impressoras[i];
+        }
+    }
+
+    return IMPRESSORA_PADRAO;
+}
+
+async function imprimirRaw(texto) {
+    if (!texto || texto.trim() === "") {
+        throw new Error("Texto de impressão vazio.");
+    }
+
+    var nomeImpressora = await obterImpressora();
+
+    var config = qz.configs.create(nomeImpressora, {
+        encoding: ENCODING_IMPRESSAO,
+        copies: 1
+    });
+
+    await qz.print(config, [{
+        type: "raw",
+        format: "plain",
+        data: ESC_POS.INIT + ESC_POS.CP850 + texto
+    }]);
+}
+
+async function imprimirPedidoPadronizado(pedido, vias) {
+    var pedidoOK = normalizarPedidoImpressao(pedido);
+    var totalVias = Math.max(1, parseInt(vias || 1));
+
+    for (var i = 0; i < totalVias; i++) {
+        await imprimirRaw(gerarTextoBalcao(pedidoOK));
+        await new Promise(function(resolve) {
+            setTimeout(resolve, DELAY_IMPRESSAO_MS);
+        });
+
+        await imprimirRaw(gerarTextoCozinha(pedidoOK));
+        await new Promise(function(resolve) {
+            setTimeout(resolve, DELAY_IMPRESSAO_MS);
+        });
+    }
+}
+
+function gerarTextoBalcao(pedido) {
+    var t = "";
+
+    t += ESC_POS.CENTER + ESC_POS.BOLD_ON + ESC_POS.DOUBLE_ON;
+    t += "VIA BALCAO\n";
+    t += "PEDIDO #" + pedido.id + "\n";
+    t += ESC_POS.DOUBLE_OFF + ESC_POS.BOLD_OFF;
+
+    t += "--------------------------------\n";
+    t += ESC_POS.LEFT;
+    t += "Data: " + limparTexto(pedido.criadoEm || "") + "\n";
+    t += "Cliente: " + limparTexto(pedido.nomeCliente || "SEM NOME") + "\n";
+
+    if (pedido.descricao) {
+        t += "Descricao: " + limparTexto(pedido.descricao) + "\n";
+    }
+
+    t += "Pagamento: " + limparTexto(pedido.metodo || "").toUpperCase() + "\n";
+    t += pedido.entrega ? "Tipo: ENTREGA\n" : "Tipo: RETIRADA\n";
+
+    if (pedido.entrega && pedido.endereco) {
+        t += "End: " + limparTexto(pedido.endereco.rua || "") + ", " + limparTexto(pedido.endereco.numero || "") + "\n";
+
+        if (pedido.endereco.cep) {
+            t += "CEP: " + limparTexto(pedido.endereco.cep) + "\n";
+        }
+    }
+
+    t += "--------------------------------\n";
+    t += ESC_POS.BOLD_ON + "ITENS DO PEDIDO\n" + ESC_POS.BOLD_OFF;
+    t += "--------------------------------\n";
+
+    var itens = agruparItens(pedido.itens || []);
+
+    for (var i = 0; i < itens.length; i++) {
+        var item = itens[i];
+        var adicionais = item.adicionais || [];
+        var precoAdicionais = calcularPrecoAdicionaisImpressao(adicionais);
+        var precoUnitario = Number(item.precoBase || 0) + precoAdicionais;
+        var subtotalItem = precoUnitario * Number(item.qtd || 1);
+
+        t += item.qtd + "x " + limparTexto(item.nome) + "\n";
+        t += "   Unitario: R$ " + moeda(precoUnitario) + "\n";
+        t += "   Subtotal: R$ " + moeda(subtotalItem) + "\n";
+
+        for (var a = 0; a < adicionais.length; a++) {
+            var add = adicionais[a];
+            var qtdAdd = Number(add.qtd || 1);
+            var totalAdd = Number(add.preco || 0) * qtdAdd;
+
+            t += "   + " + qtdAdd + "x " + limparTexto(add.nome) + " R$ " + moeda(totalAdd) + "\n";
+        }
+
+        t += "\n";
+    }
+
+    t += "--------------------------------\n";
+    t += "Total Pedido: R$ " + moeda(pedido.totalPedido) + "\n";
+    t += "Taxa Motoca:  R$ " + moeda(pedido.taxaMotoca) + "\n";
+    t += ESC_POS.BOLD_ON;
+    t += "Total Final:  R$ " + moeda(pedido.totalFinal) + "\n";
+    t += ESC_POS.BOLD_OFF;
+    t += ESC_POS.FEED + ESC_POS.CUT;
+
+    return t;
+}
+
+function gerarTextoCozinha(pedido) {
+    var t = "";
+
+    t += ESC_POS.CENTER + ESC_POS.BOLD_ON + ESC_POS.DOUBLE_ON;
+    t += "VIA COZINHA\n";
+    t += "PEDIDO #" + pedido.id + "\n";
+    t += ESC_POS.DOUBLE_OFF + ESC_POS.BOLD_OFF;
+
+    t += "--------------------------------\n";
+    t += ESC_POS.LEFT;
+    t += "Cliente: " + limparTexto(pedido.nomeCliente || "SEM NOME").toUpperCase() + "\n";
+    t += "Pagamento: " + limparTexto(pedido.metodo || "").toUpperCase() + "\n";
+    t += pedido.entrega ? "Tipo: ENTREGA\n" : "Tipo: RETIRADA\n";
+
+    if (pedido.descricao) {
+        t += "OBS: " + limparTexto(pedido.descricao).toUpperCase() + "\n";
+    }
+
+    t += "--------------------------------\n";
+    t += ESC_POS.BOLD_ON + "ITENS DO PEDIDO\n" + ESC_POS.BOLD_OFF;
+    t += "--------------------------------\n";
+
+    var itens = agruparItens(pedido.itens || []);
+
+    for (var i = 0; i < itens.length; i++) {
+        var item = itens[i];
+        var adicionais = item.adicionais || [];
+        var precoAdicionais = calcularPrecoAdicionaisImpressao(adicionais);
+        var precoUnitario = Number(item.precoBase || 0) + precoAdicionais;
+        var subtotalItem = precoUnitario * Number(item.qtd || 1);
+
+        t += ESC_POS.BOLD_ON;
+        t += item.qtd + "x " + limparTexto(item.nome).toUpperCase() + " R$ " + moeda(subtotalItem) + "\n";
+        t += ESC_POS.BOLD_OFF;
+        t += "   Unitario: R$ " + moeda(precoUnitario) + "\n";
+
+        for (var a = 0; a < adicionais.length; a++) {
+            var add = adicionais[a];
+            var qtdAdd = Number(add.qtd || 1);
+            var totalAdd = Number(add.preco || 0) * qtdAdd;
+
+            t += "   + " + qtdAdd + "x " + limparTexto(add.nome).toUpperCase() + " R$ " + moeda(totalAdd) + "\n";
+        }
+
+        t += "\n";
+    }
+
+    t += "--------------------------------\n";
+    t += "TOTAL FINAL: R$ " + moeda(pedido.totalFinal) + "\n";
+    t += "--------------------------------\n";
+    t += ESC_POS.CENTER + ESC_POS.BOLD_ON + "BOM TRABALHO!\n" + ESC_POS.BOLD_OFF;
+    t += ESC_POS.FEED + ESC_POS.CUT;
+
+    return t;
+}
+
+function calcularPrecoAdicionaisImpressao(adicionais) {
+    var total = 0;
+
+    for (var i = 0; i < adicionais.length; i++) {
+        total += Number(adicionais[i].preco || 0) * Number(adicionais[i].qtd || 1);
+    }
+
+    return total;
+}
+
+function agruparItens(itens) {
+    var mapa = {};
+
+    for (var i = 0; i < itens.length; i++) {
+        var item = itens[i];
+        var adicionais = item.adicionais || [];
+        var adicionaisKey = "";
+
+        for (var a = 0; a < adicionais.length; a++) {
+            adicionaisKey += adicionais[a].nome + ":" + adicionais[a].preco + ":" + (adicionais[a].qtd || 1) + "|";
+        }
+
+        var chave = item.nome + "_" + adicionaisKey;
+
+        if (!mapa[chave]) {
+            mapa[chave] = {
+                nome: item.nome,
+                qtd: Number(item.qtd || 1),
+                precoBase: Number(item.precoBase || 0),
+                adicionais: adicionais
+            };
+        } else {
+            mapa[chave].qtd += Number(item.qtd || 1);
+        }
+    }
+
+    var lista = [];
+
+    for (var key in mapa) {
+        lista.push(mapa[key]);
+    }
+
+    return lista;
+}
+
+function normalizarPedidoImpressao(p) {
+    var endereco = p.endereco || {};
+
+    return {
+        id: p.id,
+        criadoEm: p.criadoEm || p.criado_em_formatado || p.criado_em || "",
+        nomeCliente: p.nomeCliente || p.nome_cliente || "SEM NOME",
+        metodo: p.metodo || p.forma_pagamento || "",
+        entrega: !!p.entrega,
+        descricao: p.descricao || "",
+        endereco: {
+            rua: endereco.rua || p.rua || "",
+            numero: endereco.numero || p.numero || "",
+            cep: endereco.cep || p.cep || ""
+        },
+        itens: normalizarItensImpressao(p.itens || []),
+        totalPedido: Number(p.totalPedido || p.total || 0),
+        taxaMotoca: Number(p.taxaMotoca || p.taxa_motoca || 0),
+        totalFinal: Number(
+            p.totalFinal ||
+            p.total_final ||
+            (Number(p.totalPedido || p.total || 0) + Number(p.taxaMotoca || p.taxa_motoca || 0))
+        )
+    };
+}
+
+function normalizarItensImpressao(itens) {
+    var lista = [];
+
+    for (var i = 0; i < itens.length; i++) {
+        var item = itens[i];
+        var produto = item.produto || {};
+        var adicionaisOriginais = item.adicionais || [];
+        var adicionais = [];
+
+        for (var a = 0; a < adicionaisOriginais.length; a++) {
+            adicionais.push({
+                nome: adicionaisOriginais[a].nome || "",
+                qtd: Number(adicionaisOriginais[a].qtd || adicionaisOriginais[a].quantidade || 1),
+                preco: Number(adicionaisOriginais[a].preco || 0)
+            });
+        }
+
+        lista.push({
+            nome: String(item.nome || produto.nome_produto || "ITEM"),
+            qtd: Number(item.qtd || item.quantidade || 1),
+            precoBase: Number(item.precoBase || item.preco_base || item.preco || item.preco_unitario || 0),
+            adicionais: adicionais
+        });
+    }
+
+    return lista;
+}
+
 </script>
 
 {% endblock %}
