@@ -341,34 +341,52 @@ def _range_periodo(periodo):
     return None, None, label
 
 
+from datetime import timedelta
+from django.db.models import Q, Sum
+from django.utils import timezone
+
+
 def _filtrar_pedidos(request):
     periodo = request.GET.get("periodo", "hoje")
-    pagamentos_raw = request.GET.get("pagamentos", "")
+    pagamentos = request.GET.getlist("pagamento")
 
-    pagamentos = [
-        p.strip()
-        for p in pagamentos_raw.split(",")
-        if p.strip()
+    pedidos = Pedidos.objects.all().prefetch_related("itens", "itens__produto").order_by("-criado_em")
+
+    agora = timezone.localtime()
+    hoje = agora.date()
+
+    if periodo == "hoje":
+        pedidos = pedidos.filter(criado_em__date=hoje)
+        label = "Total Hoje"
+    elif periodo == "semana":
+        inicio = hoje - timedelta(days=7)
+        pedidos = pedidos.filter(criado_em__date__gte=inicio)
+        label = "Total Semana"
+    elif periodo == "quinzena":
+        inicio = hoje - timedelta(days=15)
+        pedidos = pedidos.filter(criado_em__date__gte=inicio)
+        label = "Total Quinzena"
+    elif periodo == "mes":
+        pedidos = pedidos.filter(criado_em__year=hoje.year, criado_em__month=hoje.month)
+        label = "Total Mês"
+    else:
+        periodo = "todos"
+        label = "Total Geral"
+
+    pagamentos_validos = [
+        Pedidos.FormaPagamento.DINHEIRO,
+        Pedidos.FormaPagamento.PIX,
+        Pedidos.FormaPagamento.CARTAO,
+        Pedidos.FormaPagamento.MISTO,
     ]
 
-    inicio_dt, fim_dt, label = _range_periodo(periodo)
-
-    pedidos = (
-        Pedidos.objects
-        .prefetch_related("itens__produto")
-        .order_by("-criado_em")
-    )
-
-    if inicio_dt and fim_dt:
-        pedidos = pedidos.filter(
-            criado_em__gte=inicio_dt,
-            criado_em__lt=fim_dt
-        )
+    pagamentos = [p for p in pagamentos if p in pagamentos_validos]
 
     if pagamentos:
         pedidos = pedidos.filter(forma_pagamento__in=pagamentos)
 
     return pedidos, periodo, pagamentos, label
+
 
 
 def _formatar_moeda(valor):

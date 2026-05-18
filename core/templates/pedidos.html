@@ -360,19 +360,70 @@ box-shadow:0 6px 18px rgba(249,115,22,.25);
 <script src="https://cdn.jsdelivr.net/npm/qz-tray/qz-tray.js"></script>
 
 <script>
-
-
 (function () {
     "use strict";
 
-    var pedidoSelecionado = null;
+    window.setPeriodo = function (periodo) {
+        const url = new URL(window.location.href);
+        url.searchParams.set("periodo", periodo);
 
-    var STATUS_FLUXO = [
+        const pagamentos = url.searchParams.getAll("pagamento");
+        url.searchParams.delete("pagamento");
+
+        pagamentos.forEach(function (p) {
+            url.searchParams.append("pagamento", p);
+        });
+
+        window.location.href = url.toString();
+    };
+
+    window.togglePagamento = function (pagamento) {
+        const url = new URL(window.location.href);
+        const atuais = url.searchParams.getAll("pagamento");
+
+        url.searchParams.delete("pagamento");
+
+        if (atuais.includes(pagamento)) {
+            atuais.filter(p => p !== pagamento).forEach(p => {
+                url.searchParams.append("pagamento", p);
+            });
+        } else {
+            atuais.forEach(p => url.searchParams.append("pagamento", p));
+            url.searchParams.append("pagamento", pagamento);
+        }
+
+        if (!url.searchParams.get("periodo")) {
+            url.searchParams.set("periodo", "hoje");
+        }
+
+        window.location.href = url.toString();
+    };
+
+    let pedidoSelecionado = null;
+
+    const STATUS_FLUXO = [
         { key: "PAGO", label: "Pago", icon: "fa-money-bill" },
         { key: "PREPARO", label: "Em Preparo", icon: "fa-fire-burner" },
         { key: "ENTREGA", label: "Em Entrega", icon: "fa-motorcycle" },
         { key: "FINALIZADO", label: "Finalizado", icon: "fa-check-circle" }
     ];
+
+    const IMPRESSORA_PADRAO = "MP-4200 TH";
+    const ENCODING_IMPRESSAO = "CP850";
+    const DELAY_IMPRESSAO_MS = 800;
+
+    const ESC_POS = {
+        INIT: "\x1B\x40",
+        CP850: "\x1B\x74\x02",
+        CENTER: "\x1B\x61\x01",
+        LEFT: "\x1B\x61\x00",
+        BOLD_ON: "\x1B\x45\x01",
+        BOLD_OFF: "\x1B\x45\x00",
+        DOUBLE_ON: "\x1D\x21\x11",
+        DOUBLE_OFF: "\x1D\x21\x00",
+        CUT: "\x1D\x56\x41\x03",
+        FEED: "\n\n\n\n\n"
+    };
 
     function byId(id) {
         return document.getElementById(id);
@@ -391,11 +442,11 @@ box-shadow:0 6px 18px rgba(249,115,22,.25);
     }
 
     function getCookie(name) {
-        var cookieValue = null;
-        var cookies = document.cookie ? document.cookie.split(";") : [];
+        let cookieValue = null;
+        const cookies = document.cookie ? document.cookie.split(";") : [];
 
-        for (var i = 0; i < cookies.length; i++) {
-            var cookie = cookies[i].trim();
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
 
             if (cookie.substring(0, name.length + 1) === name + "=") {
                 cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
@@ -406,14 +457,280 @@ box-shadow:0 6px 18px rgba(249,115,22,.25);
         return cookieValue;
     }
 
+    function moeda(v) {
+        return Number(v || 0).toFixed(2).replace(".", ",");
+    }
+
+    function limparTexto(str) {
+        return (str || "")
+            .toString()
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .replace(/[^\x20-\x7E\n\r]/g, "")
+            .trim();
+    }
+
+    async function conectarQZ() {
+        if (!window.qz) {
+            throw new Error("QZ Tray não carregou. Verifique internet/CDN ou instale o arquivo local.");
+        }
+
+        if (!qz.websocket.isActive()) {
+            await qz.websocket.connect({ retries: 2, delay: 1 });
+        }
+    }
+
+    async function obterImpressora() {
+        await conectarQZ();
+
+        const impressoras = await qz.printers.find();
+
+        for (let i = 0; i < impressoras.length; i++) {
+            const nome = String(impressoras[i]).toUpperCase();
+
+            if (
+                nome.includes("MP-4200") ||
+                nome.includes("BEMATECH") ||
+                nome.includes("ELGIN")
+            ) {
+                return impressoras[i];
+            }
+        }
+
+        return IMPRESSORA_PADRAO;
+    }
+
+    async function imprimirRaw(texto) {
+        if (!texto || texto.trim() === "") {
+            throw new Error("Texto de impressão vazio.");
+        }
+
+        const nomeImpressora = await obterImpressora();
+
+        const config = qz.configs.create(nomeImpressora, {
+            encoding: ENCODING_IMPRESSAO,
+            copies: 1
+        });
+
+        await qz.print(config, [{
+            type: "raw",
+            format: "plain",
+            data: ESC_POS.INIT + ESC_POS.CP850 + texto
+        }]);
+    }
+
+    function normalizarItensImpressao(itens) {
+        return (itens || []).map(function (item) {
+            const adicionaisOriginais = item.adicionais || [];
+
+            return {
+                nome: String(item.nome || "ITEM"),
+                qtd: Number(item.qtd || item.quantidade || 1),
+                precoBase: Number(item.precoBase || item.preco_unitario || 0),
+                adicionais: adicionaisOriginais.map(function (add) {
+                    return {
+                        nome: add.nome || "",
+                        qtd: Number(add.qtd || add.quantidade || 1),
+                        preco: Number(add.preco || 0)
+                    };
+                })
+            };
+        });
+    }
+
+    function normalizarPedidoImpressao(p) {
+        const endereco = p.endereco || {};
+
+        return {
+            id: p.id,
+            criadoEm: p.criadoEm || "",
+            nomeCliente: p.nomeCliente || "SEM NOME",
+            metodo: p.metodo || "",
+            entrega: !!p.entrega,
+            descricao: p.descricao || "",
+            endereco: {
+                rua: endereco.rua || "",
+                numero: endereco.numero || "",
+                cep: endereco.cep || ""
+            },
+            itens: normalizarItensImpressao(p.itens || []),
+            totalPedido: Number(p.totalPedido || 0),
+            taxaMotoca: Number(p.taxaMotoca || 0),
+            totalFinal: Number(p.totalFinal || 0)
+        };
+    }
+
+    function calcularPrecoAdicionaisImpressao(adicionais) {
+        let total = 0;
+
+        for (let i = 0; i < adicionais.length; i++) {
+            total += Number(adicionais[i].preco || 0) * Number(adicionais[i].qtd || 1);
+        }
+
+        return total;
+    }
+
+    function agruparItens(itens) {
+        const mapa = {};
+
+        for (let i = 0; i < itens.length; i++) {
+            const item = itens[i];
+            const adicionais = item.adicionais || [];
+            const adicionaisKey = adicionais.map(a => `${a.nome}:${a.preco}:${a.qtd || 1}`).join("|");
+            const chave = item.nome + "_" + adicionaisKey;
+
+            if (!mapa[chave]) {
+                mapa[chave] = {
+                    nome: item.nome,
+                    qtd: Number(item.qtd || 1),
+                    precoBase: Number(item.precoBase || 0),
+                    adicionais: adicionais
+                };
+            } else {
+                mapa[chave].qtd += Number(item.qtd || 1);
+            }
+        }
+
+        return Object.values(mapa);
+    }
+
+    function gerarTextoBalcao(pedido) {
+        let t = "";
+
+        t += ESC_POS.CENTER + ESC_POS.BOLD_ON + ESC_POS.DOUBLE_ON;
+        t += "VIA BALCAO\n";
+        t += "PEDIDO #" + pedido.id + "\n";
+        t += ESC_POS.DOUBLE_OFF + ESC_POS.BOLD_OFF;
+
+        t += "--------------------------------\n";
+        t += ESC_POS.LEFT;
+        t += "Data: " + limparTexto(pedido.criadoEm) + "\n";
+        t += "Cliente: " + limparTexto(pedido.nomeCliente) + "\n";
+
+        if (pedido.descricao) {
+            t += "Descricao: " + limparTexto(pedido.descricao) + "\n";
+        }
+
+        t += "Pagamento: " + limparTexto(pedido.metodo).toUpperCase() + "\n";
+        t += pedido.entrega ? "Tipo: ENTREGA\n" : "Tipo: RETIRADA\n";
+
+        if (pedido.entrega && pedido.endereco) {
+            t += "End: " + limparTexto(pedido.endereco.rua) + ", " + limparTexto(pedido.endereco.numero) + "\n";
+
+            if (pedido.endereco.cep) {
+                t += "CEP: " + limparTexto(pedido.endereco.cep) + "\n";
+            }
+        }
+
+        t += "--------------------------------\n";
+        t += ESC_POS.BOLD_ON + "ITENS DO PEDIDO\n" + ESC_POS.BOLD_OFF;
+        t += "--------------------------------\n";
+
+        const itens = agruparItens(pedido.itens || []);
+
+        itens.forEach(function (item) {
+            const adicionais = item.adicionais || [];
+            const precoAdicionais = calcularPrecoAdicionaisImpressao(adicionais);
+            const precoUnitario = Number(item.precoBase || 0) + precoAdicionais;
+            const subtotalItem = precoUnitario * Number(item.qtd || 1);
+
+            t += item.qtd + "x " + limparTexto(item.nome) + "\n";
+            t += "   Unitario: R$ " + moeda(precoUnitario) + "\n";
+            t += "   Subtotal: R$ " + moeda(subtotalItem) + "\n";
+
+            adicionais.forEach(function (add) {
+                const qtdAdd = Number(add.qtd || 1);
+                const totalAdd = Number(add.preco || 0) * qtdAdd;
+                t += "   + " + qtdAdd + "x " + limparTexto(add.nome) + " R$ " + moeda(totalAdd) + "\n";
+            });
+
+            t += "\n";
+        });
+
+        t += "--------------------------------\n";
+        t += "Total Pedido: R$ " + moeda(pedido.totalPedido) + "\n";
+        t += "Taxa Motoca:  R$ " + moeda(pedido.taxaMotoca) + "\n";
+        t += ESC_POS.BOLD_ON;
+        t += "Total Final:  R$ " + moeda(pedido.totalFinal) + "\n";
+        t += ESC_POS.BOLD_OFF;
+        t += ESC_POS.FEED + ESC_POS.CUT;
+
+        return t;
+    }
+
+    function gerarTextoCozinha(pedido) {
+        let t = "";
+
+        t += ESC_POS.CENTER + ESC_POS.BOLD_ON + ESC_POS.DOUBLE_ON;
+        t += "VIA COZINHA\n";
+        t += "PEDIDO #" + pedido.id + "\n";
+        t += ESC_POS.DOUBLE_OFF + ESC_POS.BOLD_OFF;
+
+        t += "--------------------------------\n";
+        t += ESC_POS.LEFT;
+        t += "Cliente: " + limparTexto(pedido.nomeCliente).toUpperCase() + "\n";
+        t += "Pagamento: " + limparTexto(pedido.metodo).toUpperCase() + "\n";
+        t += pedido.entrega ? "Tipo: ENTREGA\n" : "Tipo: RETIRADA\n";
+
+        if (pedido.descricao) {
+            t += "OBS: " + limparTexto(pedido.descricao).toUpperCase() + "\n";
+        }
+
+        t += "--------------------------------\n";
+        t += ESC_POS.BOLD_ON + "ITENS DO PEDIDO\n" + ESC_POS.BOLD_OFF;
+        t += "--------------------------------\n";
+
+        const itens = agruparItens(pedido.itens || []);
+
+        itens.forEach(function (item) {
+            const adicionais = item.adicionais || [];
+            const precoAdicionais = calcularPrecoAdicionaisImpressao(adicionais);
+            const precoUnitario = Number(item.precoBase || 0) + precoAdicionais;
+            const subtotalItem = precoUnitario * Number(item.qtd || 1);
+
+            t += ESC_POS.BOLD_ON;
+            t += item.qtd + "x " + limparTexto(item.nome).toUpperCase() + " R$ " + moeda(subtotalItem) + "\n";
+            t += ESC_POS.BOLD_OFF;
+            t += "   Unitario: R$ " + moeda(precoUnitario) + "\n";
+
+            adicionais.forEach(function (add) {
+                const qtdAdd = Number(add.qtd || 1);
+                const totalAdd = Number(add.preco || 0) * qtdAdd;
+                t += "   + " + qtdAdd + "x " + limparTexto(add.nome).toUpperCase() + " R$ " + moeda(totalAdd) + "\n";
+            });
+
+            t += "\n";
+        });
+
+        t += "--------------------------------\n";
+        t += "TOTAL FINAL: R$ " + moeda(pedido.totalFinal) + "\n";
+        t += "--------------------------------\n";
+        t += ESC_POS.CENTER + ESC_POS.BOLD_ON + "BOM TRABALHO!\n" + ESC_POS.BOLD_OFF;
+        t += ESC_POS.FEED + ESC_POS.CUT;
+
+        return t;
+    }
+
+    async function imprimirPedidoPadronizado(pedido, vias) {
+        const pedidoOK = normalizarPedidoImpressao(pedido);
+        const totalVias = Math.max(1, parseInt(vias || 1));
+
+        for (let i = 0; i < totalVias; i++) {
+            await imprimirRaw(gerarTextoBalcao(pedidoOK));
+            await new Promise(resolve => setTimeout(resolve, DELAY_IMPRESSAO_MS));
+
+            await imprimirRaw(gerarTextoCozinha(pedidoOK));
+            await new Promise(resolve => setTimeout(resolve, DELAY_IMPRESSAO_MS));
+        }
+    }
+
     window.abrirModalImpressao = function (pedidoId) {
         pedidoSelecionado = pedidoId;
 
-        var modal = byId("modalPrint");
-        var qtd = byId("qtdVias");
-
+        const qtd = byId("qtdVias");
         if (qtd) qtd.value = "1";
-        abrir(modal);
+
+        abrir(byId("modalPrint"));
     };
 
     window.fecharModalPrint = function () {
@@ -421,13 +738,48 @@ box-shadow:0 6px 18px rgba(249,115,22,.25);
         pedidoSelecionado = null;
     };
 
+    window.confirmarImpressao = async function () {
+        if (!pedidoSelecionado) {
+            alert("Nenhum pedido selecionado.");
+            return;
+        }
+
+        const qtdInput = byId("qtdVias");
+        const qtd = Math.max(1, parseInt(qtdInput && qtdInput.value ? qtdInput.value : "1"));
+
+        try {
+            const response = await fetch("/pedido/" + pedidoSelecionado + "/reimprimir/", {
+                method: "POST",
+                headers: {
+                    "X-CSRFToken": getCookie("csrftoken"),
+                    "X-Requested-With": "XMLHttpRequest"
+                }
+            });
+
+            const pedido = await response.json();
+
+            if (!response.ok) {
+                throw new Error(pedido.mensagem || pedido.message || "Erro ao buscar pedido.");
+            }
+
+            await imprimirPedidoPadronizado(pedido, qtd);
+
+            fecharModalPrint();
+            alert("Pedido reimpresso com sucesso.");
+
+        } catch (error) {
+            console.error(error);
+            alert(error.message || "Erro ao imprimir. Abra o QZ Tray e confira o nome da impressora.");
+        }
+    };
+
     window.abrirModalStatus = function (pedidoId, statusAtual, formaPagamento) {
-        var modal = byId("modalStatus");
-        var form = byId("formAvancarStatus");
-        var timeline = byId("statusTimeline");
-        var divDinheiro = byId("confirmacaoDinheiroDiv");
-        var inputConfirmacao = byId("inputConfirmacao");
-        var btn = byId("btnConfirmarStatus");
+        const modal = byId("modalStatus");
+        const form = byId("formAvancarStatus");
+        const timeline = byId("statusTimeline");
+        const divDinheiro = byId("confirmacaoDinheiroDiv");
+        const inputConfirmacao = byId("inputConfirmacao");
+        const btn = byId("btnConfirmarStatus");
 
         if (!modal || !form || !timeline) {
             alert("Modal de status não encontrado.");
@@ -436,16 +788,8 @@ box-shadow:0 6px 18px rgba(249,115,22,.25);
 
         form.action = "{% url 'avancar_status' 0 %}".replace("0", pedidoId);
 
-        var indexAtual = -1;
-
-        for (var i = 0; i < STATUS_FLUXO.length; i++) {
-            if (STATUS_FLUXO[i].key === statusAtual) {
-                indexAtual = i;
-                break;
-            }
-        }
-
-        var indexProximo = indexAtual + 1;
+        const indexAtual = STATUS_FLUXO.findIndex(s => s.key === statusAtual);
+        const indexProximo = indexAtual + 1;
 
         if (indexAtual < 0 || indexProximo >= STATUS_FLUXO.length) {
             alert("Este pedido não possui próxima etapa.");
@@ -454,10 +798,9 @@ box-shadow:0 6px 18px rgba(249,115,22,.25);
 
         timeline.innerHTML = "";
 
-        for (var j = 0; j < STATUS_FLUXO.length; j++) {
-            var item = STATUS_FLUXO[j];
-            var classe = "";
-            var tag = "";
+        STATUS_FLUXO.forEach(function (item, j) {
+            let classe = "";
+            let tag = "";
 
             if (j < indexAtual) {
                 classe = "bg-green-50 text-green-700 border-green-200";
@@ -473,7 +816,7 @@ box-shadow:0 6px 18px rgba(249,115,22,.25);
                 tag = "Depois";
             }
 
-            var div = document.createElement("div");
+            const div = document.createElement("div");
             div.className = "flex items-center justify-between gap-4 p-4 rounded-2xl border " + classe;
 
             div.innerHTML =
@@ -488,7 +831,7 @@ box-shadow:0 6px 18px rgba(249,115,22,.25);
                 '</div>';
 
             timeline.appendChild(div);
-        }
+        });
 
         if (btn) {
             btn.disabled = false;
@@ -499,6 +842,7 @@ box-shadow:0 6px 18px rgba(249,115,22,.25);
         if (STATUS_FLUXO[indexProximo].key === "FINALIZADO" && formaPagamento === "DINHEIRO") {
             if (divDinheiro) divDinheiro.classList.remove("hidden");
             if (inputConfirmacao) inputConfirmacao.value = "";
+
             if (btn) {
                 btn.disabled = true;
                 btn.classList.add("opacity-50", "cursor-not-allowed");
@@ -516,8 +860,8 @@ box-shadow:0 6px 18px rgba(249,115,22,.25);
     };
 
     window.validarConfirmacao = function () {
-        var input = byId("inputConfirmacao");
-        var btn = byId("btnConfirmarStatus");
+        const input = byId("inputConfirmacao");
+        const btn = byId("btnConfirmarStatus");
 
         if (!input || !btn) return;
 
@@ -530,45 +874,10 @@ box-shadow:0 6px 18px rgba(249,115,22,.25);
         }
     };
 
-    window.confirmarImpressao = async function () {
-    if (!pedidoSelecionado) {
-        alert("Nenhum pedido selecionado.");
-        return;
-    }
-
-    var qtdInput = byId("qtdVias");
-    var qtd = Math.max(1, parseInt(qtdInput && qtdInput.value ? qtdInput.value : "1"));
-
-    try {
-        var response = await fetch("/pedido/" + pedidoSelecionado + "/reimprimir/", {
-            method: "POST",
-            headers: {
-                "X-CSRFToken": getCookie("csrftoken"),
-                "X-Requested-With": "XMLHttpRequest"
-            }
-        });
-
-        var pedido = await response.json();
-
-        if (!response.ok) {
-            throw new Error(pedido.mensagem || pedido.message || "Erro ao buscar pedido.");
-        }
-
-        await imprimirPedidoPadronizado(pedido, qtd);
-
-        fecharModalPrint();
-        alert("Pedido reimpresso com sucesso.");
-
-    } catch (error) {
-        console.error(error);
-        alert(error.message || "Erro ao reimprimir. Verifique QZ Tray e impressora.");
-    }
-};
-
     document.addEventListener("click", function (e) {
-        var alvo = e.target;
-        var btnStatus = alvo.closest ? alvo.closest(".btn-abrir-status") : null;
-        var btnPrint = alvo.closest ? alvo.closest(".btn-abrir-print") : null;
+        const alvo = e.target;
+        const btnStatus = alvo.closest ? alvo.closest(".btn-abrir-status") : null;
+        const btnPrint = alvo.closest ? alvo.closest(".btn-abrir-print") : null;
 
         if (btnStatus) {
             e.preventDefault();
@@ -602,8 +911,8 @@ box-shadow:0 6px 18px rgba(249,115,22,.25);
 
         e.preventDefault();
 
-        var form = e.target;
-        var btn = byId("btnConfirmarStatus");
+        const form = e.target;
+        const btn = byId("btnConfirmarStatus");
 
         if (btn) {
             btn.disabled = true;
@@ -623,10 +932,7 @@ box-shadow:0 6px 18px rgba(249,115,22,.25);
             return response.json();
         })
         .then(function () {
-            if (btn) btn.innerHTML = '<i class="fas fa-check-circle"></i> Sucesso!';
-            setTimeout(function () {
-                window.location.reload();
-            }, 700);
+            window.location.reload();
         })
         .catch(function (error) {
             alert(error.message);
@@ -639,327 +945,6 @@ box-shadow:0 6px 18px rgba(249,115,22,.25);
     });
 
 })();
-
-
-
-    const IMPRESSORA_PADRAO = "MP-4200 TH";
-const ENCODING_IMPRESSAO = "CP850";
-const DELAY_IMPRESSAO_MS = 1500;
-
-const ESC_POS = {
-    INIT: '\x1B\x40',
-    CP850: '\x1B\x74\x02',
-    CENTER: '\x1B\x61\x01',
-    LEFT: '\x1B\x61\x00',
-    BOLD_ON: '\x1B\x45\x01',
-    BOLD_OFF: '\x1B\x45\x00',
-    DOUBLE_ON: '\x1D\x21\x11',
-    DOUBLE_OFF: '\x1D\x21\x00',
-    CUT: '\x1D\x56\x41\x03',
-    FEED: '\n\n\n\n\n'
-};
-
-function moeda(v) {
-    return Number(v || 0).toFixed(2).replace(".", ",");
-}
-
-function limparTexto(str) {
-    return (str || "")
-        .toString()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/[^\x20-\x7E\n\r]/g, "")
-        .trim();
-}
-
-async function conectarQZ() {
-    if (!window.qz) {
-        throw new Error("QZ Tray não carregado.");
-    }
-
-    if (!qz.websocket.isActive()) {
-        await qz.websocket.connect();
-    }
-}
-
-async function obterImpressora() {
-    await conectarQZ();
-
-    var impressoras = await qz.printers.find();
-
-    for (var i = 0; i < impressoras.length; i++) {
-        var nome = impressoras[i].toUpperCase();
-
-        if (
-            nome.indexOf("MP-4200") >= 0 ||
-            nome.indexOf("BEMATECH") >= 0 ||
-            nome.indexOf("ELGIN") >= 0
-        ) {
-            return impressoras[i];
-        }
-    }
-
-    return IMPRESSORA_PADRAO;
-}
-
-async function imprimirRaw(texto) {
-    if (!texto || texto.trim() === "") {
-        throw new Error("Texto de impressão vazio.");
-    }
-
-    var nomeImpressora = await obterImpressora();
-
-    var config = qz.configs.create(nomeImpressora, {
-        encoding: ENCODING_IMPRESSAO,
-        copies: 1
-    });
-
-    await qz.print(config, [{
-        type: "raw",
-        format: "plain",
-        data: ESC_POS.INIT + ESC_POS.CP850 + texto
-    }]);
-}
-
-async function imprimirPedidoPadronizado(pedido, vias) {
-    var pedidoOK = normalizarPedidoImpressao(pedido);
-    var totalVias = Math.max(1, parseInt(vias || 1));
-
-    for (var i = 0; i < totalVias; i++) {
-        await imprimirRaw(gerarTextoBalcao(pedidoOK));
-        await new Promise(function(resolve) {
-            setTimeout(resolve, DELAY_IMPRESSAO_MS);
-        });
-
-        await imprimirRaw(gerarTextoCozinha(pedidoOK));
-        await new Promise(function(resolve) {
-            setTimeout(resolve, DELAY_IMPRESSAO_MS);
-        });
-    }
-}
-
-function gerarTextoBalcao(pedido) {
-    var t = "";
-
-    t += ESC_POS.CENTER + ESC_POS.BOLD_ON + ESC_POS.DOUBLE_ON;
-    t += "VIA BALCAO\n";
-    t += "PEDIDO #" + pedido.id + "\n";
-    t += ESC_POS.DOUBLE_OFF + ESC_POS.BOLD_OFF;
-
-    t += "--------------------------------\n";
-    t += ESC_POS.LEFT;
-    t += "Data: " + limparTexto(pedido.criadoEm || "") + "\n";
-    t += "Cliente: " + limparTexto(pedido.nomeCliente || "SEM NOME") + "\n";
-
-    if (pedido.descricao) {
-        t += "Descricao: " + limparTexto(pedido.descricao) + "\n";
-    }
-
-    t += "Pagamento: " + limparTexto(pedido.metodo || "").toUpperCase() + "\n";
-    t += pedido.entrega ? "Tipo: ENTREGA\n" : "Tipo: RETIRADA\n";
-
-    if (pedido.entrega && pedido.endereco) {
-        t += "End: " + limparTexto(pedido.endereco.rua || "") + ", " + limparTexto(pedido.endereco.numero || "") + "\n";
-
-        if (pedido.endereco.cep) {
-            t += "CEP: " + limparTexto(pedido.endereco.cep) + "\n";
-        }
-    }
-
-    t += "--------------------------------\n";
-    t += ESC_POS.BOLD_ON + "ITENS DO PEDIDO\n" + ESC_POS.BOLD_OFF;
-    t += "--------------------------------\n";
-
-    var itens = agruparItens(pedido.itens || []);
-
-    for (var i = 0; i < itens.length; i++) {
-        var item = itens[i];
-        var adicionais = item.adicionais || [];
-        var precoAdicionais = calcularPrecoAdicionaisImpressao(adicionais);
-        var precoUnitario = Number(item.precoBase || 0) + precoAdicionais;
-        var subtotalItem = precoUnitario * Number(item.qtd || 1);
-
-        t += item.qtd + "x " + limparTexto(item.nome) + "\n";
-        t += "   Unitario: R$ " + moeda(precoUnitario) + "\n";
-        t += "   Subtotal: R$ " + moeda(subtotalItem) + "\n";
-
-        for (var a = 0; a < adicionais.length; a++) {
-            var add = adicionais[a];
-            var qtdAdd = Number(add.qtd || 1);
-            var totalAdd = Number(add.preco || 0) * qtdAdd;
-
-            t += "   + " + qtdAdd + "x " + limparTexto(add.nome) + " R$ " + moeda(totalAdd) + "\n";
-        }
-
-        t += "\n";
-    }
-
-    t += "--------------------------------\n";
-    t += "Total Pedido: R$ " + moeda(pedido.totalPedido) + "\n";
-    t += "Taxa Motoca:  R$ " + moeda(pedido.taxaMotoca) + "\n";
-    t += ESC_POS.BOLD_ON;
-    t += "Total Final:  R$ " + moeda(pedido.totalFinal) + "\n";
-    t += ESC_POS.BOLD_OFF;
-    t += ESC_POS.FEED + ESC_POS.CUT;
-
-    return t;
-}
-
-function gerarTextoCozinha(pedido) {
-    var t = "";
-
-    t += ESC_POS.CENTER + ESC_POS.BOLD_ON + ESC_POS.DOUBLE_ON;
-    t += "VIA COZINHA\n";
-    t += "PEDIDO #" + pedido.id + "\n";
-    t += ESC_POS.DOUBLE_OFF + ESC_POS.BOLD_OFF;
-
-    t += "--------------------------------\n";
-    t += ESC_POS.LEFT;
-    t += "Cliente: " + limparTexto(pedido.nomeCliente || "SEM NOME").toUpperCase() + "\n";
-    t += "Pagamento: " + limparTexto(pedido.metodo || "").toUpperCase() + "\n";
-    t += pedido.entrega ? "Tipo: ENTREGA\n" : "Tipo: RETIRADA\n";
-
-    if (pedido.descricao) {
-        t += "OBS: " + limparTexto(pedido.descricao).toUpperCase() + "\n";
-    }
-
-    t += "--------------------------------\n";
-    t += ESC_POS.BOLD_ON + "ITENS DO PEDIDO\n" + ESC_POS.BOLD_OFF;
-    t += "--------------------------------\n";
-
-    var itens = agruparItens(pedido.itens || []);
-
-    for (var i = 0; i < itens.length; i++) {
-        var item = itens[i];
-        var adicionais = item.adicionais || [];
-        var precoAdicionais = calcularPrecoAdicionaisImpressao(adicionais);
-        var precoUnitario = Number(item.precoBase || 0) + precoAdicionais;
-        var subtotalItem = precoUnitario * Number(item.qtd || 1);
-
-        t += ESC_POS.BOLD_ON;
-        t += item.qtd + "x " + limparTexto(item.nome).toUpperCase() + " R$ " + moeda(subtotalItem) + "\n";
-        t += ESC_POS.BOLD_OFF;
-        t += "   Unitario: R$ " + moeda(precoUnitario) + "\n";
-
-        for (var a = 0; a < adicionais.length; a++) {
-            var add = adicionais[a];
-            var qtdAdd = Number(add.qtd || 1);
-            var totalAdd = Number(add.preco || 0) * qtdAdd;
-
-            t += "   + " + qtdAdd + "x " + limparTexto(add.nome).toUpperCase() + " R$ " + moeda(totalAdd) + "\n";
-        }
-
-        t += "\n";
-    }
-
-    t += "--------------------------------\n";
-    t += "TOTAL FINAL: R$ " + moeda(pedido.totalFinal) + "\n";
-    t += "--------------------------------\n";
-    t += ESC_POS.CENTER + ESC_POS.BOLD_ON + "BOM TRABALHO!\n" + ESC_POS.BOLD_OFF;
-    t += ESC_POS.FEED + ESC_POS.CUT;
-
-    return t;
-}
-
-function calcularPrecoAdicionaisImpressao(adicionais) {
-    var total = 0;
-
-    for (var i = 0; i < adicionais.length; i++) {
-        total += Number(adicionais[i].preco || 0) * Number(adicionais[i].qtd || 1);
-    }
-
-    return total;
-}
-
-function agruparItens(itens) {
-    var mapa = {};
-
-    for (var i = 0; i < itens.length; i++) {
-        var item = itens[i];
-        var adicionais = item.adicionais || [];
-        var adicionaisKey = "";
-
-        for (var a = 0; a < adicionais.length; a++) {
-            adicionaisKey += adicionais[a].nome + ":" + adicionais[a].preco + ":" + (adicionais[a].qtd || 1) + "|";
-        }
-
-        var chave = item.nome + "_" + adicionaisKey;
-
-        if (!mapa[chave]) {
-            mapa[chave] = {
-                nome: item.nome,
-                qtd: Number(item.qtd || 1),
-                precoBase: Number(item.precoBase || 0),
-                adicionais: adicionais
-            };
-        } else {
-            mapa[chave].qtd += Number(item.qtd || 1);
-        }
-    }
-
-    var lista = [];
-
-    for (var key in mapa) {
-        lista.push(mapa[key]);
-    }
-
-    return lista;
-}
-
-function normalizarPedidoImpressao(p) {
-    var endereco = p.endereco || {};
-
-    return {
-        id: p.id,
-        criadoEm: p.criadoEm || p.criado_em_formatado || p.criado_em || "",
-        nomeCliente: p.nomeCliente || p.nome_cliente || "SEM NOME",
-        metodo: p.metodo || p.forma_pagamento || "",
-        entrega: !!p.entrega,
-        descricao: p.descricao || "",
-        endereco: {
-            rua: endereco.rua || p.rua || "",
-            numero: endereco.numero || p.numero || "",
-            cep: endereco.cep || p.cep || ""
-        },
-        itens: normalizarItensImpressao(p.itens || []),
-        totalPedido: Number(p.totalPedido || p.total || 0),
-        taxaMotoca: Number(p.taxaMotoca || p.taxa_motoca || 0),
-        totalFinal: Number(
-            p.totalFinal ||
-            p.total_final ||
-            (Number(p.totalPedido || p.total || 0) + Number(p.taxaMotoca || p.taxa_motoca || 0))
-        )
-    };
-}
-
-function normalizarItensImpressao(itens) {
-    var lista = [];
-
-    for (var i = 0; i < itens.length; i++) {
-        var item = itens[i];
-        var produto = item.produto || {};
-        var adicionaisOriginais = item.adicionais || [];
-        var adicionais = [];
-
-        for (var a = 0; a < adicionaisOriginais.length; a++) {
-            adicionais.push({
-                nome: adicionaisOriginais[a].nome || "",
-                qtd: Number(adicionaisOriginais[a].qtd || adicionaisOriginais[a].quantidade || 1),
-                preco: Number(adicionaisOriginais[a].preco || 0)
-            });
-        }
-
-        lista.push({
-            nome: String(item.nome || produto.nome_produto || "ITEM"),
-            qtd: Number(item.qtd || item.quantidade || 1),
-            precoBase: Number(item.precoBase || item.preco_base || item.preco || item.preco_unitario || 0),
-            adicionais: adicionais
-        });
-    }
-
-    return lista;
-}
-
 </script>
 
 {% endblock %}
