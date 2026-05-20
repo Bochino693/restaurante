@@ -468,6 +468,7 @@ let carrinho = [];
 let metodoPagamento = '';
 let categoriaAtual = 'all';
 let tipoEntrega = true;
+let impressoraCache = null;
 
 const IMPRESSORA_PADRAO = "MP-4200 TH";
 const ENCODING_IMPRESSAO = "CP850";
@@ -1336,49 +1337,27 @@ function getCookie(name) {
     return cookieValue;
 }
 
+
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 /* =========================================================
    QZ TRAY
 ========================================================= */
 
 async function conectarQZ() {
+        if (!window.qz) {
+            throw new Error("QZ Tray não carregou. Verifique internet/CDN ou instale o arquivo local.");
+        }
 
-    if (!window.qz) {
-        throw new Error(
-            "QZ Tray não carregou."
-        );
+        if (!qz.websocket.isActive()) {
+            await qz.websocket.connect({ retries: 2, delay: 1 });
+        }
     }
 
-    if (qz.websocket.isActive()) {
-        return true;
-    }
 
-    try {
-
-        await qz.websocket.connect({
-            retries: 4,
-            delay: 1
-        });
-
-        return true;
-
-    } catch (e) {
-
-        try {
-            await qz.websocket.disconnect();
-        } catch (_) {}
-
-        await sleep(700);
-
-        await qz.websocket.connect({
-            retries: 4,
-            delay: 1
-        });
-
-        return true;
-    }
-}
-
-async function obterImpressora() {
+ async function obterImpressora() {
 
     await conectarQZ();
 
@@ -1389,11 +1368,8 @@ async function obterImpressora() {
     let lista = [];
 
     try {
-
         lista = await qz.printers.find();
-
     } catch (e) {
-
         lista = [];
     }
 
@@ -1419,9 +1395,7 @@ async function obterImpressora() {
         );
 
         if (achada) {
-
             impressoraCache = achada;
-
             return achada;
         }
     }
@@ -1441,7 +1415,7 @@ async function obterImpressora() {
     }
 }
 
-function prepararTextoRaw(texto) {
+ function prepararTextoRaw(texto) {
 
     return String(texto || "")
         .replace(/\r\n/g, "\n")
@@ -1518,6 +1492,8 @@ async function imprimirRaw(texto) {
     );
 }
 
+
+
 /* =========================================================
    IMPRESSÃO
 ========================================================= */
@@ -1556,99 +1532,41 @@ function agruparItens(itens) {
     return Object.values(mapa);
 }
 
+
+function normalizarTextoImpressao(str) {
+    return (str || "")
+        .toString()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^\x20-\x7E\n\r]/g, "")
+        .trim();
+}
+
 function normalizarPedidoImpressao(p) {
-
     return {
-
         id: p.id,
-
-        criadoEm:
-            p.criadoEm ||
-            p.criado_em_formatado ||
-            new Date().toLocaleString('pt-BR'),
-
-        nomeCliente:
-            p.nomeCliente ||
-            p.nome_cliente ||
-            "SEM NOME",
-
-        metodo:
-            p.metodo ||
-            p.forma_pagamento ||
-            "",
-
+        criadoEm: p.criadoEm || new Date().toLocaleString("pt-BR"),
+        nomeCliente: p.nomeCliente || "SEM NOME",
+        metodo: p.metodo || "",
         entrega: !!p.entrega,
-
         descricao: p.descricao || "",
-
-        endereco: {
-            rua:
-                p.endereco?.rua ||
-                p.rua ||
-                "",
-
-            numero:
-                p.endereco?.numero ||
-                p.numero ||
-                "",
-
-            cep:
-                p.endereco?.cep ||
-                p.cep ||
-                ""
-        },
-
+        endereco: p.endereco || {},
         itens: (p.itens || []).map(i => ({
-
-            nome:
-                i.nome ||
-                "ITEM",
-
-            qtd:
-                Number(i.qtd || 1),
-
-            precoBase:
-                Number(
-                    i.precoBase ||
-                    i.preco ||
-                    0
-                ),
-
-            adicionais:
-                (i.adicionais || []).map(a => ({
-
-                    nome: a.nome || "",
-
-                    qtd:
-                        Number(a.qtd || 1),
-
-                    preco:
-                        Number(a.preco || 0)
-                }))
+            nome: i.nome || "ITEM",
+            qtd: Number(i.qtd || 1),
+            precoBase: Number(i.precoBase || i.preco || 0),
+            adicionais: (i.adicionais || []).map(a => ({
+                nome: a.nome || "",
+                qtd: Number(a.qtd || 1),
+                preco: Number(a.preco || 0)
+            }))
         })),
-
-        totalPedido:
-            Number(
-                p.totalPedido ||
-                p.total ||
-                0
-            ),
-
-        taxaMotoca:
-            Number(
-                p.taxaMotoca ||
-                p.taxa_motoca ||
-                0
-            ),
-
-        totalFinal:
-            Number(
-                p.totalFinal ||
-                p.total_final ||
-                0
-            )
+        totalPedido: Number(p.totalPedido || 0),
+        taxaMotoca: Number(p.taxaMotoca || 0),
+        totalFinal: Number(p.totalFinal || 0)
     };
 }
+
 
 function gerarTextoBalcao(pedido) {
 
@@ -2171,4 +2089,7 @@ document.addEventListener(
 );
 
 </script>
+
+
+
 {% endblock %}
