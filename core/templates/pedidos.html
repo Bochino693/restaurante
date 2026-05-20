@@ -539,26 +539,58 @@ box-shadow:0 6px 18px rgba(249,115,22,.25);
     }
 
     function normalizarPedidoImpressao(p) {
-        const endereco = p.endereco || {};
+    const endereco = p.endereco || {};
 
-        return {
-            id: p.id,
-            criadoEm: p.criadoEm || "",
-            nomeCliente: p.nomeCliente || "SEM NOME",
-            metodo: p.metodo || "",
-            entrega: !!p.entrega,
-            descricao: p.descricao || "",
-            endereco: {
-                rua: endereco.rua || "",
-                numero: endereco.numero || "",
-                cep: endereco.cep || ""
-            },
-            itens: normalizarItensImpressao(p.itens || []),
-            totalPedido: Number(p.totalPedido || 0),
-            taxaMotoca: Number(p.taxaMotoca || 0),
-            totalFinal: Number(p.totalFinal || 0)
-        };
-    }
+    const taxaMotoca = Number(
+        p.taxaMotoca ??
+        p.taxa_motoca ??
+        p.taxa_entrega ??
+        0
+    );
+
+    const totalPedido = Number(
+        p.totalPedido ??
+        p.total_pedido ??
+        p.total ??
+        0
+    );
+
+    const totalFinal = Number(
+        p.totalFinal ??
+        p.total_final ??
+        p.total ??
+        totalPedido
+    );
+
+    return {
+        id: p.id,
+        criadoEm: p.criadoEm || p.criado_em || p.data || "",
+        nomeCliente: p.nomeCliente || p.nome_cliente || "SEM NOME",
+
+        metodo: (
+            p.metodo ||
+            p.forma_pagamento ||
+            p.pagamento ||
+            ""
+        ),
+
+        entrega: Boolean(p.entrega),
+
+        descricao: p.descricao || p.observacao || "",
+
+        endereco: {
+            rua: endereco.rua || p.rua || "",
+            numero: endereco.numero || p.numero || "",
+            cep: endereco.cep || p.cep || ""
+        },
+
+        itens: normalizarItensImpressao(p.itens || []),
+
+        totalPedido: totalPedido,
+        taxaMotoca: taxaMotoca,
+        totalFinal: totalFinal
+    };
+}
 
     function calcularPrecoAdicionaisImpressao(adicionais) {
         let total = 0;
@@ -671,6 +703,18 @@ box-shadow:0 6px 18px rgba(249,115,22,.25);
         t += "Cliente: " + limparTexto(pedido.nomeCliente).toUpperCase() + "\n";
         t += "Pagamento: " + limparTexto(pedido.metodo).toUpperCase() + "\n";
         t += pedido.entrega ? "Tipo: ENTREGA\n" : "Tipo: RETIRADA\n";
+
+        if (pedido.entrega && pedido.endereco) {
+            t += "End: " + limparTexto(pedido.endereco.rua) + ", " + limparTexto(pedido.endereco.numero) + "\n";
+
+            if (pedido.endereco.cep) {
+                t += "CEP: " + limparTexto(pedido.endereco.cep) + "\n";
+            }
+        }
+
+        if (pedido.taxaMotoca > 0) {
+            t += "Taxa Motoca: R$ " + moeda(pedido.taxaMotoca) + "\n";
+        }
 
         if (pedido.descricao) {
             t += "OBS: " + limparTexto(pedido.descricao).toUpperCase() + "\n";
