@@ -474,7 +474,7 @@ const IMPRESSORA_PADRAO = "MP-4200 TH";
 const ENCODING_IMPRESSAO = "CP850";
 const DELAY_IMPRESSAO_MS = 900;
 
-let impressoraCache = null;
+
 
 /* =========================================================
    ESC/POS
@@ -539,9 +539,6 @@ function quebrarLinha(texto, tamanho = 24) {
     return linhas;
 }
 
-function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-}
 
 /* =========================================================
    MÁSCARAS
