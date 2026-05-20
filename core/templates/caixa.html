@@ -1748,47 +1748,48 @@ function gerarTextoCozinha(pedido) {
     t += ESC_POS.LEFT;
 
     t += "Cliente: " +
-        limparTexto(pedido.nomeCliente)
-            .toUpperCase() +
-        "\n";
+        limparTexto(pedido.nomeCliente).toUpperCase() + "\n";
 
-    t += pedido.entrega
-        ? "ENTREGA\n"
-        : "RETIRADA\n";
+    t += "Pagamento: " +
+        limparTexto(pedido.metodo).toUpperCase() + "\n";
+
+    t += pedido.entrega ? "ENTREGA\n" : "RETIRADA\n";
 
     if (pedido.descricao) {
-
         t += "OBS: " +
-            limparTexto(pedido.descricao)
-                .toUpperCase() +
-            "\n";
+            limparTexto(pedido.descricao).toUpperCase() + "\n";
     }
 
     t += "--------------------------------\n";
 
-    agruparItens(pedido.itens).forEach(item => {
+    t += ESC_POS.BOLD_ON;
+    t += "ITENS DO PEDIDO\n";
+    t += ESC_POS.BOLD_OFF;
 
-        const adicionais =
-            item.adicionais || [];
+    t += "--------------------------------\n";
 
-        const precoAdicionais =
-            calcularPrecoAdicionais(adicionais);
+    const itens = agruparItens(pedido.itens || []);
 
-        const subtotalItem =
-            (
-                Number(item.precoBase || 0) +
-                precoAdicionais
-            ) * Number(item.qtd || 1);
+    itens.forEach(function(item) {
+
+        const adicionais = item.adicionais || [];
 
         t += ESC_POS.BOLD_ON;
-
-        t += `${item.qtd}x ${limparTexto(item.nome).toUpperCase()}  R$ ${moeda(subtotalItem)}\n`;
-
+        t += item.qtd +
+            "x " +
+            limparTexto(item.nome).toUpperCase() +
+            "\n";
         t += ESC_POS.BOLD_OFF;
 
-        adicionais.forEach(a => {
+        adicionais.forEach(function(a) {
 
-            t += `   + ${a.qtd}x ${limparTexto(a.nome).toUpperCase()}\n`;
+            const qtdAdd = Number(a.qtd || 1);
+
+            t += "   + " +
+                qtdAdd +
+                "x " +
+                limparTexto(a.nome).toUpperCase() +
+                "\n";
         });
 
         t += "\n";
@@ -1797,17 +1798,17 @@ function gerarTextoCozinha(pedido) {
     t += "--------------------------------\n";
 
     t += ESC_POS.BOLD_ON;
-
-    t += "TOTAL: R$ " +
-        moeda(pedido.totalFinal) +
-        "\n";
-
+    t += "TOTAL: R$ " + moeda(pedido.totalFinal) + "\n";
     t += ESC_POS.BOLD_OFF;
 
     t += "--------------------------------\n";
 
     t += ESC_POS.CENTER;
-    t += "BOM TRABALHO\n";
+    t += ESC_POS.BOLD_ON;
+    t += "BOM TRABALHO!\n";
+    t += ESC_POS.BOLD_OFF;
+
+    t += "\n\n\n\n\n";
 
     t += ESC_POS.FEED;
     t += ESC_POS.CUT;
