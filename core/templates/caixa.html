@@ -456,7 +456,7 @@
 </style>
 
 
-<script src="https://cdn.jsdelivr.net/npm/qz-tray/qz-tray.js"></script>
+<script src="{% static 'js/qz-tray.js' %}"></script>
 
 <script>
 let carrinho = [];
@@ -1071,96 +1071,150 @@ function getCookie(name) {
 }
 
 
-
 // Comandos ESC/POS atualizados para MP-4200 TH
 const IMPRESSORA_PADRAO = "MP-4200 TH";
 const ENCODING_IMPRESSAO = "CP850";
-const DELAY_IMPRESSAO_MS = 1500;
+const DELAY_IMPRESSAO_MS = 900;
 
-const ESC_POS = {
-    INIT: '\x1B\x40',
-    CP850: '\x1B\x74\x02',
-    CENTER: '\x1B\x61\x01',
-    LEFT: '\x1B\x61\x00',
-    BOLD_ON: '\x1B\x45\x01',
-    BOLD_OFF: '\x1B\x45\x00',
-    DOUBLE_ON: '\x1D\x21\x11',
-    DOUBLE_OFF: '\x1D\x21\x00',
-    CUT: '\x1D\x56\x41\x03',
-    FEED: '\n\n\n\n\n'
-};
+let impressoraCache = null;
 
-function moeda(v) {
-    return Number(v || 0).toFixed(2).replace('.', ',');
-}
-
-function limparTexto(str) {
-    return (str || "")
-        .toString()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/[^\x20-\x7E\n\r]/g, "")
-        .trim();
-}
-
-function quebrarLinha(texto, max = 32) {
-    texto = limparTexto(texto);
-    const linhas = [];
-
-    while (texto.length > max) {
-        linhas.push(texto.slice(0, max));
-        texto = texto.slice(max);
-    }
-
-    if (texto.length > 0) linhas.push(texto);
-    return linhas;
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 async function conectarQZ() {
     if (!window.qz) {
-        throw new Error("QZ Tray não carregado.");
+        throw new Error("QZ Tray não carregou. Use o qz-tray.js local em static/js.");
     }
 
-    if (!qz.websocket.isActive()) {
-        await qz.websocket.connect();
+    if (qz.websocket.isActive()) {
+        return true;
+    }
+
+    try {
+        await qz.websocket.connect({
+            retries: 4,
+            delay: 1
+        });
+        return true;
+    } catch (e) {
+        try {
+            await qz.websocket.disconnect();
+        } catch (_) {}
+
+        await sleep(700);
+
+        await qz.websocket.connect({
+            retries: 4,
+            delay: 1
+        });
+
+        return true;
     }
 }
 
 async function obterImpressora() {
     await conectarQZ();
 
-    const impressoras = await qz.printers.find();
+    if (impressoraCache) {
+        return impressoraCache;
+    }
 
-    const encontrada = impressoras.find(p =>
-        p.toUpperCase().includes("MP-4200") ||
-        p.toUpperCase().includes("BEMATECH") ||
-        p.toUpperCase().includes("ELGIN")
-    );
+    let lista = [];
 
-    if (encontrada) return encontrada;
+    try {
+        lista = await qz.printers.find();
+    } catch (e) {
+        lista = [];
+    }
 
-    return IMPRESSORA_PADRAO;
+    if (!Array.isArray(lista)) {
+        lista = [lista];
+    }
+
+    const preferidas = [
+        "MP-4200",
+        "BEMATECH",
+        "ELGIN",
+        "DARUMA",
+        "POS",
+        "THERMAL"
+    ];
+
+    for (const termo of preferidas) {
+        const achada = lista.find(p =>
+            String(p).toUpperCase().includes(termo)
+        );
+
+        if (achada) {
+            impressoraCache = achada;
+            return achada;
+        }
+    }
+
+    try {
+        impressoraCache = await qz.printers.getDefault();
+        return impressoraCache;
+    } catch (e) {
+        impressoraCache = IMPRESSORA_PADRAO;
+        return impressoraCache;
+    }
+}
+
+function prepararTextoRaw(texto) {
+    return String(texto || "")
+        .replace(/\r\n/g, "\n")
+        .replace(/\r/g, "\n");
 }
 
 async function imprimirRaw(texto) {
-    if (!texto || texto.trim() === "") {
+    texto = prepararTextoRaw(texto);
+
+    if (!texto.trim()) {
         throw new Error("Texto de impressão vazio.");
     }
+
+    await conectarQZ();
 
     const nomeImpressora = await obterImpressora();
 
     const config = qz.configs.create(nomeImpressora, {
         encoding: ENCODING_IMPRESSAO,
-        copies: 1
+        copies: 1,
+        jobName: "Pedido Restaurante"
     });
 
-    const dataFinal = ESC_POS.INIT + ESC_POS.CP850 + texto;
-
-    await qz.print(config, [{
+    const dados = [{
         type: "raw",
         format: "plain",
-        data: dataFinal
-    }]);
+        data: ESC_POS.INIT + ESC_POS.CP850 + texto
+    }];
+
+    let ultimoErro = null;
+
+    for (let tentativa = 1; tentativa <= 3; tentativa++) {
+        try {
+            await qz.print(config, dados);
+            await sleep(DELAY_IMPRESSAO_MS);
+            return true;
+        } catch (e) {
+            ultimoErro = e;
+
+            try {
+                if (qz.websocket.isActive()) {
+                    await qz.websocket.disconnect();
+                }
+            } catch (_) {}
+
+            await sleep(800);
+            await conectarQZ();
+        }
+    }
+
+    throw new Error(
+        "Falha ao imprimir após 3 tentativas: " +
+        (ultimoErro && ultimoErro.message ? ultimoErro.message : ultimoErro)
+    );
 }
 
 async function imprimirPedidoPadronizado(pedido, vias = 1) {
