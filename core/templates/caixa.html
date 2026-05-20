@@ -457,7 +457,7 @@
 </style>
 
 
-<script src="{% static 'js/qz-tray.js' %}"></script>
+<script src="https://cdn.jsdelivr.net/npm/qz-tray@2.2.4/qz-tray.js"></script>
 
 <script>
 /* =========================================================
@@ -1344,15 +1344,29 @@ function sleep(ms) {
 ========================================================= */
 
 async function conectarQZ() {
-        if (!window.qz) {
-            throw new Error("QZ Tray não carregou. Verifique internet/CDN ou instale o arquivo local.");
-        }
-
-        if (!qz.websocket.isActive()) {
-            await qz.websocket.connect({ retries: 2, delay: 1 });
-        }
+    if (!window.qz) {
+        await new Promise((resolve, reject) => {
+            const s = document.createElement("script");
+            s.src = "https://cdn.jsdelivr.net/npm/qz-tray@2.2.4/qz-tray.js";
+            s.onload = resolve;
+            s.onerror = () => reject(new Error("Não foi possível carregar o qz-tray.js."));
+            document.head.appendChild(s);
+        });
     }
 
+    if (!window.qz) {
+        throw new Error("QZ Tray não carregou. O arquivo qz-tray.js não está sendo encontrado.");
+    }
+
+    if (!qz.websocket.isActive()) {
+        await qz.websocket.connect({
+            retries: 4,
+            delay: 1
+        });
+    }
+
+    return true;
+}
 
  async function obterImpressora() {
 
