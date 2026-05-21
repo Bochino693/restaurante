@@ -153,7 +153,12 @@
             <h2 class="font-bold flex items-center gap-2 text-sm">
                 <i class="fas fa-shopping-basket"></i> CARRINHO
             </h2>
-            <span id="cartCount" class="bg-blue-400 text-[10px] px-2 py-1 rounded-full font-bold">0 ITENS</span>
+            <div class="flex items-center gap-2">
+                <span id="qzStatus" class="hidden bg-amber-400 text-amber-900 text-[10px] px-2 py-1 rounded-full font-bold" title="Status da impressora">
+                    <i class="fas fa-print"></i>
+                </span>
+                <span id="cartCount" class="bg-blue-400 text-[10px] px-2 py-1 rounded-full font-bold">0 ITENS</span>
+            </div>
         </div>
 
         <!-- LISTA -->
@@ -167,11 +172,10 @@
             </div>
         </div>
 
-        <!-- RODAPÉ -->
         <!-- RODAPÉ COMPACTO -->
 <div class="shrink-0 border-t border-gray-200 bg-white px-3 py-3 space-y-2.5 shadow-[0_-8px_20px_rgba(15,23,42,0.05)]">
 
-    <!-- DESCONTO + TOTAL MAIS BAIXOS -->
+    <!-- DESCONTO + TOTAL -->
     <div class="grid grid-cols-2 gap-2">
         <div class="bg-white border rounded-xl px-3 py-2">
             <div class="text-[9px] font-black text-gray-400 uppercase leading-none mb-1">Desconto</div>
@@ -190,7 +194,7 @@
         </div>
     </div>
 
-    <!-- NOME MAIS COMPACTO -->
+    <!-- NOME -->
     <div>
         <label for="nomeCliente" class="block text-[10px] font-black uppercase tracking-wide text-gray-500 mb-1">
             Nome do Cliente *
@@ -215,7 +219,7 @@
     ></textarea>
     </div>
 
-    <!-- ENTREGA / RETIRADA MAIS BAIXOS -->
+    <!-- ENTREGA / RETIRADA -->
     <div class="grid grid-cols-3 gap-2">
         <button
             type="button"
@@ -236,7 +240,7 @@
         </button>
     </div>
 
-    <!-- ENTREGA -->
+    <!-- ENTREGA BOX -->
     <div id="enderecoBox" class="space-y-2">
         <div class="grid grid-cols-3 gap-2">
             <input
@@ -287,7 +291,7 @@
         </div>
     </div>
 
-    <!-- PAGAMENTO MAIS BAIXO -->
+    <!-- PAGAMENTO -->
     <div class="grid grid-cols-3 gap-2">
         <button type="button" onclick="setMetodo('pix', this)"
             class="metodo-btn border rounded-xl h-9 font-black text-[11px]">
@@ -305,10 +309,10 @@
         </button>
     </div>
 
-    <!-- BOTÃO MAIS BAIXO -->
-    <button onclick="finalizarVenda()"
-        class="w-full bg-green-500 hover:bg-green-600 text-white font-black h-10 rounded-xl shadow-lg transition-all text-xs uppercase tracking-[0.15em]">
-        Finalizar Pedido
+    <!-- BOTÃO FINALIZAR -->
+    <button id="btnFinalizar" onclick="finalizarVenda()"
+        class="w-full bg-green-500 hover:bg-green-600 text-white font-black h-10 rounded-xl shadow-lg transition-all text-xs uppercase tracking-[0.15em] disabled:opacity-60 disabled:cursor-not-allowed">
+        <span id="btnFinalizarTexto">Finalizar Pedido</span>
     </button>
 </div>
     </div>
@@ -316,6 +320,7 @@
     </div>
 </div>
 
+<!-- MODAL ADICIONAIS -->
 <div id="modalAdicionais" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
     <div class="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl overflow-hidden">
         <div class="p-6 border-b flex justify-between items-center">
@@ -338,17 +343,22 @@
     </div>
 </div>
 
+<!-- MODAL SUCESSO -->
 <div id="modalSucesso" class="hidden fixed inset-0 bg-gray-900/80 backdrop-blur-md z-[110] flex items-center justify-center p-4">
     <div id="sucessoCard" class="bg-white w-full max-w-sm rounded-[3rem] shadow-2xl overflow-hidden transform transition-all scale-95 opacity-0 duration-300">
         <div class="p-8 text-center">
             <div class="w-20 h-20 bg-green-100 text-green-500 rounded-full flex items-center justify-center mx-auto mb-6">
-                <i class="fas fa-check text-3xl animate-bounce"></i>
+                <i class="fas fa-check text-3xl"></i>
             </div>
 
             <h3 class="text-2xl font-black text-gray-800 mb-2">Pedido Finalizado!</h3>
-            <p class="text-gray-500 text-sm mb-6">O comprovante foi enviado para a fila de impressão.</p>
+            <p id="sucessoStatusImpressao" class="text-gray-500 text-sm mb-6">Enviando para a impressora...</p>
 
             <div class="bg-gray-50 rounded-2xl p-4 mb-6 border border-dashed border-gray-200 text-left">
+                <div class="flex justify-between text-xs mb-1">
+                    <span class="text-gray-400 font-bold uppercase">Pedido:</span>
+                    <span id="resumoPedidoId" class="font-black text-gray-800 font-mono">#---</span>
+                </div>
                 <div class="flex justify-between text-xs mb-1">
                     <span class="text-gray-400 font-bold uppercase">Total:</span>
                     <span id="resumoTotal" class="font-black text-gray-800 font-mono">R$ 0,00</span>
@@ -359,6 +369,11 @@
                 </div>
             </div>
 
+            <button id="btnReimprimir" onclick="reimprimirUltimoPedido()"
+                class="hidden w-full bg-amber-500 hover:bg-amber-600 text-white font-black py-3 rounded-2xl transition-all active:scale-95 shadow-lg mb-2">
+                <i class="fas fa-print mr-2"></i> REIMPRIMIR
+            </button>
+
             <button onclick="fecharModalSucesso()"
                 class="w-full bg-gray-900 hover:bg-black text-white font-black py-4 rounded-2xl transition-all active:scale-95 shadow-xl">
                 NOVA VENDA
@@ -367,6 +382,7 @@
     </div>
 </div>
 
+<!-- MODAL ALERTA -->
 <div id="modalAlerta" class="hidden fixed inset-0 bg-gray-900/60 backdrop-blur-sm z-[120] flex items-center justify-center p-4">
     <div id="alertaCard" class="bg-white w-full max-w-xs rounded-[2.5rem] shadow-2xl overflow-hidden transform transition-all scale-95 opacity-0 duration-200">
         <div class="p-6 text-center">
@@ -423,37 +439,46 @@
     }
 
     .entrega-btn {
-    min-height: 36px;
-}
+        min-height: 36px;
+    }
 
-.metodo-btn.selected {
-    background: #2563eb;
-    border-color: #2563eb;
-    color: white;
-    box-shadow: 0 4px 10px rgba(37,99,235,0.20);
-}
-
-.entrega-btn.selected {
-    background: #2563eb;
-    border-color: #2563eb;
-    color: white;
-    box-shadow: 0 4px 10px rgba(37,99,235,0.18);
-}
+    .entrega-btn.selected {
+        background: #2563eb;
+        border-color: #2563eb;
+        color: white;
+        box-shadow: 0 4px 10px rgba(37,99,235,0.18);
+    }
 
     #carrinhoItens .cart-item-compact:last-child {
-    margin-bottom: 0;
-}
+        margin-bottom: 0;
+    }
 
-#carrinhoItens.overflow-hidden {
-    display: flex;
-    align-items: stretch;
-}
+    #carrinhoItens.overflow-hidden {
+        display: flex;
+        align-items: stretch;
+    }
 
-#emptyCart {
-    width: 100%;
-    height: 100%;
-}
+    #emptyCart {
+        width: 100%;
+        height: 100%;
+    }
 
+    /* Spinner para impressão */
+    .spinner-print {
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        border: 2px solid currentColor;
+        border-right-color: transparent;
+        border-radius: 50%;
+        animation: spin 0.7s linear infinite;
+        vertical-align: middle;
+        margin-right: 6px;
+    }
+
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
 </style>
 
 
@@ -461,19 +486,32 @@
 
 <script>
 /* =========================================================
-   CONTROLE GERAL
+   ESTADO GLOBAL
 ========================================================= */
 
 let carrinho = [];
 let metodoPagamento = '';
 let categoriaAtual = 'all';
 let tipoEntrega = true;
+
+// Modal adicionais
+let modalAdicionaisAberto = false;
+let produtoAdicionalAtual = null;
+
+// Impressão
 let impressoraCache = null;
+let qzConnectingPromise = null;          // evita múltiplas conexões simultâneas
+let printingLock = false;                // mutex de impressão
+let printQueue = [];                     // fila de pedidos para imprimir
+let ultimoPedidoImpresso = null;         // para reimprimir manualmente
+let finalizandoVenda = false;            // evita duplo submit
 
 const IMPRESSORA_PADRAO = "MP-4200 TH";
 const ENCODING_IMPRESSAO = "CP850";
-const DELAY_IMPRESSAO_MS = 900;
-
+const DELAY_ENTRE_VIAS_MS = 700;         // delay entre balcão e cozinha
+const DELAY_RETRY_MS = 1000;
+const MAX_RETRIES = 3;
+const TIMEOUT_CEP_MS = 5000;
 
 
 /* =========================================================
@@ -508,6 +546,10 @@ function moeda(v) {
     return Number(v || 0).toFixed(2).replace('.', ',');
 }
 
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 function limparTexto(txt) {
     return String(txt || '')
         .normalize('NFD')
@@ -518,7 +560,6 @@ function limparTexto(txt) {
 
 function quebrarLinha(texto, tamanho = 24) {
     texto = limparTexto(texto);
-
     const palavras = texto.split(' ');
     const linhas = [];
     let linha = '';
@@ -539,6 +580,37 @@ function quebrarLinha(texto, tamanho = 24) {
     return linhas;
 }
 
+function setQzStatus(estado) {
+    // estado: 'ok' | 'erro' | 'imprimindo' | 'hidden'
+    const el = document.getElementById('qzStatus');
+    if (!el) return;
+
+    el.classList.remove('hidden', 'bg-amber-400', 'text-amber-900',
+                        'bg-red-500', 'text-white',
+                        'bg-green-400', 'text-green-900');
+
+    if (estado === 'hidden') {
+        el.classList.add('hidden');
+        return;
+    }
+    if (estado === 'erro') {
+        el.classList.add('bg-red-500', 'text-white');
+        el.title = 'Impressora com erro';
+        el.innerHTML = '<i class="fas fa-print"></i>';
+    } else if (estado === 'imprimindo') {
+        el.classList.add('bg-amber-400', 'text-amber-900');
+        el.title = 'Imprimindo...';
+        el.innerHTML = '<i class="fas fa-print fa-pulse"></i>';
+    } else if (estado === 'ok') {
+        el.classList.add('bg-green-400', 'text-green-900');
+        el.title = 'Impressora pronta';
+        el.innerHTML = '<i class="fas fa-print"></i>';
+        // Esconde de novo depois de alguns segundos
+        setTimeout(() => {
+            if (el.title === 'Impressora pronta') el.classList.add('hidden');
+        }, 2500);
+    }
+}
 
 /* =========================================================
    MÁSCARAS
@@ -546,14 +618,11 @@ function quebrarLinha(texto, tamanho = 24) {
 
 function mascaraMoeda(input) {
     let value = input.value.replace(/\D/g, '');
-
     value = (value / 100).toFixed(2) + '';
     value = value.replace(".", ",");
     value = value.replace(/(\d)(\d{3})(\d{3}),/g, "$1.$2.$3,");
     value = value.replace(/(\d)(\d{3}),/g, "$1.$2,");
-
     input.value = value;
-
     atualizarTotais();
 }
 
@@ -599,68 +668,47 @@ function filtrarCategoria(catId, btnElement) {
 
 function aplicarFiltros() {
     const termo = document.getElementById('searchUnificado')
-        .value
-        .toLowerCase()
-        .trim();
+        .value.toLowerCase().trim();
 
     document.querySelectorAll('.produto-card').forEach(card => {
-
         const nome = (card.dataset.name || '').toLowerCase();
         const code = (card.dataset.code || '').toLowerCase();
         const categoriaId = card.dataset.categoria || '';
 
-        const matchesBusca =
-            nome.includes(termo) ||
-            code.includes(termo);
+        const matchesBusca = nome.includes(termo) || code.includes(termo);
+        const matchesCategoria = categoriaAtual === 'all'
+            ? true
+            : categoriaId === categoriaAtual;
 
-        const matchesCategoria =
-            categoriaAtual === 'all'
-                ? true
-                : categoriaId === categoriaAtual;
-
-        card.style.display =
-            (matchesBusca && matchesCategoria)
-                ? 'block'
-                : 'none';
+        card.style.display = (matchesBusca && matchesCategoria) ? 'block' : 'none';
     });
 
     const secaoPratosDia = document.getElementById('secaoPratosDia');
     const pratosDiaCards = document.querySelectorAll('.prato-dia-card');
 
     if (secaoPratosDia && pratosDiaCards.length > 0) {
-
         let pratosVisiveis = 0;
 
         pratosDiaCards.forEach(card => {
-
             const nome = (card.dataset.name || '').toLowerCase();
             const code = (card.dataset.code || '').toLowerCase();
             const categoriaId = card.dataset.categoria || '';
 
-            const matchesBusca =
-                nome.includes(termo) ||
-                code.includes(termo);
+            const matchesBusca = nome.includes(termo) || code.includes(termo);
 
             let matchesCategoria = false;
-
-            if (
-                categoriaAtual === 'all' ||
-                categoriaAtual === 'pratos-dia'
-            ) {
+            if (categoriaAtual === 'all' || categoriaAtual === 'pratos-dia') {
                 matchesCategoria = true;
             } else {
                 matchesCategoria = categoriaId === categoriaAtual;
             }
 
             const mostrar = matchesBusca && matchesCategoria;
-
             card.style.display = mostrar ? 'block' : 'none';
-
             if (mostrar) pratosVisiveis++;
         });
 
-        secaoPratosDia.style.display =
-            pratosVisiveis > 0 ? 'block' : 'none';
+        secaoPratosDia.style.display = pratosVisiveis > 0 ? 'block' : 'none';
     }
 }
 
@@ -670,34 +718,24 @@ function aplicarFiltros() {
 
 function calcularPrecoAdicionais(adicionais) {
     return (adicionais || []).reduce((acc, a) => {
-
         const preco = parseFloat(a.preco || 0);
         const qtd = parseInt(a.qtd || 1);
-
         return acc + (preco * qtd);
-
     }, 0);
 }
 
 function addProduto(id, nome, preco, adicionais = []) {
-
     const addKey = adicionais
         .map(a => `${a.nome}:${a.qtd || 1}`)
         .sort()
         .join('|');
 
     const uniqueKey = `${id}-${addKey}`;
-
-    const itemExistente = carrinho.find(
-        item => item.key === uniqueKey
-    );
+    const itemExistente = carrinho.find(item => item.key === uniqueKey);
 
     if (itemExistente) {
-
         itemExistente.qtd++;
-
     } else {
-
         carrinho.push({
             key: uniqueKey,
             id: id,
@@ -712,100 +750,64 @@ function addProduto(id, nome, preco, adicionais = []) {
 }
 
 function alterQtd(index, delta) {
-
     if (!carrinho[index]) return;
-
     carrinho[index].qtd += delta;
-
     if (carrinho[index].qtd <= 0) {
         carrinho.splice(index, 1);
     }
-
     renderCarrinho();
 }
 
 function removerItem(index) {
-
     carrinho.splice(index, 1);
-
     renderCarrinho();
 }
 
 function alterQtdAdicional(btn, delta) {
-
     const wrapper = btn.closest('.add-qtd-box');
     const qtdEl = wrapper.querySelector('.qtd-add');
-
     let qtd = parseInt(qtdEl.innerText || '0');
-
     qtd += delta;
-
     if (qtd < 0) qtd = 0;
-
     qtdEl.innerText = qtd;
 }
 
 function atualizarTotais() {
-
     const subtotal = carrinho.reduce((acc, item) => {
-
-        const precoAdicionais =
-            calcularPrecoAdicionais(item.adicionais);
-
-        return acc + (
-            (item.precoBase + precoAdicionais) *
-            item.qtd
-        );
-
+        const precoAdicionais = calcularPrecoAdicionais(item.adicionais);
+        return acc + ((item.precoBase + precoAdicionais) * item.qtd);
     }, 0);
 
     const descRaw = document.getElementById('inputDesconto')
-        .value
-        .replace(/[^\d]/g, '');
+        .value.replace(/[^\d]/g, '');
 
     const desconto = parseFloat(descRaw) / 100 || 0;
-
     const total = Math.max(0, subtotal - desconto);
 
-    document.getElementById('totalFinal').innerText =
-        formatar(total);
+    document.getElementById('totalFinal').innerText = formatar(total);
 
-    return {
-        subtotal,
-        desconto,
-        total
-    };
+    return { subtotal, desconto, total };
 }
 
 function renderCarrinho() {
-
     const container = document.getElementById('carrinhoItens');
+    const totalItens = carrinho.reduce((acc, item) => acc + item.qtd, 0);
 
-    const totalItens = carrinho.reduce(
-        (acc, item) => acc + item.qtd,
-        0
-    );
-
-    document.getElementById('cartCount').innerText =
-        `${totalItens} ITENS`;
+    document.getElementById('cartCount').innerText = `${totalItens} ITENS`;
 
     if (carrinho.length === 0) {
-
         container.classList.remove('overflow-y-auto');
         container.classList.add('overflow-hidden');
 
         container.innerHTML = `
             <div id="emptyCart"
                  class="flex-1 w-full min-h-full flex flex-col items-center justify-center text-center text-gray-300">
-
                 <div class="w-24 h-24 rounded-full bg-white shadow-sm border border-gray-100 flex items-center justify-center mb-4">
                     <i class="fas fa-ghost text-5xl opacity-80"></i>
                 </div>
-
                 <p class="text-sm font-semibold text-gray-400">
                     Seu carrinho está vazio
                 </p>
-
                 <span class="text-xs text-gray-300 mt-1">
                     Adicione produtos para começar
                 </span>
@@ -820,53 +822,33 @@ function renderCarrinho() {
     container.classList.add('overflow-y-auto');
 
     container.innerHTML = carrinho.map((item, index) => {
-
-        const precoAdicionais =
-            calcularPrecoAdicionais(item.adicionais);
-
-        const precoUnitarioFinal =
-            item.precoBase + precoAdicionais;
-
-        const subtotalItem =
-            precoUnitarioFinal * item.qtd;
+        const precoAdicionais = calcularPrecoAdicionais(item.adicionais);
+        const precoUnitarioFinal = item.precoBase + precoAdicionais;
+        const subtotalItem = precoUnitarioFinal * item.qtd;
 
         return `
             <div class="bg-white px-3 py-3 rounded-[1.1rem] border border-gray-100 shadow-sm">
-
                 <div class="flex items-start justify-between gap-2">
-
                     <div class="flex-1 min-w-0">
-
                         <div class="flex items-start justify-between gap-2">
-
                             <h4 class="text-[11px] font-black text-gray-800 uppercase leading-tight break-words pr-1">
                                 ${item.nome}
                             </h4>
-
                             <div class="shrink-0 text-right">
-
                                 <div class="text-[10px] font-black text-blue-600 font-mono leading-none">
                                     ${formatar(subtotalItem)}
                                 </div>
-
                                 <div class="text-[9px] text-gray-400 font-bold mt-1">
                                     ${item.qtd}x ${formatar(precoUnitarioFinal)}
                                 </div>
-
                             </div>
                         </div>
 
                         ${item.adicionais.length ? `
                             <div class="mt-2 flex flex-wrap gap-1">
-
                                 ${item.adicionais.map(a => {
-
-                                    const qtdAdd =
-                                        parseInt(a.qtd || 1);
-
-                                    const totalAdd =
-                                        parseFloat(a.preco || 0) * qtdAdd;
-
+                                    const qtdAdd = parseInt(a.qtd || 1);
+                                    const totalAdd = parseFloat(a.preco || 0) * qtdAdd;
                                     return `
                                         <span class="text-[9px] bg-orange-50 text-orange-600 border border-orange-200 px-1.5 py-0.5 rounded-md font-bold leading-none">
                                             + ${qtdAdd}x ${a.nome}
@@ -874,33 +856,26 @@ function renderCarrinho() {
                                         </span>
                                     `;
                                 }).join('')}
-
                             </div>
                         ` : ''}
-
                     </div>
                 </div>
 
                 <div class="mt-2.5 flex items-center justify-between gap-2">
-
                     <div class="flex items-center gap-1 bg-gray-50 rounded-lg px-1.5 py-1 border border-gray-100">
-
                         <button type="button"
                                 onclick="alterQtd(${index}, -1)"
                                 class="w-7 h-7 rounded-md bg-white border border-gray-200 text-red-500 font-black text-sm leading-none hover:bg-red-50 transition">
                             -
                         </button>
-
                         <span class="min-w-[22px] text-center text-[11px] font-mono font-black">
                             ${item.qtd}
                         </span>
-
                         <button type="button"
                                 onclick="alterQtd(${index}, 1)"
                                 class="w-7 h-7 rounded-md bg-white border border-gray-200 text-green-600 font-black text-sm leading-none hover:bg-green-50 transition">
                             +
                         </button>
-
                     </div>
 
                     <button type="button"
@@ -908,11 +883,9 @@ function renderCarrinho() {
                             class="text-[10px] text-red-400 hover:text-red-600 uppercase font-black transition leading-none">
                         Excluir
                     </button>
-
                 </div>
             </div>
         `;
-
     }).join('');
 
     atualizarTotais();
@@ -942,7 +915,8 @@ function abrirModalAdicionais(id, nome, preco) {
     fetch(`/produto/${id}/adicionais/`)
         .then(res => res.json())
         .then(data => {
-            if (!modalAdicionaisAberto || !produtoAdicionalAtual || produtoAdicionalAtual.id !== id) {
+            if (!modalAdicionaisAberto || !produtoAdicionalAtual ||
+                produtoAdicionalAtual.id !== id) {
                 return;
             }
 
@@ -986,7 +960,6 @@ function abrirModalAdicionais(id, nome, preco) {
 
                 document.querySelectorAll("#listaAdicionais .qtd-add").forEach(el => {
                     const qtd = parseInt(el.innerText || "0");
-
                     if (qtd > 0) {
                         selecionados.push({
                             nome: el.dataset.nome,
@@ -1036,61 +1009,35 @@ document.getElementById("modalAdicionais").addEventListener("click", function (e
 ========================================================= */
 
 function setMetodo(met, btnElement) {
-
     metodoPagamento = met;
 
-    document.querySelectorAll('.metodo-btn')
-        .forEach(b => {
-            b.classList.remove(
-                'selected',
-                'bg-blue-600',
-                'text-white'
-            );
-        });
+    document.querySelectorAll('.metodo-btn').forEach(b => {
+        b.classList.remove('selected', 'bg-blue-600', 'text-white');
+    });
 
     if (btnElement) {
-        btnElement.classList.add(
-            'selected',
-            'bg-blue-600',
-            'text-white'
-        );
+        btnElement.classList.add('selected', 'bg-blue-600', 'text-white');
     }
 }
 
 function setEntrega(valor, btn) {
-
     tipoEntrega = valor;
 
-    document.querySelectorAll('.entrega-btn')
-        .forEach(b => {
-            b.classList.remove(
-                'selected',
-                'bg-blue-600',
-                'text-white'
-            );
-        });
+    document.querySelectorAll('.entrega-btn').forEach(b => {
+        b.classList.remove('selected', 'bg-blue-600', 'text-white');
+    });
 
     if (btn) {
-        btn.classList.add(
-            'selected',
-            'bg-blue-600',
-            'text-white'
-        );
+        btn.classList.add('selected', 'bg-blue-600', 'text-white');
     }
 
-    const enderecoBox =
-        document.getElementById('enderecoBox');
-
-    const retiradaInfo =
-        document.getElementById('retiradaInfo');
+    const enderecoBox = document.getElementById('enderecoBox');
+    const retiradaInfo = document.getElementById('retiradaInfo');
 
     if (valor) {
-
         enderecoBox.classList.remove('hidden');
         retiradaInfo.classList.add('hidden');
-
     } else {
-
         enderecoBox.classList.add('hidden');
         retiradaInfo.classList.remove('hidden');
 
@@ -1105,7 +1052,6 @@ function setEntrega(valor, btn) {
 ========================================================= */
 
 function mostrarAlerta(titulo, mensagem, tipo = 'aviso') {
-
     const modal = document.getElementById('modalAlerta');
     const card = document.getElementById('alertaCard');
     const iconeArea = document.getElementById('alertaIcone');
@@ -1114,40 +1060,28 @@ function mostrarAlerta(titulo, mensagem, tipo = 'aviso') {
     document.getElementById('alertaMensagem').innerText = mensagem;
 
     if (tipo === 'erro') {
-
         iconeArea.className =
             "w-16 h-16 bg-red-100 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4";
-
-        iconeArea.innerHTML =
-            '<i class="fas fa-times text-2xl"></i>';
-
+        iconeArea.innerHTML = '<i class="fas fa-times text-2xl"></i>';
     } else {
-
         iconeArea.className =
             "w-16 h-16 bg-amber-100 text-amber-500 rounded-full flex items-center justify-center mx-auto mb-4";
-
-        iconeArea.innerHTML =
-            '<i class="fas fa-exclamation-triangle text-2xl"></i>';
+        iconeArea.innerHTML = '<i class="fas fa-exclamation-triangle text-2xl"></i>';
     }
 
     modal.classList.remove('hidden');
 
     setTimeout(() => {
-
         card.classList.remove('scale-95', 'opacity-0');
-
         card.classList.add('scale-100', 'opacity-100');
-
     }, 50);
 }
 
 function fecharModalAlerta() {
-
     const modal = document.getElementById('modalAlerta');
     const card = document.getElementById('alertaCard');
 
     card.classList.remove('scale-100', 'opacity-100');
-
     card.classList.add('scale-95', 'opacity-0');
 
     setTimeout(() => {
@@ -1156,141 +1090,141 @@ function fecharModalAlerta() {
 }
 
 /* =========================================================
-   SUCESSO
+   MODAL SUCESSO
 ========================================================= */
 
-function mostrarSucesso(total, metodo) {
-
+function mostrarSucesso(pedidoId, total, metodo) {
     const modal = document.getElementById('modalSucesso');
     const card = document.getElementById('sucessoCard');
 
+    document.getElementById('resumoPedidoId').innerText = '#' + pedidoId;
     document.getElementById('resumoTotal').innerText = total;
     document.getElementById('resumoMetodo').innerText = metodo;
+
+    // Status de impressão: inicial
+    setSucessoStatusImprimindo();
 
     modal.classList.remove('hidden');
 
     setTimeout(() => {
-
         card.classList.remove('scale-95', 'opacity-0');
-
         card.classList.add('scale-100', 'opacity-100');
-
     }, 50);
 }
 
-function fecharModalSucesso() {
+function setSucessoStatusImprimindo() {
+    const status = document.getElementById('sucessoStatusImpressao');
+    const btnReimprimir = document.getElementById('btnReimprimir');
+    if (status) {
+        status.innerHTML =
+            '<span class="spinner-print"></span> Enviando para a impressora...';
+        status.className = 'text-amber-600 text-sm mb-6 font-bold';
+    }
+    if (btnReimprimir) btnReimprimir.classList.add('hidden');
+}
 
+function setSucessoStatusOk() {
+    const status = document.getElementById('sucessoStatusImpressao');
+    const btnReimprimir = document.getElementById('btnReimprimir');
+    if (status) {
+        status.innerHTML =
+            '<i class="fas fa-check-circle mr-1"></i> Comprovante impresso com sucesso!';
+        status.className = 'text-green-600 text-sm mb-6 font-bold';
+    }
+    if (btnReimprimir) btnReimprimir.classList.add('hidden');
+}
+
+function setSucessoStatusErro(msg) {
+    const status = document.getElementById('sucessoStatusImpressao');
+    const btnReimprimir = document.getElementById('btnReimprimir');
+    if (status) {
+        status.innerHTML =
+            '<i class="fas fa-exclamation-triangle mr-1"></i> Falha na impressão: ' +
+            (msg || 'verifique a impressora e use REIMPRIMIR.');
+        status.className = 'text-red-600 text-sm mb-6 font-bold px-2';
+    }
+    if (btnReimprimir) btnReimprimir.classList.remove('hidden');
+}
+
+function fecharModalSucesso() {
     const modal = document.getElementById('modalSucesso');
     const card = document.getElementById('sucessoCard');
 
     card.classList.remove('scale-100', 'opacity-100');
-
     card.classList.add('scale-95', 'opacity-0');
 
     setTimeout(() => {
-
         modal.classList.add('hidden');
-
-        carrinho = [];
-        metodoPagamento = '';
-        tipoEntrega = true;
-
-        document.getElementById('inputDesconto').value = "0,00";
-        document.getElementById('inputMotoca').value = "0,00";
-        document.getElementById('nomeCliente').value = "";
-        document.getElementById('descricaoPedido').value = "";
-        document.getElementById('cep').value = "";
-        document.getElementById('rua').value = "";
-        document.getElementById('numero').value = "";
-
-        document.querySelectorAll('.metodo-btn')
-            .forEach(b => {
-                b.classList.remove(
-                    'selected',
-                    'bg-blue-600',
-                    'text-white'
-                );
-            });
-
-        document.querySelectorAll('.entrega-btn')
-            .forEach(b => {
-                b.classList.remove(
-                    'selected',
-                    'bg-blue-600',
-                    'text-white'
-                );
-            });
-
-        const botoesEntrega =
-            document.querySelectorAll('.entrega-btn');
-
-        if (botoesEntrega.length > 0) {
-            botoesEntrega[0].classList.add(
-                'selected',
-                'bg-blue-600',
-                'text-white'
-            );
-        }
-
-        document.getElementById('enderecoBox')
-            .classList.remove('hidden');
-
-        document.getElementById('retiradaInfo')
-            .classList.add('hidden');
-
-        renderCarrinho();
-
+        resetarFormulario();
     }, 300);
 }
 
+function resetarFormulario() {
+    carrinho = [];
+    metodoPagamento = '';
+    tipoEntrega = true;
+
+    document.getElementById('inputDesconto').value = "0,00";
+    document.getElementById('inputMotoca').value = "0,00";
+    document.getElementById('nomeCliente').value = "";
+    document.getElementById('descricaoPedido').value = "";
+    document.getElementById('cep').value = "";
+    document.getElementById('rua').value = "";
+    document.getElementById('numero').value = "";
+
+    document.querySelectorAll('.metodo-btn').forEach(b => {
+        b.classList.remove('selected', 'bg-blue-600', 'text-white');
+    });
+
+    document.querySelectorAll('.entrega-btn').forEach(b => {
+        b.classList.remove('selected', 'bg-blue-600', 'text-white');
+    });
+
+    const botoesEntrega = document.querySelectorAll('.entrega-btn');
+    if (botoesEntrega.length > 0) {
+        botoesEntrega[0].classList.add('selected', 'bg-blue-600', 'text-white');
+    }
+
+    document.getElementById('enderecoBox').classList.remove('hidden');
+    document.getElementById('retiradaInfo').classList.add('hidden');
+
+    renderCarrinho();
+}
+
 /* =========================================================
-   CEP
+   CEP (com timeout)
 ========================================================= */
 
 async function buscarCepAuto() {
-
-    const cep = document.getElementById('cep')
-        .value
-        .replace(/\D/g, '');
-
+    const cep = document.getElementById('cep').value.replace(/\D/g, '');
     if (cep.length !== 8) return;
 
     const ruaInput = document.getElementById('rua');
-
     ruaInput.value = "Buscando endereço...";
 
-    try {
+    const ctrl = new AbortController();
+    const timeoutId = setTimeout(() => ctrl.abort(), TIMEOUT_CEP_MS);
 
+    try {
         const res = await fetch(
-            `https://viacep.com.br/ws/${cep}/json/`
+            `https://viacep.com.br/ws/${cep}/json/`,
+            { signal: ctrl.signal }
         );
+        clearTimeout(timeoutId);
 
         const data = await res.json();
 
         if (data.erro) {
-
             ruaInput.value = '';
-
-            mostrarAlerta(
-                "CEP inválido",
-                "Não encontramos esse CEP",
-                "erro"
-            );
-
+            mostrarAlerta("CEP inválido", "Não encontramos esse CEP", "erro");
             return;
         }
 
         ruaInput.value = data.logradouro || '';
-
-    } catch {
-
+    } catch (e) {
+        clearTimeout(timeoutId);
         ruaInput.value = '';
-
-        mostrarAlerta(
-            "Erro CEP",
-            "Falha ao consultar CEP",
-            "erro"
-        );
+        // Em silêncio: se demorou ou caiu, deixa o usuário digitar
     }
 }
 
@@ -1299,26 +1233,17 @@ async function buscarCepAuto() {
 ========================================================= */
 
 function getCookie(name) {
-
     let cookieValue = null;
 
     if (document.cookie && document.cookie !== '') {
-
         const cookies = document.cookie.split(';');
 
         for (let i = 0; i < cookies.length; i++) {
-
             const cookie = cookies[i].trim();
-
-            if (
-                cookie.substring(0, name.length + 1)
-                === (name + '=')
-            ) {
-
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
                 cookieValue = decodeURIComponent(
                     cookie.substring(name.length + 1)
                 );
-
                 break;
             }
         }
@@ -1327,50 +1252,65 @@ function getCookie(name) {
     return cookieValue;
 }
 
-
-function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-}
-
 /* =========================================================
-   QZ TRAY
+   QZ TRAY - CONEXÃO ROBUSTA
 ========================================================= */
 
-async function conectarQZ() {
+async function carregarQzScriptSeNecessario() {
+    if (window.qz) return;
+    await new Promise((resolve, reject) => {
+        const s = document.createElement("script");
+        s.src = "https://cdn.jsdelivr.net/npm/qz-tray@2.2.4/qz-tray.js";
+        s.onload = resolve;
+        s.onerror = () => reject(new Error("Falha ao carregar o qz-tray.js."));
+        document.head.appendChild(s);
+    });
     if (!window.qz) {
-        await new Promise((resolve, reject) => {
-            const s = document.createElement("script");
-            s.src = "https://cdn.jsdelivr.net/npm/qz-tray@2.2.4/qz-tray.js";
-            s.onload = resolve;
-            s.onerror = () => reject(new Error("Não foi possível carregar o qz-tray.js."));
-            document.head.appendChild(s);
-        });
+        throw new Error("QZ Tray não disponível após carregar o script.");
     }
-
-    if (!window.qz) {
-        throw new Error("QZ Tray não carregou. O arquivo qz-tray.js não está sendo encontrado.");
-    }
-
-    if (!qz.websocket.isActive()) {
-        await qz.websocket.connect({
-            retries: 4,
-            delay: 1
-        });
-    }
-
-    return true;
 }
 
- async function obterImpressora() {
+async function conectarQZ() {
+    await carregarQzScriptSeNecessario();
 
+    if (qz.websocket.isActive()) return true;
+
+    // Evita múltiplas conexões simultâneas — todas aguardam a mesma promise
+    if (qzConnectingPromise) return qzConnectingPromise;
+
+    qzConnectingPromise = (async () => {
+        try {
+            await qz.websocket.connect({ retries: 3, delay: 1 });
+            return true;
+        } finally {
+            // Libera para tentativas futuras
+            qzConnectingPromise = null;
+        }
+    })();
+
+    return qzConnectingPromise;
+}
+
+async function reconectarForcado() {
+    try {
+        if (qz.websocket.isActive()) {
+            await qz.websocket.disconnect();
+        }
+    } catch (_) {}
+    // Limpa promise pendente
+    qzConnectingPromise = null;
+    await sleep(500);
+    await conectarQZ();
+}
+
+async function obterImpressora(forceRefresh = false) {
     await conectarQZ();
 
-    if (impressoraCache) {
+    if (impressoraCache && !forceRefresh) {
         return impressoraCache;
     }
 
     let lista = [];
-
     try {
         lista = await qz.printers.find();
     } catch (e) {
@@ -1382,22 +1322,14 @@ async function conectarQZ() {
     }
 
     const preferidas = [
-        "MP-4200",
-        "BEMATECH",
-        "ELGIN",
-        "DARUMA",
-        "POS",
-        "THERMAL"
+        "MP-4200", "BEMATECH", "ELGIN",
+        "DARUMA", "POS", "THERMAL"
     ];
 
     for (const termo of preferidas) {
-
         const achada = lista.find(p =>
-            String(p)
-                .toUpperCase()
-                .includes(termo)
+            String(p).toUpperCase().includes(termo)
         );
-
         if (achada) {
             impressoraCache = achada;
             return achada;
@@ -1405,145 +1337,104 @@ async function conectarQZ() {
     }
 
     try {
-
-        impressoraCache =
-            await qz.printers.getDefault();
-
+        impressoraCache = await qz.printers.getDefault();
+        if (!impressoraCache) impressoraCache = IMPRESSORA_PADRAO;
         return impressoraCache;
-
     } catch (e) {
-
         impressoraCache = IMPRESSORA_PADRAO;
-
         return impressoraCache;
     }
 }
 
- function prepararTextoRaw(texto) {
-
+function prepararTextoRaw(texto) {
     return String(texto || "")
         .replace(/\r\n/g, "\n")
         .replace(/\r/g, "\n");
 }
 
+/* =========================================================
+   IMPRESSÃO RAW COM RETRY
+========================================================= */
+
 async function imprimirRaw(texto) {
-
     texto = prepararTextoRaw(texto);
-
-    if (!texto.trim()) {
-        throw new Error("Texto vazio.");
-    }
-
-    await conectarQZ();
-
-    const nomeImpressora =
-        await obterImpressora();
-
-    const config = qz.configs.create(
-        nomeImpressora,
-        {
-            encoding: ENCODING_IMPRESSAO,
-            copies: 1,
-            jobName: "Pedido Restaurante"
-        }
-    );
-
-    const dados = [{
-        type: "raw",
-        format: "plain",
-        data:
-            ESC_POS.INIT +
-            ESC_POS.CP850 +
-            texto
-    }];
+    if (!texto.trim()) throw new Error("Texto vazio.");
 
     let ultimoErro = null;
 
-    for (let tentativa = 1; tentativa <= 3; tentativa++) {
-
+    for (let tentativa = 1; tentativa <= MAX_RETRIES; tentativa++) {
         try {
+            await conectarQZ();
+
+            // Se passou da primeira tentativa, invalida o cache da impressora
+            const nomeImpressora = await obterImpressora(tentativa > 1);
+
+            const config = qz.configs.create(nomeImpressora, {
+                encoding: ENCODING_IMPRESSAO,
+                copies: 1,
+                jobName: "Pedido Restaurante"
+            });
+
+            const dados = [{
+                type: "raw",
+                format: "plain",
+                data: ESC_POS.INIT + ESC_POS.CP850 + texto
+            }];
 
             await qz.print(config, dados);
-
-            await sleep(DELAY_IMPRESSAO_MS);
-
             return true;
 
         } catch (e) {
-
             ultimoErro = e;
+            console.warn(
+                `Tentativa ${tentativa}/${MAX_RETRIES} falhou:`,
+                e?.message || e
+            );
 
-            try {
-
-                if (qz.websocket.isActive()) {
-                    await qz.websocket.disconnect();
-                }
-
-            } catch (_) {}
-
-            await sleep(800);
-
-            await conectarQZ();
+            if (tentativa < MAX_RETRIES) {
+                // Reconexão forçada antes de tentar de novo
+                try {
+                    await reconectarForcado();
+                } catch (_) {}
+                await sleep(DELAY_RETRY_MS);
+            }
         }
     }
 
     throw new Error(
-        "Falha ao imprimir: " +
-        (
-            ultimoErro?.message ||
-            ultimoErro
-        )
+        "Falha após " + MAX_RETRIES + " tentativas: " +
+        (ultimoErro?.message || ultimoErro)
     );
 }
 
-
-
 /* =========================================================
-   IMPRESSÃO
+   GERAÇÃO DE TEXTO DOS COMPROVANTES
 ========================================================= */
 
 function agruparItens(itens) {
-
     const mapa = {};
 
     itens.forEach(item => {
-
         const adicionaisKey = (item.adicionais || [])
-            .map(a =>
-                `${a.nome}:${a.preco}:${a.qtd || 1}`
-            )
+            .map(a => `${a.nome}:${a.preco}:${a.qtd || 1}`)
             .sort()
             .join('|');
 
-        const chave =
-            `${item.nome}_${adicionaisKey}`;
+        const chave = `${item.nome}_${adicionaisKey}`;
 
         if (!mapa[chave]) {
-
             mapa[chave] = {
                 nome: item.nome,
                 qtd: Number(item.qtd || 1),
                 precoBase: Number(item.precoBase || 0),
                 adicionais: item.adicionais || []
             };
-
         } else {
-
             mapa[chave].qtd += Number(item.qtd || 1);
         }
     });
 
     return Object.values(mapa);
-}
-
-
-function normalizarTextoImpressao(str) {
-    return (str || "")
-        .toString()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/[^\x20-\x7E\n\r]/g, "")
-        .trim();
 }
 
 function normalizarPedidoImpressao(p) {
@@ -1571,7 +1462,6 @@ function normalizarPedidoImpressao(p) {
     };
 }
 
-
 function gerarTextoBalcao(pedido) {
     let t = "";
 
@@ -1598,7 +1488,8 @@ function gerarTextoBalcao(pedido) {
     t += pedido.entrega ? "Tipo: ENTREGA\n" : "Tipo: RETIRADA BALCAO\n";
 
     if (pedido.entrega && pedido.endereco) {
-        t += "End: " + limparTexto(pedido.endereco.rua) + ", " + limparTexto(pedido.endereco.numero) + "\n";
+        t += "End: " + limparTexto(pedido.endereco.rua) +
+             ", " + limparTexto(pedido.endereco.numero) + "\n";
 
         if (pedido.endereco.cep) {
             t += "CEP: " + limparTexto(pedido.endereco.cep) + "\n";
@@ -1629,8 +1520,8 @@ function gerarTextoBalcao(pedido) {
         adicionais.forEach(a => {
             const qtdAdd = Number(a.qtd || 1);
             const totalAdd = Number(a.preco || 0) * qtdAdd;
-
-            t += "   + " + qtdAdd + "x " + limparTexto(a.nome) + " R$ " + moeda(totalAdd) + "\n";
+            t += "   + " + qtdAdd + "x " +
+                 limparTexto(a.nome) + " R$ " + moeda(totalAdd) + "\n";
         });
 
         t += "\n";
@@ -1642,11 +1533,11 @@ function gerarTextoBalcao(pedido) {
     t += ESC_POS.BOLD_ON;
     t += "TOTAL FINAL:  R$ " + moeda(pedido.totalFinal) + "\n";
     t += ESC_POS.BOLD_OFF;
-    t += "\n\n";
+    t += "\n\n\n";
+    t += ESC_POS.CUT;
 
     return t;
 }
-
 
 function gerarTextoCozinha(pedido) {
     let t = "";
@@ -1681,7 +1572,8 @@ function gerarTextoCozinha(pedido) {
 
         (item.adicionais || []).forEach(a => {
             const qtdAdd = Number(a.qtd || 1);
-            t += "   + " + qtdAdd + "x " + limparTexto(a.nome).toUpperCase() + "\n";
+            t += "   + " + qtdAdd + "x " +
+                 limparTexto(a.nome).toUpperCase() + "\n";
         });
 
         t += "\n";
@@ -1696,269 +1588,222 @@ function gerarTextoCozinha(pedido) {
     return t;
 }
 
-function gerarTextoPedidoCompleto(pedido) {
-    return gerarTextoBalcao(pedido) + "\n\n\n" + gerarTextoCozinha(pedido);
-}
+/* =========================================================
+   IMPRESSÃO DE UM PEDIDO (balcão + cozinha)
+========================================================= */
 
-
-async function imprimirPedidoPadronizado(pedido, vias = 1) {
+async function imprimirPedidoCompleto(pedido) {
     const pedidoOK = normalizarPedidoImpressao(pedido);
-    const totalVias = Math.max(1, parseInt(vias || 1));
 
-    for (let i = 0; i < totalVias; i++) {
-        await imprimirRaw(gerarTextoPedidoCompleto(pedidoOK));
-        await sleep(DELAY_IMPRESSAO_MS);
-    }
+    // Imprime a via do balcão
+    await imprimirRaw(gerarTextoBalcao(pedidoOK));
+    // Espera o papel terminar de sair antes da próxima
+    await sleep(DELAY_ENTRE_VIAS_MS);
+    // Imprime a via da cozinha
+    await imprimirRaw(gerarTextoCozinha(pedidoOK));
 }
 
+/* =========================================================
+   FILA DE IMPRESSÃO COM MUTEX
+   - Garante que só um pedido imprime por vez
+   - Permite enfileirar pedidos rapidamente sem colisão
+========================================================= */
 
-async function imprimirPedidoPadronizado(
-    pedido,
-    vias = 1
-) {
-
-    const pedidoOK =
-        normalizarPedidoImpressao(pedido);
-
-    const totalVias =
-        Math.max(1, parseInt(vias || 1));
-
-    for (let i = 0; i < totalVias; i++) {
-
-        await imprimirRaw(
-            gerarTextoBalcao(pedidoOK)
-        );
-
-        await sleep(DELAY_IMPRESSAO_MS);
-
-        await imprimirRaw(
-            gerarTextoCozinha(pedidoOK)
-        );
-
-        await sleep(DELAY_IMPRESSAO_MS);
-    }
+function enfileirarImpressao(pedido, callbacks = {}) {
+    printQueue.push({ pedido, callbacks });
+    processarFilaImpressao();
 }
 
-async function imprimirDuasVias(pedido) {
+async function processarFilaImpressao() {
+    if (printingLock) return;
+    if (printQueue.length === 0) return;
 
-    try {
+    printingLock = true;
+    setQzStatus('imprimindo');
 
-        await imprimirPedidoPadronizado(
-            pedido,
-            1
-        );
+    while (printQueue.length > 0) {
+        const { pedido, callbacks } = printQueue.shift();
 
-    } catch (error) {
+        try {
+            await imprimirPedidoCompleto(pedido);
+            ultimoPedidoImpresso = pedido;
 
-        console.error(error);
+            if (typeof callbacks.onOk === 'function') {
+                try { callbacks.onOk(); } catch (_) {}
+            }
+        } catch (e) {
+            console.error('Erro impressão pedido', pedido?.id, e);
+            ultimoPedidoImpresso = pedido; // mantém para reimprimir manualmente
 
-        mostrarAlerta(
-            "Erro impressão",
-            error.message ||
-            "Falha ao imprimir.",
-            "erro"
-        );
+            if (typeof callbacks.onErro === 'function') {
+                try { callbacks.onErro(e); } catch (_) {}
+            }
+        }
     }
+
+    printingLock = false;
+    setQzStatus('ok');
+}
+
+/* =========================================================
+   REIMPRESSÃO MANUAL
+========================================================= */
+
+async function reimprimirUltimoPedido() {
+    if (!ultimoPedidoImpresso) {
+        mostrarAlerta("Sem pedido", "Não há pedido para reimprimir.", "aviso");
+        return;
+    }
+
+    setSucessoStatusImprimindo();
+
+    enfileirarImpressao(ultimoPedidoImpresso, {
+        onOk: () => setSucessoStatusOk(),
+        onErro: (e) => setSucessoStatusErro(e?.message)
+    });
 }
 
 /* =========================================================
    FINALIZAR VENDA
 ========================================================= */
 
+function setBtnFinalizar(processando) {
+    const btn = document.getElementById('btnFinalizar');
+    const texto = document.getElementById('btnFinalizarTexto');
+    if (!btn) return;
+
+    btn.disabled = !!processando;
+    if (processando) {
+        texto.innerHTML = '<span class="spinner-print"></span> Processando...';
+    } else {
+        texto.innerText = 'Finalizar Pedido';
+    }
+}
+
 async function finalizarVenda() {
-
-    const nomeCliente =
-        document.getElementById('nomeCliente')
-            .value
-            .trim();
-
-    const descricaoPedido =
-        document.getElementById('descricaoPedido')
-            .value
-            .trim();
-
-    const motocaRaw =
-        document.getElementById('inputMotoca')
-            .value
-            .replace(/[^\d]/g, '');
-
-    const taxaMotoca =
-        parseFloat(motocaRaw) / 100 || 0;
-
-    const descRaw =
-        document.getElementById('inputDesconto')
-            .value
-            .replace(/[^\d]/g, '');
-
-    const desconto =
-        parseFloat(descRaw) / 100 || 0;
-
-    if (!nomeCliente) {
-
-        mostrarAlerta(
-            "Nome obrigatório",
-            "Preencha o nome do cliente.",
-            "aviso"
-        );
-
-        document.getElementById('nomeCliente')
-            .focus();
-
-        return;
-    }
-
-    if (tipoEntrega) {
-
-        const rua =
-            document.getElementById('rua')
-                .value
-                .trim();
-
-        const numero =
-            document.getElementById('numero')
-                .value
-                .trim();
-
-        if (!rua || !numero) {
-
-            mostrarAlerta(
-                "Endereço incompleto",
-                "Preencha rua e número.",
-                "aviso"
-            );
-
-            return;
-        }
-    }
-
-    if (carrinho.length === 0) {
-
-        mostrarAlerta(
-            "Carrinho vazio",
-            "Adicione itens.",
-            "aviso"
-        );
-
-        return;
-    }
-
-    if (!metodoPagamento) {
-
-        mostrarAlerta(
-            "Pagamento",
-            "Selecione um método.",
-            "aviso"
-        );
-
-        return;
-    }
-
-    const valores = atualizarTotais();
-
-    const totalPedido = valores.total;
-
-    const totalComMotoca =
-        totalPedido + taxaMotoca;
-
-    const dadosVenda = {
-
-        carrinho: carrinho,
-
-        subtotal: valores.subtotal,
-
-        desconto: desconto,
-
-        total: totalPedido,
-
-        taxa_motoca: taxaMotoca,
-
-        total_final: totalComMotoca,
-
-        descricao: descricaoPedido,
-
-        metodo_pagamento: metodoPagamento,
-
-        nome_cliente: nomeCliente,
-
-        tipo_entrega:
-            tipoEntrega
-                ? "entrega"
-                : "retirada",
-
-        endereco: {
-
-            cep:
-                document.getElementById('cep')
-                    .value,
-
-            rua:
-                document.getElementById('rua')
-                    .value,
-
-            numero:
-                document.getElementById('numero')
-                    .value
-        }
-    };
+    if (finalizandoVenda) return;       // evita duplo clique
+    finalizandoVenda = true;
+    setBtnFinalizar(true);
 
     try {
+        const nomeCliente = document.getElementById('nomeCliente').value.trim();
+        const descricaoPedido = document.getElementById('descricaoPedido').value.trim();
 
-        const response = await fetch('', {
+        const motocaRaw = document.getElementById('inputMotoca')
+            .value.replace(/[^\d]/g, '');
+        const taxaMotoca = parseFloat(motocaRaw) / 100 || 0;
 
-            method: 'POST',
+        const descRaw = document.getElementById('inputDesconto')
+            .value.replace(/[^\d]/g, '');
+        const desconto = parseFloat(descRaw) / 100 || 0;
 
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': getCookie('csrftoken')
-            },
-
-            body: JSON.stringify(dadosVenda)
-        });
-
-        const resultado =
-            await response.json();
-
-        if (resultado.success) {
-    const pedidoParaImprimir = {
-        id: resultado.pedido_id,
-        nomeCliente: nomeCliente,
-        descricao: descricaoPedido,
-        itens: JSON.parse(JSON.stringify(carrinho)),
-        totalPedido: totalPedido,
-        taxaMotoca: taxaMotoca,
-        totalFinal: totalComMotoca,
-        desconto: desconto,
-        metodo: metodoPagamento,
-        entrega: tipoEntrega,
-        endereco: dadosVenda.endereco,
-        criadoEm: new Date().toLocaleString('pt-BR')
-    };
-
-    mostrarSucesso(
-        formatar(totalComMotoca),
-        metodoPagamento.toUpperCase()
-    );
-
-    imprimirDuasVias(pedidoParaImprimir);
-} else {
-
-            mostrarAlerta(
-                "Erro",
-                resultado.message,
-                "erro"
-            );
+        // Validações
+        if (!nomeCliente) {
+            mostrarAlerta("Nome obrigatório", "Preencha o nome do cliente.", "aviso");
+            document.getElementById('nomeCliente').focus();
+            return;
         }
 
-    } catch (error) {
+        if (tipoEntrega) {
+            const rua = document.getElementById('rua').value.trim();
+            const numero = document.getElementById('numero').value.trim();
 
-        console.error(error);
+            if (!rua || !numero) {
+                mostrarAlerta("Endereço incompleto", "Preencha rua e número.", "aviso");
+                return;
+            }
+        }
 
-        mostrarAlerta(
-            "Erro conexão",
-            "Servidor indisponível: " +
-            error.message,
-            "erro"
+        if (carrinho.length === 0) {
+            mostrarAlerta("Carrinho vazio", "Adicione itens.", "aviso");
+            return;
+        }
+
+        if (!metodoPagamento) {
+            mostrarAlerta("Pagamento", "Selecione um método.", "aviso");
+            return;
+        }
+
+        const valores = atualizarTotais();
+        const totalPedido = valores.total;
+        const totalComMotoca = totalPedido + taxaMotoca;
+
+        const dadosVenda = {
+            carrinho: carrinho,
+            subtotal: valores.subtotal,
+            desconto: desconto,
+            total: totalPedido,
+            taxa_motoca: taxaMotoca,
+            total_final: totalComMotoca,
+            descricao: descricaoPedido,
+            metodo_pagamento: metodoPagamento,
+            nome_cliente: nomeCliente,
+            tipo_entrega: tipoEntrega ? "entrega" : "retirada",
+            endereco: {
+                cep: document.getElementById('cep').value,
+                rua: document.getElementById('rua').value,
+                numero: document.getElementById('numero').value
+            }
+        };
+
+        // 1) Salva no banco
+        let resultado;
+        try {
+            const response = await fetch('', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: JSON.stringify(dadosVenda)
+            });
+            resultado = await response.json();
+        } catch (error) {
+            console.error(error);
+            mostrarAlerta(
+                "Erro conexão",
+                "Servidor indisponível: " + error.message,
+                "erro"
+            );
+            return;
+        }
+
+        if (!resultado.success) {
+            mostrarAlerta("Erro", resultado.message || "Erro ao salvar pedido", "erro");
+            return;
+        }
+
+        // 2) Mostra modal de sucesso
+        const pedidoParaImprimir = {
+            id: resultado.pedido_id,
+            nomeCliente: nomeCliente,
+            descricao: descricaoPedido,
+            itens: JSON.parse(JSON.stringify(carrinho)),
+            totalPedido: totalPedido,
+            taxaMotoca: taxaMotoca,
+            totalFinal: totalComMotoca,
+            desconto: desconto,
+            metodo: metodoPagamento,
+            entrega: tipoEntrega,
+            endereco: dadosVenda.endereco,
+            criadoEm: new Date().toLocaleString('pt-BR')
+        };
+
+        mostrarSucesso(
+            resultado.pedido_id,
+            formatar(totalComMotoca),
+            metodoPagamento.toUpperCase()
         );
+
+        // 3) Enfileira impressão (não bloqueia o modal)
+        enfileirarImpressao(pedidoParaImprimir, {
+            onOk: () => setSucessoStatusOk(),
+            onErro: (e) => setSucessoStatusErro(e?.message)
+        });
+
+    } finally {
+        finalizandoVenda = false;
+        setBtnFinalizar(false);
     }
 }
 
@@ -1966,24 +1811,28 @@ async function finalizarVenda() {
    INIT
 ========================================================= */
 
-document.addEventListener(
-    'DOMContentLoaded',
-    function () {
+document.addEventListener('DOMContentLoaded', function () {
+    aplicarFiltros();
+    renderCarrinho();
 
-        aplicarFiltros();
+    document.getElementById('enderecoBox').classList.remove('hidden');
+    document.getElementById('retiradaInfo').classList.add('hidden');
 
-        renderCarrinho();
-
-        document.getElementById('enderecoBox')
-            .classList.remove('hidden');
-
-        document.getElementById('retiradaInfo')
-            .classList.add('hidden');
-    }
-);
+    // Pré-aquece a conexão com a QZ Tray e localiza a impressora.
+    // Se a impressora já estiver online quando o primeiro pedido for finalizado,
+    // a impressão sai sem esperar conexão.
+    (async () => {
+        try {
+            await conectarQZ();
+            await obterImpressora();
+            setQzStatus('ok');
+        } catch (e) {
+            console.warn('QZ Tray não conectou no init:', e?.message || e);
+            setQzStatus('erro');
+        }
+    })();
+});
 
 </script>
-
-
 
 {% endblock %}
