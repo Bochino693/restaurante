@@ -1437,43 +1437,69 @@ function agruparItens(itens) {
 
         const chave = `${item.nome}_${adicionaisKey}`;
 
+        const qtd = Number(item.qtd || item.quantidade || 1);
+        const precoBase = Number(
+            item.precoBase ||
+            item.preco_unitario ||
+            item.preco ||
+            item.valor ||
+            0
+        );
+
+        const subtotal = Number(item.subtotal || 0);
+
         if (!mapa[chave]) {
             mapa[chave] = {
                 nome: item.nome,
-                qtd: Number(item.qtd || 1),
-                precoBase: Number(item.precoBase || 0),
+                qtd: qtd,
+                precoBase: precoBase,
+                precoUnitarioServidor: Number(item.preco_unitario || 0),
+                subtotalServidor: subtotal,
                 adicionais: item.adicionais || []
             };
         } else {
-            mapa[chave].qtd += Number(item.qtd || 1);
+            mapa[chave].qtd += qtd;
+            mapa[chave].subtotalServidor += subtotal;
         }
     });
 
     return Object.values(mapa);
 }
 
+}
 function normalizarPedidoImpressao(p) {
     return {
         id: p.id,
-        criadoEm: p.criadoEm || new Date().toLocaleString("pt-BR"),
-        nomeCliente: p.nomeCliente || "SEM NOME",
-        metodo: p.metodo || "",
+        criadoEm: p.criadoEm || p.criado_em || new Date().toLocaleString("pt-BR"),
+        nomeCliente: p.nomeCliente || p.nome_cliente || "SEM NOME",
+        metodo: p.metodo || p.forma_pagamento || "",
         entrega: !!p.entrega,
         descricao: p.descricao || "",
-        endereco: p.endereco || {},
+        endereco: p.endereco || {
+            rua: p.rua || "",
+            numero: p.numero || "",
+            cep: p.cep || ""
+        },
         itens: (p.itens || []).map(i => ({
             nome: i.nome || "ITEM",
-            qtd: Number(i.qtd || 1),
-            precoBase: Number(i.precoBase || i.preco || 0),
+            qtd: Number(i.qtd || i.quantidade || 1),
+            precoBase: Number(
+                i.precoBase ||
+                i.preco_unitario ||
+                i.preco ||
+                i.valor ||
+                0
+            ),
+            subtotal: Number(i.subtotal || 0),
             adicionais: (i.adicionais || []).map(a => ({
                 nome: a.nome || "",
                 qtd: Number(a.qtd || 1),
                 preco: Number(a.preco || 0)
             }))
         })),
-        totalPedido: Number(p.totalPedido || 0),
-        taxaMotoca: Number(p.taxaMotoca || 0),
-        totalFinal: Number(p.totalFinal || 0)
+        totalPedido: Number(p.totalPedido || p.total || 0),
+        taxaMotoca: Number(p.taxaMotoca || p.taxa_motoca || 0),
+        totalFinal: Number(p.totalFinal || p.total_final || p.total || 0)
     };
 }
 
@@ -1570,10 +1596,8 @@ function gerarTextoCozinha(pedido) {
     t += ESC_POS.CENTER;
     t += ESC_POS.BOLD_ON;
     t += ESC_POS.DOUBLE_ON;
-
     t += "VIA COZINHA\n";
     t += "PEDIDO #" + pedido.id + "\n";
-
     t += ESC_POS.DOUBLE_OFF;
     t += ESC_POS.BOLD_OFF;
     t += "--------------------------------\n";
@@ -1591,17 +1615,25 @@ function gerarTextoCozinha(pedido) {
     t += ESC_POS.BOLD_ON + "PREPARO\n" + ESC_POS.BOLD_OFF;
     t += "--------------------------------\n";
 
-    let totalPedido = 0;
+    let totalProdutos = 0;
 
     agruparItens(pedido.itens || []).forEach(item => {
-        const adicionais = item.adicionais || [];
         const qtd = Number(item.qtd || 1);
+        const adicionais = item.adicionais || [];
 
-        const precoAdicionais = calcularPrecoAdicionais(adicionais);
-        const precoUnitario = Number(item.precoBase || 0) + precoAdicionais;
-        const subtotalItem = precoUnitario * qtd;
+        let subtotalItem = Number(item.subtotalServidor || item.subtotal || 0);
 
-        totalPedido += subtotalItem;
+        let precoUnitario = Number(item.precoUnitarioServidor || item.precoBase || 0);
+
+        if (subtotalItem <= 0) {
+            subtotalItem = precoUnitario * qtd;
+        }
+
+        if (precoUnitario <= 0 && qtd > 0) {
+            precoUnitario = subtotalItem / qtd;
+        }
+
+        totalProdutos += subtotalItem;
 
         t += ESC_POS.BOLD_ON;
         t += qtd + "x " + limparTexto(item.nome).toUpperCase();
@@ -1614,23 +1646,31 @@ function gerarTextoCozinha(pedido) {
             const qtdAdd = Number(a.qtd || 1);
             const totalAdd = Number(a.preco || 0) * qtdAdd;
 
-            t += "   + " + qtdAdd + "x " +
-                 limparTexto(a.nome).toUpperCase() +
-                 " R$ " + moeda(totalAdd) + "\n";
+            if (totalAdd > 0) {
+                t += "   + " + qtdAdd + "x " +
+                     limparTexto(a.nome).toUpperCase() +
+                     " R$ " + moeda(totalAdd) + "\n";
+            } else {
+                t += "   + " + qtdAdd + "x " +
+                     limparTexto(a.nome).toUpperCase() + "\n";
+            }
         });
 
         t += "\n";
     });
 
+    if (totalProdutos <= 0) {
+        totalProdutos = Number(pedido.totalPedido || 0);
+    }
+
     t += "--------------------------------\n";
     t += ESC_POS.BOLD_ON;
-    t += "TOTAL: R$ " + moeda(totalPedido) + "\n";
+    t += "TOTAL PRODUTOS: R$ " + moeda(totalProdutos) + "\n";
     t += ESC_POS.BOLD_OFF;
     t += "--------------------------------\n";
 
     t += ESC_POS.CENTER;
     t += ESC_POS.BOLD_ON + "BOM TRABALHO!\n" + ESC_POS.BOLD_OFF;
-
     t += "\n\n\n\n\n\n";
     t += ESC_POS.CUT;
 
