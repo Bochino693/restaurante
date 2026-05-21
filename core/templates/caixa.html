@@ -1570,50 +1570,103 @@ function gerarTextoCozinha(pedido) {
     t += ESC_POS.CENTER;
     t += ESC_POS.BOLD_ON;
     t += ESC_POS.DOUBLE_ON;
+
     t += "VIA COZINHA\n";
     t += "PEDIDO #" + pedido.id + "\n";
+
     t += ESC_POS.DOUBLE_OFF;
     t += ESC_POS.BOLD_OFF;
     t += "--------------------------------\n";
+
     t += ESC_POS.LEFT;
 
-    t += "Cliente: " + limparTexto(pedido.nomeCliente).toUpperCase() + "\n";
-    t += pedido.entrega ? "ENTREGA\n" : "RETIRADA BALCAO\n";
-    t += "PAGAMENTO: " + limparTexto(pedido.metodo).toUpperCase() + "\n";
+    t += "Cliente: " +
+         limparTexto(pedido.nomeCliente).toUpperCase() + "\n";
+
+    t += pedido.entrega
+        ? "ENTREGA\n"
+        : "RETIRADA BALCAO\n";
+
+    t += "PAGAMENTO: " +
+         limparTexto(pedido.metodo).toUpperCase() + "\n";
 
     if (pedido.descricao) {
-        t += "OBS: " + limparTexto(pedido.descricao).toUpperCase() + "\n";
+        t += "OBS: " +
+             limparTexto(pedido.descricao).toUpperCase() + "\n";
     }
 
     t += "--------------------------------\n";
-    t += ESC_POS.BOLD_ON + "PREPARO\n" + ESC_POS.BOLD_OFF;
+    t += ESC_POS.BOLD_ON + "PREPARO\n";
+    t += ESC_POS.BOLD_OFF;
     t += "--------------------------------\n";
 
+    let totalPedido = 0;
+
     agruparItens(pedido.itens || []).forEach(item => {
+
+        const qtd = Number(item.qtd || 1);
+        const valorItem = Number(item.preco || item.valor || 0);
+        const subtotalItem = qtd * valorItem;
+
+        totalPedido += subtotalItem;
+
         t += ESC_POS.BOLD_ON;
-        t += item.qtd + "x " + limparTexto(item.nome).toUpperCase() + "\n";
+
+        t += qtd + "x " +
+             limparTexto(item.nome).toUpperCase();
+
+        if (valorItem > 0) {
+            t += "  R$ " +
+                 subtotalItem.toFixed(2).replace(".", ",");
+        }
+
+        t += "\n";
+
         t += ESC_POS.BOLD_OFF;
 
         (item.adicionais || []).forEach(a => {
+
             const qtdAdd = Number(a.qtd || 1);
-            t += "   + " + qtdAdd + "x " +
-                 limparTexto(a.nome).toUpperCase() + "\n";
+            const valorAdd = Number(a.preco || a.valor || 0);
+            const subtotalAdd = qtdAdd * valorAdd;
+
+            totalPedido += subtotalAdd;
+
+            t += "   + " +
+                 qtdAdd + "x " +
+                 limparTexto(a.nome).toUpperCase();
+
+            if (valorAdd > 0) {
+                t += "  R$ " +
+                     subtotalAdd.toFixed(2).replace(".", ",");
+            }
+
+            t += "\n";
         });
 
         t += "\n";
     });
 
     t += "--------------------------------\n";
+
+    t += ESC_POS.BOLD_ON;
+    t += "TOTAL: R$ " +
+         totalPedido.toFixed(2).replace(".", ",") + "\n";
+    t += ESC_POS.BOLD_OFF;
+
+    t += "--------------------------------\n";
+
     t += ESC_POS.CENTER;
-    t += ESC_POS.BOLD_ON + "BOM TRABALHO!\n" + ESC_POS.BOLD_OFF;
-    // Espaço generoso antes do corte final para o conteúdo não ficar rente
+    t += ESC_POS.BOLD_ON;
+    t += "BOM TRABALHO!\n";
+    t += ESC_POS.BOLD_OFF;
+
     t += "\n\n\n\n\n\n";
-    // Corte TOTAL: separa o papel completamente no final
+
     t += ESC_POS.CUT;
 
     return t;
 }
-
 /* =========================================================
    IMPRESSÃO DE UM PEDIDO (balcão + cozinha)
 ========================================================= */
