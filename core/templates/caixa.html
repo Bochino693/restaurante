@@ -520,7 +520,8 @@ const TIMEOUT_CEP_MS = 5000;
 
 const ESC_POS = {
     INIT: '\x1B\x40',
-    CUT: '\x1D\x56\x00',
+    CUT: '\x1D\x56\x00',              // corte TOTAL (separa o papel)
+    PARTIAL_CUT: '\x1D\x56\x01',      // corte PARCIAL (leve destacada)
     FEED: '\n\n\n',
     CENTER: '\x1B\x61\x01',
     LEFT: '\x1B\x61\x00',
@@ -1318,7 +1319,16 @@ async function obterImpressora(forceRefresh = false) {
     }
 
     if (!Array.isArray(lista)) {
-        lista = [lista];
+        lista = lista ? [lista] : [];
+    }
+
+    // Se a lista veio vazia, NÃO inventa impressora — avisa de verdade
+    if (lista.length === 0) {
+        impressoraCache = null;
+        throw new Error(
+            "Nenhuma impressora encontrada. Verifique se o QZ Tray está aberto e " +
+            "se a impressora está ligada e conectada ao computador."
+        );
     }
 
     const preferidas = [
@@ -1326,6 +1336,7 @@ async function obterImpressora(forceRefresh = false) {
         "DARUMA", "POS", "THERMAL"
     ];
 
+    // 1) Tenta encontrar uma impressora térmica conhecida
     for (const termo of preferidas) {
         const achada = lista.find(p =>
             String(p).toUpperCase().includes(termo)
@@ -1336,14 +1347,18 @@ async function obterImpressora(forceRefresh = false) {
         }
     }
 
+    // 2) Tenta a impressora padrão do sistema (precisa estar na lista)
     try {
-        impressoraCache = await qz.printers.getDefault();
-        if (!impressoraCache) impressoraCache = IMPRESSORA_PADRAO;
-        return impressoraCache;
-    } catch (e) {
-        impressoraCache = IMPRESSORA_PADRAO;
-        return impressoraCache;
-    }
+        const padrao = await qz.printers.getDefault();
+        if (padrao && lista.some(p => String(p) === String(padrao))) {
+            impressoraCache = padrao;
+            return padrao;
+        }
+    } catch (e) { /* ignora */ }
+
+    // 3) Última opção: primeira impressora real disponível
+    impressoraCache = lista[0];
+    return impressoraCache;
 }
 
 function prepararTextoRaw(texto) {
@@ -1533,8 +1548,11 @@ function gerarTextoBalcao(pedido) {
     t += ESC_POS.BOLD_ON;
     t += "TOTAL FINAL:  R$ " + moeda(pedido.totalFinal) + "\n";
     t += ESC_POS.BOLD_OFF;
-    t += "\n\n\n";
-    t += ESC_POS.CUT;
+    // Espaço generoso antes do corte para não ficar rente o conteúdo
+    t += "\n\n\n\n\n\n";
+    // Corte PARCIAL: o papel fica unido por uma "destacada" leve,
+    // separando visualmente a via do balcão da via da cozinha
+    t += ESC_POS.PARTIAL_CUT;
 
     return t;
 }
@@ -1582,7 +1600,9 @@ function gerarTextoCozinha(pedido) {
     t += "--------------------------------\n";
     t += ESC_POS.CENTER;
     t += ESC_POS.BOLD_ON + "BOM TRABALHO!\n" + ESC_POS.BOLD_OFF;
-    t += "\n\n\n";
+    // Espaço generoso antes do corte final para o conteúdo não ficar rente
+    t += "\n\n\n\n\n\n";
+    // Corte TOTAL: separa o papel completamente no final
     t += ESC_POS.CUT;
 
     return t;
@@ -1820,15 +1840,27 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Pré-aquece a conexão com a QZ Tray e localiza a impressora.
     // Se a impressora já estiver online quando o primeiro pedido for finalizado,
-    // a impressão sai sem esperar conexão.
+    // a impressão sai sem esperar conexão. Se não estiver, o usuário é avisado.
     (async () => {
         try {
             await conectarQZ();
-            await obterImpressora();
+            const impressora = await obterImpressora();
             setQzStatus('ok');
+            console.log('Impressora detectada:', impressora);
         } catch (e) {
-            console.warn('QZ Tray não conectou no init:', e?.message || e);
+            const msg = e?.message || String(e);
+            console.warn('Falha ao detectar impressora no init:', msg);
             setQzStatus('erro');
+
+            // Avisa o operador logo no carregamento — não espera o primeiro pedido
+            mostrarAlerta(
+                "Impressora não encontrada",
+                msg.includes("QZ Tray") || msg.includes("Nenhuma impressora")
+                    ? msg
+                    : "Não foi possível conectar à impressora. Verifique se o " +
+                      "QZ Tray está aberto e se a impressora está ligada.",
+                "erro"
+            );
         }
     })();
 });
