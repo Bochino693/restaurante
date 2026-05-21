@@ -1771,7 +1771,8 @@ function setBtnFinalizar(processando) {
 }
 
 async function finalizarVenda() {
-    if (finalizandoVenda) return;       // evita duplo clique
+    if (finalizandoVenda) return;
+
     finalizandoVenda = true;
     setBtnFinalizar(true);
 
@@ -1779,18 +1780,27 @@ async function finalizarVenda() {
         const nomeCliente = document.getElementById('nomeCliente').value.trim();
         const descricaoPedido = document.getElementById('descricaoPedido').value.trim();
 
-        const motocaRaw = document.getElementById('inputMotoca')
-            .value.replace(/[^\d]/g, '');
-        const taxaMotoca = parseFloat(motocaRaw) / 100 || 0;
+        const taxaMotoca = parseFloat(
+            document.getElementById('inputMotoca').value.replace(/[^\d]/g, '')
+        ) / 100 || 0;
 
-        const descRaw = document.getElementById('inputDesconto')
-            .value.replace(/[^\d]/g, '');
-        const desconto = parseFloat(descRaw) / 100 || 0;
+        const desconto = parseFloat(
+            document.getElementById('inputDesconto').value.replace(/[^\d]/g, '')
+        ) / 100 || 0;
 
-        // Validações
         if (!nomeCliente) {
             mostrarAlerta("Nome obrigatório", "Preencha o nome do cliente.", "aviso");
             document.getElementById('nomeCliente').focus();
+            return;
+        }
+
+        if (carrinho.length === 0) {
+            mostrarAlerta("Carrinho vazio", "Adicione itens ao pedido.", "aviso");
+            return;
+        }
+
+        if (!metodoPagamento) {
+            mostrarAlerta("Pagamento", "Selecione um método de pagamento.", "aviso");
             return;
         }
 
@@ -1804,22 +1814,12 @@ async function finalizarVenda() {
             }
         }
 
-        if (carrinho.length === 0) {
-            mostrarAlerta("Carrinho vazio", "Adicione itens.", "aviso");
-            return;
-        }
-
-        if (!metodoPagamento) {
-            mostrarAlerta("Pagamento", "Selecione um método.", "aviso");
-            return;
-        }
-
         const valores = atualizarTotais();
-        const totalPedido = valores.total;
+        const totalPedido = Number(valores.total || 0);
         const totalComMotoca = totalPedido + taxaMotoca;
 
         const dadosVenda = {
-            carrinho: carrinho,
+            carrinho: JSON.parse(JSON.stringify(carrinho)),
             subtotal: valores.subtotal,
             desconto: desconto,
             total: totalPedido,
@@ -1836,34 +1836,27 @@ async function finalizarVenda() {
             }
         };
 
-        // 1) Salva no banco
-        let resultado;
+        const response = await fetch('', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify(dadosVenda)
+        });
+
+        let resultado = null;
+
         try {
-            const response = await fetch('', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': getCookie('csrftoken')
-                },
-                body: JSON.stringify(dadosVenda)
-            });
             resultado = await response.json();
-        } catch (error) {
-            console.error(error);
-            mostrarAlerta(
-                "Erro conexão",
-                "Servidor indisponível: " + error.message,
-                "erro"
-            );
-            return;
+        } catch (e) {
+            throw new Error("O servidor respondeu, mas não retornou JSON válido.");
         }
 
-        if (!resultado.success) {
-            mostrarAlerta("Erro", resultado.message || "Erro ao salvar pedido", "erro");
-            return;
+        if (!response.ok || !resultado.success) {
+            throw new Error(resultado.message || "Erro ao salvar pedido.");
         }
 
-        // 2) Mostra modal de sucesso
         const pedidoParaImprimir = {
             id: resultado.pedido_id,
             nomeCliente: nomeCliente,
@@ -1879,18 +1872,22 @@ async function finalizarVenda() {
             criadoEm: new Date().toLocaleString('pt-BR')
         };
 
+        ultimoPedidoImpresso = pedidoParaImprimir;
+
         mostrarSucesso(
             resultado.pedido_id,
             formatar(totalComMotoca),
             metodoPagamento.toUpperCase()
         );
 
-        // 3) Enfileira impressão (não bloqueia o modal)
         enfileirarImpressao(pedidoParaImprimir, {
             onOk: () => setSucessoStatusOk(),
             onErro: (e) => setSucessoStatusErro(e?.message)
         });
 
+    } catch (e) {
+        console.error(e);
+        mostrarAlerta("Erro ao finalizar", e.message || "Não foi possível lançar o pedido.", "erro");
     } finally {
         finalizandoVenda = false;
         setBtnFinalizar(false);
