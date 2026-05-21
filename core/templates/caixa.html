@@ -1548,6 +1548,11 @@ function gerarTextoBalcao(pedido) {
     t += ESC_POS.BOLD_ON;
     t += "TOTAL FINAL:  R$ " + moeda(pedido.totalFinal) + "\n";
     t += ESC_POS.BOLD_OFF;
+    t += "--------------------------------\n";
+    // Forma de pagamento em destaque, alinhada com o TOTAL — visível de longe
+    t += ESC_POS.BOLD_ON;
+    t += "PAGAMENTO:    " + limparTexto(pedido.metodo).toUpperCase() + "\n";
+    t += ESC_POS.BOLD_OFF;
     // Espaço generoso antes do corte para não ficar rente o conteúdo
     t += "\n\n\n\n\n\n";
     // Corte PARCIAL: o papel fica unido por uma "destacada" leve,
@@ -1574,6 +1579,7 @@ function gerarTextoCozinha(pedido) {
 
     t += "Cliente: " + limparTexto(pedido.nomeCliente).toUpperCase() + "\n";
     t += pedido.entrega ? "ENTREGA\n" : "RETIRADA BALCAO\n";
+    t += "PAGAMENTO: " + limparTexto(pedido.metodo).toUpperCase() + "\n";
 
     if (pedido.descricao) {
         t += "OBS: " + limparTexto(pedido.descricao).toUpperCase() + "\n";
