@@ -923,120 +923,113 @@ function renderCarrinho() {
 ========================================================= */
 
 function abrirModalAdicionais(id, nome, preco) {
+    produtoAdicionalAtual = { id, nome, preco };
+
+    const modal = document.getElementById("modalAdicionais");
+    const container = document.getElementById("listaAdicionais");
+    const btnConfirmar = document.getElementById("btnConfirmarAdicional");
+
+    modalAdicionaisAberto = true;
+    container.innerHTML = `
+        <div class="text-center py-8 text-gray-400 font-bold">
+            Carregando adicionais...
+        </div>
+    `;
+
+    document.getElementById("modalProdNome").innerText = nome;
+    modal.classList.remove("hidden");
 
     fetch(`/produto/${id}/adicionais/`)
         .then(res => res.json())
         .then(data => {
-
-            if (!data || data.length === 0) {
-
-                addProduto(id, nome, preco, []);
-
-                fecharModal();
-
+            if (!modalAdicionaisAberto || !produtoAdicionalAtual || produtoAdicionalAtual.id !== id) {
                 return;
             }
 
-            const container =
-                document.getElementById("listaAdicionais");
-
-            document.getElementById('modalProdNome')
-                .innerText = nome;
+            if (!data || data.length === 0) {
+                addProduto(id, nome, preco, []);
+                fecharModal();
+                return;
+            }
 
             container.innerHTML = data.map(add => `
-                <div class="flex justify-between items-center p-3 bg-gray-50 rounded-2xl hover:bg-blue-50 transition-colors">
-
+                <div class="flex justify-between items-center p-3 bg-gray-50 rounded-2xl hover:bg-blue-50 transition-colors border border-gray-100">
                     <div class="flex-1">
-
-                        <span class="text-sm font-bold text-gray-700">
-                            ${add.nome}
-                        </span>
-
+                        <span class="text-sm font-bold text-gray-700">${add.nome}</span>
                         <div class="text-xs font-mono font-bold text-blue-600">
                             + R$ ${moeda(add.preco)}
                         </div>
-
                     </div>
 
                     <div class="add-qtd-box flex items-center gap-2">
-
-                        <button type="button"
-                                onclick="alterQtdAdicional(this, -1)"
-                                class="w-8 h-8 rounded-lg bg-white border border-gray-200 text-red-500 font-black">
+                        <button type="button" onclick="alterQtdAdicional(this, -1)"
+                            class="w-8 h-8 rounded-lg bg-white border border-gray-200 text-red-500 font-black">
                             -
                         </button>
 
                         <span class="qtd-add min-w-[24px] text-center font-mono font-black"
-                              data-nome="${add.nome}"
-                              data-preco="${add.preco}">
+                            data-nome="${add.nome}"
+                            data-preco="${add.preco}">
                             0
                         </span>
 
-                        <button type="button"
-                                onclick="alterQtdAdicional(this, 1)"
-                                class="w-8 h-8 rounded-lg bg-white border border-gray-200 text-green-600 font-black">
+                        <button type="button" onclick="alterQtdAdicional(this, 1)"
+                            class="w-8 h-8 rounded-lg bg-white border border-gray-200 text-green-600 font-black">
                             +
                         </button>
-
                     </div>
                 </div>
             `).join("");
 
-            const btnConfirmar =
-                document.getElementById('btnConfirmarAdicional');
-
-            const btnNovo = btnConfirmar.cloneNode(true);
-
-            btnConfirmar.parentNode.replaceChild(
-                btnNovo,
-                btnConfirmar
-            );
-
-            btnNovo.addEventListener('click', () => {
-
+            btnConfirmar.onclick = function () {
                 const selecionados = [];
 
-                document.querySelectorAll('.qtd-add')
-                    .forEach(el => {
+                document.querySelectorAll("#listaAdicionais .qtd-add").forEach(el => {
+                    const qtd = parseInt(el.innerText || "0");
 
-                        const qtd =
-                            parseInt(el.innerText || '0');
-
-                        if (qtd > 0) {
-
-                            selecionados.push({
-                                nome: el.dataset.nome,
-                                preco: el.dataset.preco,
-                                qtd: qtd
-                            });
-                        }
-                    });
+                    if (qtd > 0) {
+                        selecionados.push({
+                            nome: el.dataset.nome,
+                            preco: el.dataset.preco,
+                            qtd: qtd
+                        });
+                    }
+                });
 
                 addProduto(id, nome, preco, selecionados);
-
                 fecharModal();
-            });
-
-            document.getElementById("modalAdicionais")
-                .classList.remove("hidden");
+            };
         })
         .catch(() => {
-            mostrarAlerta(
-                "Erro",
-                "Não foi possível carregar os adicionais.",
-                "erro"
-            );
+            fecharModal();
+            mostrarAlerta("Erro", "Não foi possível carregar os adicionais.", "erro");
         });
 }
 
 function fecharModal() {
+    modalAdicionaisAberto = false;
+    produtoAdicionalAtual = null;
 
-    document.getElementById('modalAdicionais')
-        .classList.add('hidden');
+    const modal = document.getElementById("modalAdicionais");
+    const lista = document.getElementById("listaAdicionais");
+    const btn = document.getElementById("btnConfirmarAdicional");
 
-    document.getElementById('listaAdicionais')
-        .innerHTML = '';
+    modal.classList.add("hidden");
+    lista.innerHTML = "";
+    btn.onclick = null;
 }
+
+document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && modalAdicionaisAberto) {
+        fecharModal();
+    }
+});
+
+document.getElementById("modalAdicionais").addEventListener("click", function (e) {
+    if (e.target.id === "modalAdicionais") {
+        fecharModal();
+    }
+});
 
 /* =========================================================
    PAGAMENTO / ENTREGA
@@ -1580,243 +1573,144 @@ function normalizarPedidoImpressao(p) {
 
 
 function gerarTextoBalcao(pedido) {
-
     let t = "";
 
+    t += ESC_POS.INIT;
+    t += ESC_POS.CP850;
     t += ESC_POS.CENTER;
     t += ESC_POS.BOLD_ON;
     t += ESC_POS.DOUBLE_ON;
-
     t += "VIA BALCAO\n";
     t += "PEDIDO #" + pedido.id + "\n";
-
     t += ESC_POS.DOUBLE_OFF;
     t += ESC_POS.BOLD_OFF;
-
     t += "--------------------------------\n";
-
     t += ESC_POS.LEFT;
 
-    t += "Data: " +
-        limparTexto(pedido.criadoEm) + "\n";
-
-    t += "Cliente: " +
-        limparTexto(pedido.nomeCliente) + "\n";
+    t += "Data: " + limparTexto(pedido.criadoEm) + "\n";
+    t += "Cliente: " + limparTexto(pedido.nomeCliente) + "\n";
 
     if (pedido.descricao) {
-
-        t += "Obs: " +
-            limparTexto(pedido.descricao) + "\n";
+        t += "Obs: " + limparTexto(pedido.descricao) + "\n";
     }
 
-    t += "Pagamento: " +
-        limparTexto(pedido.metodo).toUpperCase() +
-        "\n";
-
-    t += pedido.entrega
-        ? "Tipo: ENTREGA\n"
-        : "Tipo: RETIRADA\n";
+    t += "Pagamento: " + limparTexto(pedido.metodo).toUpperCase() + "\n";
+    t += pedido.entrega ? "Tipo: ENTREGA\n" : "Tipo: RETIRADA BALCAO\n";
 
     if (pedido.entrega && pedido.endereco) {
-
-        t += "End: " +
-            limparTexto(pedido.endereco.rua) +
-            ", " +
-            limparTexto(pedido.endereco.numero) +
-            "\n";
+        t += "End: " + limparTexto(pedido.endereco.rua) + ", " + limparTexto(pedido.endereco.numero) + "\n";
 
         if (pedido.endereco.cep) {
-
-            t += "CEP: " +
-                limparTexto(pedido.endereco.cep) +
-                "\n";
+            t += "CEP: " + limparTexto(pedido.endereco.cep) + "\n";
         }
     }
 
     t += "--------------------------------\n";
-
-    t += ESC_POS.BOLD_ON;
-    t += "ITENS DO PEDIDO\n";
-    t += ESC_POS.BOLD_OFF;
-
+    t += ESC_POS.BOLD_ON + "ITENS DO PEDIDO\n" + ESC_POS.BOLD_OFF;
     t += "--------------------------------\n";
 
     agruparItens(pedido.itens).forEach(item => {
+        const adicionais = item.adicionais || [];
+        const precoAdicionais = calcularPrecoAdicionais(adicionais);
+        const precoUnitario = Number(item.precoBase || 0) + precoAdicionais;
+        const subtotalItem = precoUnitario * Number(item.qtd || 1);
 
-        const adicionais =
-            item.adicionais || [];
-
-        const precoAdicionais =
-            calcularPrecoAdicionais(adicionais);
-
-        const precoUnitario =
-            Number(item.precoBase || 0) +
-            precoAdicionais;
-
-        const subtotalItem =
-            precoUnitario *
-            Number(item.qtd || 1);
-
-        const linhasNome = quebrarLinha(
-            `${item.qtd}x ${item.nome}`,
-            24
-        );
-
-        linhasNome.forEach((linha, index) => {
-
+        quebrarLinha(`${item.qtd}x ${item.nome}`, 24).forEach((linha, index) => {
             if (index === 0) {
-
-                t += linha
-                    .padEnd(24)
-                    .slice(0, 24);
-
-                t += " R$ " +
-                    moeda(subtotalItem) +
-                    "\n";
-
+                t += linha.padEnd(24).slice(0, 24);
+                t += " R$ " + moeda(subtotalItem) + "\n";
             } else {
-
                 t += linha + "\n";
             }
         });
 
-        t += "   Unit: R$ " +
-            moeda(precoUnitario) +
-            "\n";
+        t += "   Unit: R$ " + moeda(precoUnitario) + "\n";
 
         adicionais.forEach(a => {
+            const qtdAdd = Number(a.qtd || 1);
+            const totalAdd = Number(a.preco || 0) * qtdAdd;
 
-            const qtdAdd =
-                Number(a.qtd || 1);
-
-            const totalAdd =
-                Number(a.preco || 0) *
-                qtdAdd;
-
-            t += "   + " +
-                qtdAdd +
-                "x " +
-                limparTexto(a.nome) +
-                " R$ " +
-                moeda(totalAdd) +
-                "\n";
+            t += "   + " + qtdAdd + "x " + limparTexto(a.nome) + " R$ " + moeda(totalAdd) + "\n";
         });
 
         t += "\n";
     });
 
     t += "--------------------------------\n";
-
-    t += "Subtotal:     R$ " +
-        moeda(pedido.totalPedido) +
-        "\n";
-
-    t += "Taxa Entrega: R$ " +
-        moeda(pedido.taxaMotoca) +
-        "\n";
-
+    t += "Subtotal:     R$ " + moeda(pedido.totalPedido) + "\n";
+    t += "Taxa Entrega: R$ " + moeda(pedido.taxaMotoca) + "\n";
     t += ESC_POS.BOLD_ON;
-
-    t += "TOTAL FINAL:  R$ " +
-        moeda(pedido.totalFinal) +
-        "\n";
-
+    t += "TOTAL FINAL:  R$ " + moeda(pedido.totalFinal) + "\n";
     t += ESC_POS.BOLD_OFF;
-
-    t += "\n\n\n\n\n";
-
-    t += ESC_POS.FEED;
-    t += ESC_POS.CUT;
+    t += "\n\n";
 
     return t;
 }
 
-function gerarTextoCozinha(pedido) {
 
+function gerarTextoCozinha(pedido) {
     let t = "";
 
+    t += ESC_POS.INIT;
+    t += ESC_POS.CP850;
     t += ESC_POS.CENTER;
     t += ESC_POS.BOLD_ON;
     t += ESC_POS.DOUBLE_ON;
-
     t += "VIA COZINHA\n";
     t += "PEDIDO #" + pedido.id + "\n";
-
     t += ESC_POS.DOUBLE_OFF;
     t += ESC_POS.BOLD_OFF;
-
     t += "--------------------------------\n";
-
     t += ESC_POS.LEFT;
 
-    t += "Cliente: " +
-        limparTexto(pedido.nomeCliente).toUpperCase() + "\n";
-
-    t += "Pagamento: " +
-        limparTexto(pedido.metodo).toUpperCase() + "\n";
-
-    t += pedido.entrega ? "ENTREGA\n" : "RETIRADA\n";
+    t += "Cliente: " + limparTexto(pedido.nomeCliente).toUpperCase() + "\n";
+    t += pedido.entrega ? "ENTREGA\n" : "RETIRADA BALCAO\n";
 
     if (pedido.descricao) {
-        t += "OBS: " +
-            limparTexto(pedido.descricao).toUpperCase() + "\n";
+        t += "OBS: " + limparTexto(pedido.descricao).toUpperCase() + "\n";
     }
 
     t += "--------------------------------\n";
-
-    t += ESC_POS.BOLD_ON;
-    t += "ITENS DO PEDIDO\n";
-    t += ESC_POS.BOLD_OFF;
-
+    t += ESC_POS.BOLD_ON + "PREPARO\n" + ESC_POS.BOLD_OFF;
     t += "--------------------------------\n";
 
-    const itens = agruparItens(pedido.itens || []);
-
-    itens.forEach(function(item) {
-
-        const adicionais = item.adicionais || [];
-
+    agruparItens(pedido.itens || []).forEach(item => {
         t += ESC_POS.BOLD_ON;
-        t += item.qtd +
-            "x " +
-            limparTexto(item.nome).toUpperCase() +
-            "\n";
+        t += item.qtd + "x " + limparTexto(item.nome).toUpperCase() + "\n";
         t += ESC_POS.BOLD_OFF;
 
-        adicionais.forEach(function(a) {
-
+        (item.adicionais || []).forEach(a => {
             const qtdAdd = Number(a.qtd || 1);
-
-            t += "   + " +
-                qtdAdd +
-                "x " +
-                limparTexto(a.nome).toUpperCase() +
-                "\n";
+            t += "   + " + qtdAdd + "x " + limparTexto(a.nome).toUpperCase() + "\n";
         });
 
         t += "\n";
     });
 
     t += "--------------------------------\n";
-
-    t += ESC_POS.BOLD_ON;
-    t += "TOTAL: R$ " + moeda(pedido.totalFinal) + "\n";
-    t += ESC_POS.BOLD_OFF;
-
-    t += "--------------------------------\n";
-
     t += ESC_POS.CENTER;
-    t += ESC_POS.BOLD_ON;
-    t += "BOM TRABALHO!\n";
-    t += ESC_POS.BOLD_OFF;
-
-    t += "\n\n\n\n\n";
-
-    t += ESC_POS.FEED;
+    t += ESC_POS.BOLD_ON + "BOM TRABALHO!\n" + ESC_POS.BOLD_OFF;
+    t += "\n\n\n";
     t += ESC_POS.CUT;
 
     return t;
 }
+
+function gerarTextoPedidoCompleto(pedido) {
+    return gerarTextoBalcao(pedido) + "\n\n\n" + gerarTextoCozinha(pedido);
+}
+
+
+async function imprimirPedidoPadronizado(pedido, vias = 1) {
+    const pedidoOK = normalizarPedidoImpressao(pedido);
+    const totalVias = Math.max(1, parseInt(vias || 1));
+
+    for (let i = 0; i < totalVias; i++) {
+        await imprimirRaw(gerarTextoPedidoCompleto(pedidoOK));
+        await sleep(DELAY_IMPRESSAO_MS);
+    }
+}
+
 
 async function imprimirPedidoPadronizado(
     pedido,
@@ -2025,42 +1919,28 @@ async function finalizarVenda() {
             await response.json();
 
         if (resultado.success) {
+    const pedidoParaImprimir = {
+        id: resultado.pedido_id,
+        nomeCliente: nomeCliente,
+        descricao: descricaoPedido,
+        itens: JSON.parse(JSON.stringify(carrinho)),
+        totalPedido: totalPedido,
+        taxaMotoca: taxaMotoca,
+        totalFinal: totalComMotoca,
+        desconto: desconto,
+        metodo: metodoPagamento,
+        entrega: tipoEntrega,
+        endereco: dadosVenda.endereco,
+        criadoEm: new Date().toLocaleString('pt-BR')
+    };
 
-            await imprimirDuasVias({
+    mostrarSucesso(
+        formatar(totalComMotoca),
+        metodoPagamento.toUpperCase()
+    );
 
-                id: resultado.pedido_id,
-
-                nomeCliente: nomeCliente,
-
-                descricao: descricaoPedido,
-
-                itens: carrinho,
-
-                totalPedido: totalPedido,
-
-                taxaMotoca: taxaMotoca,
-
-                totalFinal: totalComMotoca,
-
-                desconto: desconto,
-
-                metodo: metodoPagamento,
-
-                entrega: tipoEntrega,
-
-                endereco: dadosVenda.endereco,
-
-                criadoEm:
-                    new Date()
-                        .toLocaleString('pt-BR')
-            });
-
-            mostrarSucesso(
-                formatar(totalComMotoca),
-                metodoPagamento.toUpperCase()
-            );
-
-        } else {
+    imprimirDuasVias(pedidoParaImprimir);
+} else {
 
             mostrarAlerta(
                 "Erro",
