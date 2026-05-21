@@ -1577,96 +1577,67 @@ function gerarTextoCozinha(pedido) {
     t += ESC_POS.DOUBLE_OFF;
     t += ESC_POS.BOLD_OFF;
     t += "--------------------------------\n";
-
     t += ESC_POS.LEFT;
 
-    t += "Cliente: " +
-         limparTexto(pedido.nomeCliente).toUpperCase() + "\n";
-
-    t += pedido.entrega
-        ? "ENTREGA\n"
-        : "RETIRADA BALCAO\n";
-
-    t += "PAGAMENTO: " +
-         limparTexto(pedido.metodo).toUpperCase() + "\n";
+    t += "Cliente: " + limparTexto(pedido.nomeCliente).toUpperCase() + "\n";
+    t += pedido.entrega ? "ENTREGA\n" : "RETIRADA BALCAO\n";
+    t += "PAGAMENTO: " + limparTexto(pedido.metodo).toUpperCase() + "\n";
 
     if (pedido.descricao) {
-        t += "OBS: " +
-             limparTexto(pedido.descricao).toUpperCase() + "\n";
+        t += "OBS: " + limparTexto(pedido.descricao).toUpperCase() + "\n";
     }
 
     t += "--------------------------------\n";
-    t += ESC_POS.BOLD_ON + "PREPARO\n";
-    t += ESC_POS.BOLD_OFF;
+    t += ESC_POS.BOLD_ON + "PREPARO\n" + ESC_POS.BOLD_OFF;
     t += "--------------------------------\n";
 
     let totalPedido = 0;
 
     agruparItens(pedido.itens || []).forEach(item => {
-
+        const adicionais = item.adicionais || [];
         const qtd = Number(item.qtd || 1);
-        const valorItem = Number(item.preco || item.valor || 0);
-        const subtotalItem = qtd * valorItem;
+
+        const precoAdicionais = calcularPrecoAdicionais(adicionais);
+        const precoUnitario = Number(item.precoBase || 0) + precoAdicionais;
+        const subtotalItem = precoUnitario * qtd;
 
         totalPedido += subtotalItem;
 
         t += ESC_POS.BOLD_ON;
-
-        t += qtd + "x " +
-             limparTexto(item.nome).toUpperCase();
-
-        if (valorItem > 0) {
-            t += "  R$ " +
-                 subtotalItem.toFixed(2).replace(".", ",");
-        }
-
-        t += "\n";
-
+        t += qtd + "x " + limparTexto(item.nome).toUpperCase();
+        t += "  R$ " + moeda(subtotalItem) + "\n";
         t += ESC_POS.BOLD_OFF;
 
-        (item.adicionais || []).forEach(a => {
+        t += "   UNIT: R$ " + moeda(precoUnitario) + "\n";
 
+        adicionais.forEach(a => {
             const qtdAdd = Number(a.qtd || 1);
-            const valorAdd = Number(a.preco || a.valor || 0);
-            const subtotalAdd = qtdAdd * valorAdd;
+            const totalAdd = Number(a.preco || 0) * qtdAdd;
 
-            totalPedido += subtotalAdd;
-
-            t += "   + " +
-                 qtdAdd + "x " +
-                 limparTexto(a.nome).toUpperCase();
-
-            if (valorAdd > 0) {
-                t += "  R$ " +
-                     subtotalAdd.toFixed(2).replace(".", ",");
-            }
-
-            t += "\n";
+            t += "   + " + qtdAdd + "x " +
+                 limparTexto(a.nome).toUpperCase() +
+                 " R$ " + moeda(totalAdd) + "\n";
         });
 
         t += "\n";
     });
 
     t += "--------------------------------\n";
-
     t += ESC_POS.BOLD_ON;
-    t += "TOTAL: R$ " +
-         totalPedido.toFixed(2).replace(".", ",") + "\n";
+    t += "TOTAL: R$ " + moeda(totalPedido) + "\n";
     t += ESC_POS.BOLD_OFF;
-
     t += "--------------------------------\n";
 
     t += ESC_POS.CENTER;
-    t += ESC_POS.BOLD_ON;
-    t += "BOM TRABALHO!\n";
-    t += ESC_POS.BOLD_OFF;
+    t += ESC_POS.BOLD_ON + "BOM TRABALHO!\n" + ESC_POS.BOLD_OFF;
 
     t += "\n\n\n\n\n\n";
-
     t += ESC_POS.CUT;
 
     return t;
 }
+
+
 /* =========================================================
    IMPRESSÃO DE UM PEDIDO (balcão + cozinha)
 ========================================================= */
