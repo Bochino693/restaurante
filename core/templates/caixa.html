@@ -153,7 +153,12 @@
             <h2 class="font-bold flex items-center gap-2 text-sm">
                 <i class="fas fa-shopping-basket"></i> CARRINHO
             </h2>
-            <span id="cartCount" class="bg-blue-400 text-[10px] px-2 py-1 rounded-full font-bold">0 ITENS</span>
+            <div class="flex items-center gap-2">
+                <span id="qzStatus" class="hidden bg-amber-400 text-amber-900 text-[10px] px-2 py-1 rounded-full font-bold" title="Status da impressora">
+                    <i class="fas fa-print"></i>
+                </span>
+                <span id="cartCount" class="bg-blue-400 text-[10px] px-2 py-1 rounded-full font-bold">0 ITENS</span>
+            </div>
         </div>
 
         <!-- LISTA -->
@@ -346,11 +351,8 @@
                 <i class="fas fa-check text-3xl"></i>
             </div>
 
-            <h3 class="text-2xl font-black text-gray-800 mb-2">Pedido Salvo!</h3>
-            <p class="text-gray-500 text-sm mb-6">
-                <i class="fas fa-print text-blue-500 mr-1"></i>
-                O pedido será impresso automaticamente em alguns segundos.
-            </p>
+            <h3 class="text-2xl font-black text-gray-800 mb-2">Pedido Finalizado!</h3>
+            <p id="sucessoStatusImpressao" class="text-gray-500 text-sm mb-6">Enviando para a impressora...</p>
 
             <div class="bg-gray-50 rounded-2xl p-4 mb-6 border border-dashed border-gray-200 text-left">
                 <div class="flex justify-between text-xs mb-1">
@@ -366,6 +368,11 @@
                     <span id="resumoMetodo" class="font-black text-blue-600 uppercase">---</span>
                 </div>
             </div>
+
+            <button id="btnReimprimir" onclick="reimprimirUltimoPedido()"
+                class="hidden w-full bg-amber-500 hover:bg-amber-600 text-white font-black py-3 rounded-2xl transition-all active:scale-95 shadow-lg mb-2">
+                <i class="fas fa-print mr-2"></i> REIMPRIMIR
+            </button>
 
             <button onclick="fecharModalSucesso()"
                 class="w-full bg-gray-900 hover:bg-black text-white font-black py-4 rounded-2xl transition-all active:scale-95 shadow-xl">
@@ -456,6 +463,7 @@
         height: 100%;
     }
 
+    /* Spinner para impressão */
     .spinner-print {
         display: inline-block;
         width: 12px;
@@ -474,6 +482,8 @@
 </style>
 
 
+<script src="https://cdn.jsdelivr.net/npm/qz-tray@2.2.4/qz-tray.js"></script>
+
 <script>
 /* =========================================================
    ESTADO GLOBAL
@@ -488,10 +498,40 @@ let tipoEntrega = true;
 let modalAdicionaisAberto = false;
 let produtoAdicionalAtual = null;
 
-// Controle de submit
-let finalizandoVenda = false;
+// Impressão
+let impressoraCache = null;
+let qzConnectingPromise = null;          // evita múltiplas conexões simultâneas
+let printingLock = false;                // mutex de impressão
+let printQueue = [];                     // fila de pedidos para imprimir
+let ultimoPedidoImpresso = null;         // para reimprimir manualmente
+let finalizandoVenda = false;            // evita duplo submit
 
+const IMPRESSORA_PADRAO = "MP-4200 TH";
+const ENCODING_IMPRESSAO = "CP850";
+const DELAY_ENTRE_VIAS_MS = 700;         // delay entre balcão e cozinha
+const DELAY_RETRY_MS = 1000;
+const MAX_RETRIES = 3;
 const TIMEOUT_CEP_MS = 5000;
+
+
+/* =========================================================
+   ESC/POS
+========================================================= */
+
+const ESC_POS = {
+    INIT: '\x1B\x40',
+    CUT: '\x1D\x56\x00',              // corte TOTAL (separa o papel)
+    PARTIAL_CUT: '\x1D\x56\x01',      // corte PARCIAL (leve destacada)
+    FEED: '\n\n\n',
+    CENTER: '\x1B\x61\x01',
+    LEFT: '\x1B\x61\x00',
+    RIGHT: '\x1B\x61\x02',
+    BOLD_ON: '\x1B\x45\x01',
+    BOLD_OFF: '\x1B\x45\x00',
+    DOUBLE_ON: '\x1D\x21\x11',
+    DOUBLE_OFF: '\x1D\x21\x00',
+    CP850: '\x1B\x74\x02'
+};
 
 /* =========================================================
    HELPERS
@@ -505,6 +545,72 @@ const formatar = (v) =>
 
 function moeda(v) {
     return Number(v || 0).toFixed(2).replace('.', ',');
+}
+
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function limparTexto(txt) {
+    return String(txt || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^\x20-\x7E]/g, '')
+        .trim();
+}
+
+function quebrarLinha(texto, tamanho = 24) {
+    texto = limparTexto(texto);
+    const palavras = texto.split(' ');
+    const linhas = [];
+    let linha = '';
+
+    palavras.forEach(p => {
+        if ((linha + p).length > tamanho) {
+            linhas.push(linha.trim());
+            linha = p + ' ';
+        } else {
+            linha += p + ' ';
+        }
+    });
+
+    if (linha.trim()) {
+        linhas.push(linha.trim());
+    }
+
+    return linhas;
+}
+
+function setQzStatus(estado) {
+    // estado: 'ok' | 'erro' | 'imprimindo' | 'hidden'
+    const el = document.getElementById('qzStatus');
+    if (!el) return;
+
+    el.classList.remove('hidden', 'bg-amber-400', 'text-amber-900',
+                        'bg-red-500', 'text-white',
+                        'bg-green-400', 'text-green-900');
+
+    if (estado === 'hidden') {
+        el.classList.add('hidden');
+        return;
+    }
+    if (estado === 'erro') {
+        el.classList.add('bg-red-500', 'text-white');
+        el.title = 'Impressora com erro';
+        el.innerHTML = '<i class="fas fa-print"></i>';
+    } else if (estado === 'imprimindo') {
+        el.classList.add('bg-amber-400', 'text-amber-900');
+        el.title = 'Imprimindo...';
+        el.innerHTML = '<i class="fas fa-print fa-pulse"></i>';
+    } else if (estado === 'ok') {
+        el.classList.add('bg-green-400', 'text-green-900');
+        el.title = 'Impressora pronta';
+        el.innerHTML = '<i class="fas fa-print"></i>';
+        // Esconde de novo depois de alguns segundos
+        setTimeout(() => {
+            if (el.title === 'Impressora pronta') el.classList.add('hidden');
+        }, 2500);
+    }
 }
 
 /* =========================================================
@@ -996,12 +1102,49 @@ function mostrarSucesso(pedidoId, total, metodo) {
     document.getElementById('resumoTotal').innerText = total;
     document.getElementById('resumoMetodo').innerText = metodo;
 
+    // Status de impressão: inicial
+    setSucessoStatusImprimindo();
+
     modal.classList.remove('hidden');
 
     setTimeout(() => {
         card.classList.remove('scale-95', 'opacity-0');
         card.classList.add('scale-100', 'opacity-100');
     }, 50);
+}
+
+function setSucessoStatusImprimindo() {
+    const status = document.getElementById('sucessoStatusImpressao');
+    const btnReimprimir = document.getElementById('btnReimprimir');
+    if (status) {
+        status.innerHTML =
+            '<span class="spinner-print"></span> Enviando para a impressora...';
+        status.className = 'text-amber-600 text-sm mb-6 font-bold';
+    }
+    if (btnReimprimir) btnReimprimir.classList.add('hidden');
+}
+
+function setSucessoStatusOk() {
+    const status = document.getElementById('sucessoStatusImpressao');
+    const btnReimprimir = document.getElementById('btnReimprimir');
+    if (status) {
+        status.innerHTML =
+            '<i class="fas fa-check-circle mr-1"></i> Comprovante impresso com sucesso!';
+        status.className = 'text-green-600 text-sm mb-6 font-bold';
+    }
+    if (btnReimprimir) btnReimprimir.classList.add('hidden');
+}
+
+function setSucessoStatusErro(msg) {
+    const status = document.getElementById('sucessoStatusImpressao');
+    const btnReimprimir = document.getElementById('btnReimprimir');
+    if (status) {
+        status.innerHTML =
+            '<i class="fas fa-exclamation-triangle mr-1"></i> Falha na impressão: ' +
+            (msg || 'verifique a impressora e use REIMPRIMIR.');
+        status.className = 'text-red-600 text-sm mb-6 font-bold px-2';
+    }
+    if (btnReimprimir) btnReimprimir.classList.remove('hidden');
 }
 
 function fecharModalSucesso() {
@@ -1082,6 +1225,7 @@ async function buscarCepAuto() {
     } catch (e) {
         clearTimeout(timeoutId);
         ruaInput.value = '';
+        // Em silêncio: se demorou ou caiu, deixa o usuário digitar
     }
 }
 
@@ -1110,9 +1254,507 @@ function getCookie(name) {
 }
 
 /* =========================================================
+   QZ TRAY - CONEXÃO ROBUSTA
+========================================================= */
+
+async function carregarQzScriptSeNecessario() {
+    if (window.qz) return;
+    await new Promise((resolve, reject) => {
+        const s = document.createElement("script");
+        s.src = "https://cdn.jsdelivr.net/npm/qz-tray@2.2.4/qz-tray.js";
+        s.onload = resolve;
+        s.onerror = () => reject(new Error("Falha ao carregar o qz-tray.js."));
+        document.head.appendChild(s);
+    });
+    if (!window.qz) {
+        throw new Error("QZ Tray não disponível após carregar o script.");
+    }
+}
+
+async function conectarQZ() {
+    await carregarQzScriptSeNecessario();
+
+    if (qz.websocket.isActive()) return true;
+
+    // Evita múltiplas conexões simultâneas — todas aguardam a mesma promise
+    if (qzConnectingPromise) return qzConnectingPromise;
+
+    qzConnectingPromise = (async () => {
+        try {
+            await qz.websocket.connect({ retries: 3, delay: 1 });
+            return true;
+        } finally {
+            // Libera para tentativas futuras
+            qzConnectingPromise = null;
+        }
+    })();
+
+    return qzConnectingPromise;
+}
+
+async function reconectarForcado() {
+    try {
+        if (qz.websocket.isActive()) {
+            await qz.websocket.disconnect();
+        }
+    } catch (_) {}
+    // Limpa promise pendente
+    qzConnectingPromise = null;
+    await sleep(500);
+    await conectarQZ();
+}
+
+async function obterImpressora(forceRefresh = false) {
+    await conectarQZ();
+
+    if (impressoraCache && !forceRefresh) {
+        return impressoraCache;
+    }
+
+    let lista = [];
+    try {
+        lista = await qz.printers.find();
+    } catch (e) {
+        lista = [];
+    }
+
+    if (!Array.isArray(lista)) {
+        lista = lista ? [lista] : [];
+    }
+
+    // Se a lista veio vazia, NÃO inventa impressora — avisa de verdade
+    if (lista.length === 0) {
+        impressoraCache = null;
+        throw new Error(
+            "Nenhuma impressora encontrada. Verifique se o QZ Tray está aberto e " +
+            "se a impressora está ligada e conectada ao computador."
+        );
+    }
+
+    const preferidas = [
+        "MP-4200", "BEMATECH", "ELGIN",
+        "DARUMA", "POS", "THERMAL"
+    ];
+
+    // 1) Tenta encontrar uma impressora térmica conhecida
+    for (const termo of preferidas) {
+        const achada = lista.find(p =>
+            String(p).toUpperCase().includes(termo)
+        );
+        if (achada) {
+            impressoraCache = achada;
+            return achada;
+        }
+    }
+
+    // 2) Tenta a impressora padrão do sistema (precisa estar na lista)
+    try {
+        const padrao = await qz.printers.getDefault();
+        if (padrao && lista.some(p => String(p) === String(padrao))) {
+            impressoraCache = padrao;
+            return padrao;
+        }
+    } catch (e) { /* ignora */ }
+
+    // 3) Última opção: primeira impressora real disponível
+    impressoraCache = lista[0];
+    return impressoraCache;
+}
+
+function prepararTextoRaw(texto) {
+    return String(texto || "")
+        .replace(/\r\n/g, "\n")
+        .replace(/\r/g, "\n");
+}
+
+/* =========================================================
+   IMPRESSÃO RAW COM RETRY
+========================================================= */
+
+async function imprimirRaw(texto) {
+    texto = prepararTextoRaw(texto);
+    if (!texto.trim()) throw new Error("Texto vazio.");
+
+    let ultimoErro = null;
+
+    for (let tentativa = 1; tentativa <= MAX_RETRIES; tentativa++) {
+        try {
+            await conectarQZ();
+
+            // Se passou da primeira tentativa, invalida o cache da impressora
+            const nomeImpressora = await obterImpressora(tentativa > 1);
+
+            const config = qz.configs.create(nomeImpressora, {
+                encoding: ENCODING_IMPRESSAO,
+                copies: 1,
+                jobName: "Pedido Restaurante"
+            });
+
+            const dados = [{
+                type: "raw",
+                format: "plain",
+                data: ESC_POS.INIT + ESC_POS.CP850 + texto
+            }];
+
+            await qz.print(config, dados);
+            return true;
+
+        } catch (e) {
+            ultimoErro = e;
+            console.warn(
+                `Tentativa ${tentativa}/${MAX_RETRIES} falhou:`,
+                e?.message || e
+            );
+
+            if (tentativa < MAX_RETRIES) {
+                // Reconexão forçada antes de tentar de novo
+                try {
+                    await reconectarForcado();
+                } catch (_) {}
+                await sleep(DELAY_RETRY_MS);
+            }
+        }
+    }
+
+    throw new Error(
+        "Falha após " + MAX_RETRIES + " tentativas: " +
+        (ultimoErro?.message || ultimoErro)
+    );
+}
+
+/* =========================================================
+   GERAÇÃO DE TEXTO DOS COMPROVANTES
+========================================================= */
+
+function agruparItens(itens) {
+    const mapa = {};
+
+    itens.forEach(item => {
+        const adicionaisKey = (item.adicionais || [])
+            .map(a => `${a.nome}:${a.preco}:${a.qtd || 1}`)
+            .sort()
+            .join('|');
+
+        const chave = `${item.nome}_${adicionaisKey}`;
+
+        const qtd = Number(item.qtd || item.quantidade || 1);
+        const precoBase = Number(
+            item.precoBase ||
+            item.preco_unitario ||
+            item.preco ||
+            item.valor ||
+            0
+        );
+
+        const subtotal = Number(item.subtotal || 0);
+
+        if (!mapa[chave]) {
+            mapa[chave] = {
+                nome: item.nome,
+                qtd: qtd,
+                precoBase: precoBase,
+                precoUnitarioServidor: Number(item.preco_unitario || 0),
+                subtotalServidor: subtotal,
+                adicionais: item.adicionais || []
+            };
+        } else {
+            mapa[chave].qtd += qtd;
+            mapa[chave].subtotalServidor += subtotal;
+        }
+    });
+
+    return Object.values(mapa);
+}
+
+
+function normalizarPedidoImpressao(p) {
+    return {
+        id: p.id,
+        criadoEm: p.criadoEm || p.criado_em || new Date().toLocaleString("pt-BR"),
+        nomeCliente: p.nomeCliente || p.nome_cliente || "SEM NOME",
+        metodo: p.metodo || p.forma_pagamento || "",
+        entrega: !!p.entrega,
+        descricao: p.descricao || "",
+        endereco: p.endereco || {
+            rua: p.rua || "",
+            numero: p.numero || "",
+            cep: p.cep || ""
+        },
+        itens: (p.itens || []).map(i => ({
+            nome: i.nome || "ITEM",
+            qtd: Number(i.qtd || i.quantidade || 1),
+            precoBase: Number(
+                i.precoBase ||
+                i.preco_unitario ||
+                i.preco ||
+                i.valor ||
+                0
+            ),
+            subtotal: Number(i.subtotal || 0),
+            adicionais: (i.adicionais || []).map(a => ({
+                nome: a.nome || "",
+                qtd: Number(a.qtd || 1),
+                preco: Number(a.preco || 0)
+            }))
+        })),
+        totalPedido: Number(p.totalPedido || p.total || 0),
+        taxaMotoca: Number(p.taxaMotoca || p.taxa_motoca || 0),
+        totalFinal: Number(p.totalFinal || p.total_final || p.total || 0)
+    };
+}
+
+function gerarTextoBalcao(pedido) {
+    let t = "";
+
+    t += ESC_POS.INIT;
+    t += ESC_POS.CP850;
+    t += ESC_POS.CENTER;
+    t += ESC_POS.BOLD_ON;
+    t += ESC_POS.DOUBLE_ON;
+    t += "VIA BALCAO\n";
+    t += "PEDIDO #" + pedido.id + "\n";
+    t += ESC_POS.DOUBLE_OFF;
+    t += ESC_POS.BOLD_OFF;
+    t += "--------------------------------\n";
+    t += ESC_POS.LEFT;
+
+    t += "Data: " + limparTexto(pedido.criadoEm) + "\n";
+    t += "Cliente: " + limparTexto(pedido.nomeCliente) + "\n";
+
+    if (pedido.descricao) {
+        t += "Obs: " + limparTexto(pedido.descricao) + "\n";
+    }
+
+    t += "Pagamento: " + limparTexto(pedido.metodo).toUpperCase() + "\n";
+    t += pedido.entrega ? "Tipo: ENTREGA\n" : "Tipo: RETIRADA BALCAO\n";
+
+    if (pedido.entrega && pedido.endereco) {
+        t += "End: " + limparTexto(pedido.endereco.rua) +
+             ", " + limparTexto(pedido.endereco.numero) + "\n";
+
+        if (pedido.endereco.cep) {
+            t += "CEP: " + limparTexto(pedido.endereco.cep) + "\n";
+        }
+    }
+
+    t += "--------------------------------\n";
+    t += ESC_POS.BOLD_ON + "ITENS DO PEDIDO\n" + ESC_POS.BOLD_OFF;
+    t += "--------------------------------\n";
+
+    agruparItens(pedido.itens).forEach(item => {
+        const adicionais = item.adicionais || [];
+        const precoAdicionais = calcularPrecoAdicionais(adicionais);
+        const precoUnitario = Number(item.precoBase || 0) + precoAdicionais;
+        const subtotalItem = precoUnitario * Number(item.qtd || 1);
+
+        quebrarLinha(`${item.qtd}x ${item.nome}`, 24).forEach((linha, index) => {
+            if (index === 0) {
+                t += linha.padEnd(24).slice(0, 24);
+                t += " R$ " + moeda(subtotalItem) + "\n";
+            } else {
+                t += linha + "\n";
+            }
+        });
+
+        t += "   Unit: R$ " + moeda(precoUnitario) + "\n";
+
+        adicionais.forEach(a => {
+            const qtdAdd = Number(a.qtd || 1);
+            const totalAdd = Number(a.preco || 0) * qtdAdd;
+            t += "   + " + qtdAdd + "x " +
+                 limparTexto(a.nome) + " R$ " + moeda(totalAdd) + "\n";
+        });
+
+        t += "\n";
+    });
+
+    t += "--------------------------------\n";
+    t += "Subtotal:     R$ " + moeda(pedido.totalPedido) + "\n";
+    t += "Taxa Entrega: R$ " + moeda(pedido.taxaMotoca) + "\n";
+    t += ESC_POS.BOLD_ON;
+    t += "TOTAL FINAL:  R$ " + moeda(pedido.totalFinal) + "\n";
+    t += ESC_POS.BOLD_OFF;
+    t += "--------------------------------\n";
+    // Forma de pagamento em destaque, alinhada com o TOTAL — visível de longe
+    t += ESC_POS.BOLD_ON;
+    t += "PAGAMENTO:    " + limparTexto(pedido.metodo).toUpperCase() + "\n";
+    t += ESC_POS.BOLD_OFF;
+    // Espaço generoso antes do corte para não ficar rente o conteúdo
+    t += "\n\n\n\n\n\n";
+    // Corte PARCIAL: o papel fica unido por uma "destacada" leve,
+    // separando visualmente a via do balcão da via da cozinha
+    t += ESC_POS.PARTIAL_CUT;
+
+    return t;
+}
+
+function gerarTextoCozinha(pedido) {
+    let t = "";
+
+    t += ESC_POS.INIT;
+    t += ESC_POS.CP850;
+    t += ESC_POS.CENTER;
+    t += ESC_POS.BOLD_ON;
+    t += ESC_POS.DOUBLE_ON;
+    t += "VIA COZINHA\n";
+    t += "PEDIDO #" + pedido.id + "\n";
+    t += ESC_POS.DOUBLE_OFF;
+    t += ESC_POS.BOLD_OFF;
+    t += "--------------------------------\n";
+    t += ESC_POS.LEFT;
+
+    t += "Cliente: " + limparTexto(pedido.nomeCliente).toUpperCase() + "\n";
+    t += pedido.entrega ? "ENTREGA\n" : "RETIRADA BALCAO\n";
+    t += "PAGAMENTO: " + limparTexto(pedido.metodo).toUpperCase() + "\n";
+
+    if (pedido.descricao) {
+        t += "OBS: " + limparTexto(pedido.descricao).toUpperCase() + "\n";
+    }
+
+    t += "--------------------------------\n";
+    t += ESC_POS.BOLD_ON + "PREPARO\n" + ESC_POS.BOLD_OFF;
+    t += "--------------------------------\n";
+
+    let totalProdutos = 0;
+
+    agruparItens(pedido.itens || []).forEach(item => {
+        const qtd = Number(item.qtd || 1);
+        const adicionais = item.adicionais || [];
+
+        let subtotalItem = Number(item.subtotalServidor || item.subtotal || 0);
+
+        let precoUnitario = Number(item.precoUnitarioServidor || item.precoBase || 0);
+
+        if (subtotalItem <= 0) {
+            subtotalItem = precoUnitario * qtd;
+        }
+
+        if (precoUnitario <= 0 && qtd > 0) {
+            precoUnitario = subtotalItem / qtd;
+        }
+
+        totalProdutos += subtotalItem;
+
+        t += ESC_POS.BOLD_ON;
+        t += qtd + "x " + limparTexto(item.nome).toUpperCase();
+        t += "  R$ " + moeda(subtotalItem) + "\n";
+        t += ESC_POS.BOLD_OFF;
+
+        t += "   UNIT: R$ " + moeda(precoUnitario) + "\n";
+
+        adicionais.forEach(a => {
+            const qtdAdd = Number(a.qtd || 1);
+            const totalAdd = Number(a.preco || 0) * qtdAdd;
+
+            if (totalAdd > 0) {
+                t += "   + " + qtdAdd + "x " +
+                     limparTexto(a.nome).toUpperCase() +
+                     " R$ " + moeda(totalAdd) + "\n";
+            } else {
+                t += "   + " + qtdAdd + "x " +
+                     limparTexto(a.nome).toUpperCase() + "\n";
+            }
+        });
+
+        t += "\n";
+    });
+
+    if (totalProdutos <= 0) {
+        totalProdutos = Number(pedido.totalPedido || 0);
+    }
+
+    t += "--------------------------------\n";
+    t += ESC_POS.BOLD_ON;
+    t += "TOTAL PRODUTOS: R$ " + moeda(totalProdutos) + "\n";
+    t += ESC_POS.BOLD_OFF;
+    t += "--------------------------------\n";
+
+    t += ESC_POS.CENTER;
+    t += ESC_POS.BOLD_ON + "BOM TRABALHO!\n" + ESC_POS.BOLD_OFF;
+    t += "\n\n\n\n\n\n";
+    t += ESC_POS.CUT;
+
+    return t;
+}
+
+
+/* =========================================================
+   IMPRESSÃO DE UM PEDIDO (balcão + cozinha)
+========================================================= */
+
+async function imprimirPedidoCompleto(pedido) {
+    const pedidoOK = normalizarPedidoImpressao(pedido);
+
+    // Imprime a via do balcão
+    await imprimirRaw(gerarTextoBalcao(pedidoOK));
+    // Espera o papel terminar de sair antes da próxima
+    await sleep(DELAY_ENTRE_VIAS_MS);
+    // Imprime a via da cozinha
+    await imprimirRaw(gerarTextoCozinha(pedidoOK));
+}
+
+/* =========================================================
+   FILA DE IMPRESSÃO COM MUTEX
+   - Garante que só um pedido imprime por vez
+   - Permite enfileirar pedidos rapidamente sem colisão
+========================================================= */
+
+function enfileirarImpressao(pedido, callbacks = {}) {
+    printQueue.push({ pedido, callbacks });
+    processarFilaImpressao();
+}
+
+async function processarFilaImpressao() {
+    if (printingLock) return;
+    if (printQueue.length === 0) return;
+
+    printingLock = true;
+    setQzStatus('imprimindo');
+
+    while (printQueue.length > 0) {
+        const { pedido, callbacks } = printQueue.shift();
+
+        try {
+            await imprimirPedidoCompleto(pedido);
+            ultimoPedidoImpresso = pedido;
+
+            if (typeof callbacks.onOk === 'function') {
+                try { callbacks.onOk(); } catch (_) {}
+            }
+        } catch (e) {
+            console.error('Erro impressão pedido', pedido?.id, e);
+            ultimoPedidoImpresso = pedido; // mantém para reimprimir manualmente
+
+            if (typeof callbacks.onErro === 'function') {
+                try { callbacks.onErro(e); } catch (_) {}
+            }
+        }
+    }
+
+    printingLock = false;
+    setQzStatus('ok');
+}
+
+/* =========================================================
+   REIMPRESSÃO MANUAL
+========================================================= */
+
+async function reimprimirUltimoPedido() {
+    if (!ultimoPedidoImpresso) {
+        mostrarAlerta("Sem pedido", "Não há pedido para reimprimir.", "aviso");
+        return;
+    }
+
+    setSucessoStatusImprimindo();
+
+    enfileirarImpressao(ultimoPedidoImpresso, {
+        onOk: () => setSucessoStatusOk(),
+        onErro: (e) => setSucessoStatusErro(e?.message)
+    });
+}
+
+/* =========================================================
    FINALIZAR VENDA
-   (apenas salva no servidor — impressão é responsabilidade
-   do serviço Python rodando no PC do balcão)
 ========================================================= */
 
 function setBtnFinalizar(processando) {
@@ -1122,7 +1764,7 @@ function setBtnFinalizar(processando) {
 
     btn.disabled = !!processando;
     if (processando) {
-        texto.innerHTML = '<span class="spinner-print"></span> Salvando...';
+        texto.innerHTML = '<span class="spinner-print"></span> Processando...';
     } else {
         texto.innerText = 'Finalizar Pedido';
     }
@@ -1215,13 +1857,33 @@ async function finalizarVenda() {
             throw new Error(resultado.message || "Erro ao salvar pedido.");
         }
 
-        // Pedido salvo no servidor.
-        // O serviço Python no PC do balcão vai detectar e imprimir automaticamente.
+        const pedidoParaImprimir = {
+            id: resultado.pedido_id,
+            nomeCliente: nomeCliente,
+            descricao: descricaoPedido,
+            itens: JSON.parse(JSON.stringify(carrinho)),
+            totalPedido: totalPedido,
+            taxaMotoca: taxaMotoca,
+            totalFinal: totalComMotoca,
+            desconto: desconto,
+            metodo: metodoPagamento,
+            entrega: tipoEntrega,
+            endereco: dadosVenda.endereco,
+            criadoEm: new Date().toLocaleString('pt-BR')
+        };
+
+        ultimoPedidoImpresso = pedidoParaImprimir;
+
         mostrarSucesso(
             resultado.pedido_id,
             formatar(totalComMotoca),
             metodoPagamento.toUpperCase()
         );
+
+        enfileirarImpressao(pedidoParaImprimir, {
+            onOk: () => setSucessoStatusOk(),
+            onErro: (e) => setSucessoStatusErro(e?.message)
+        });
 
     } catch (e) {
         console.error(e);
@@ -1242,6 +1904,32 @@ document.addEventListener('DOMContentLoaded', function () {
 
     document.getElementById('enderecoBox').classList.remove('hidden');
     document.getElementById('retiradaInfo').classList.add('hidden');
+
+    // Pré-aquece a conexão com a QZ Tray e localiza a impressora.
+    // Se a impressora já estiver online quando o primeiro pedido for finalizado,
+    // a impressão sai sem esperar conexão. Se não estiver, o usuário é avisado.
+    (async () => {
+        try {
+            await conectarQZ();
+            const impressora = await obterImpressora();
+            setQzStatus('ok');
+            console.log('Impressora detectada:', impressora);
+        } catch (e) {
+            const msg = e?.message || String(e);
+            console.warn('Falha ao detectar impressora no init:', msg);
+            setQzStatus('erro');
+
+            // Avisa o operador logo no carregamento — não espera o primeiro pedido
+            mostrarAlerta(
+                "Impressora não encontrada",
+                msg.includes("QZ Tray") || msg.includes("Nenhuma impressora")
+                    ? msg
+                    : "Não foi possível conectar à impressora. Verifique se o " +
+                      "QZ Tray está aberto e se a impressora está ligada.",
+                "erro"
+            );
+        }
+    })();
 });
 
 </script>
