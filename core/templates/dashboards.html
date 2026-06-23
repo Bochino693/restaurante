@@ -7,7 +7,7 @@ Analytics PDV
 
 {% block content %}
 
-<div class="flex flex-col gap-6 h-[calc(100vh-80px)] overflow-hidden">
+<div class="flex flex-col gap-6 h-[calc(100vh-80px)] overflow-y-auto custom-scrollbar pb-8">
 
     <!-- HEADER -->
     <div class="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-100">
@@ -23,35 +23,56 @@ Analytics PDV
                 </span>
             </div>
 
+            {{ datas_com_registro|json_script:"datasDisponiveisJson" }}
+
             <!-- FILTROS -->
-           <!-- FILTROS -->
-    <form method="GET" class="filters-container">
+            <form method="GET" class="filters-container" id="formFiltros">
 
-        <div class="filter-group">
-            <label>Data inicial</label>
+                <div class="filter-group">
+                    <label>Data inicial</label>
 
-            <input
-                type="date"
-                name="data_inicio"
-                value="{{ data_inicio|date:'Y-m-d' }}">
-        </div>
+                    <input
+                        type="date"
+                        id="dataInicio"
+                        name="data_inicio"
+                        value="{{ data_inicio|date:'Y-m-d' }}"
+                        min="{{ primeira_data_registro|date:'Y-m-d' }}"
+                        max="{{ ultima_data_registro|date:'Y-m-d' }}"
+                        required>
+                </div>
 
-        <div class="filter-group">
-            <label>Data final</label>
+                <div class="filter-group">
+                    <label>Data final</label>
 
-            <input
-                type="date"
-                name="data_fim"
-                value="{{ data_fim|date:'Y-m-d' }}">
-        </div>
+                    <input
+                        type="date"
+                        id="dataFim"
+                        name="data_fim"
+                        value="{{ data_fim|date:'Y-m-d' }}"
+                        min="{{ primeira_data_registro|date:'Y-m-d' }}"
+                        max="{{ ultima_data_registro|date:'Y-m-d' }}"
+                        required>
+                </div>
 
-        <button type="submit" class="btn-filter">
-            <i class="fas fa-filter"></i>
-            Aplicar
-        </button>
+                <button type="submit" class="btn-filter" id="btnAplicarFiltro">
+                    <i class="fas fa-filter"></i>
+                    Aplicar
+                </button>
 
-    </form>
+                {% if primeira_data_registro and ultima_data_registro %}
+                <div class="w-full text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">
+                    Período disponível:
+                    {{ primeira_data_registro|date:"d/m/Y" }}
+                    até
+                    {{ ultima_data_registro|date:"d/m/Y" }}
+                </div>
+                {% else %}
+                <div class="w-full text-[10px] font-black uppercase tracking-widest text-red-400 mt-1">
+                    Nenhum registro encontrado para filtrar.
+                </div>
+                {% endif %}
 
+            </form>
         </div>
     </div>
 
@@ -79,7 +100,7 @@ Analytics PDV
     </div>
 
     <!-- GRID GRÁFICOS -->
-    <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 flex-1 overflow-hidden">
+    <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <div class="card-chart">
             <h3>Vendas mensais</h3>
             <canvas id="chartMes"></canvas>
@@ -258,7 +279,6 @@ Analytics PDV
 </div>
 
 <style>
-
 :root{
     --primary:#4f46e5;
     --primary-light:#6366f1;
@@ -271,53 +291,6 @@ Analytics PDV
 
 body{
     background:var(--bg);
-}
-
-/* =========================
-   HEADER
-========================= */
-
-.dashboard-header{
-    background:rgba(255,255,255,.90);
-    backdrop-filter:blur(14px);
-    border:1px solid rgba(226,232,240,.8);
-
-    padding:28px;
-    border-radius:2.2rem;
-
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    gap:24px;
-    flex-wrap:wrap;
-
-    box-shadow:
-        0 10px 40px rgba(15,23,42,.04),
-        0 2px 10px rgba(15,23,42,.03);
-}
-
-.dashboard-title{
-    display:flex;
-    align-items:center;
-    gap:12px;
-
-    font-size:26px;
-    font-weight:900;
-    letter-spacing:-1px;
-    color:var(--text);
-    text-transform:uppercase;
-}
-
-.dashboard-title i{
-    color:var(--primary);
-    font-size:22px;
-}
-
-.dashboard-subtitle{
-    font-size:12px;
-    color:var(--muted);
-    font-weight:700;
-    letter-spacing:.4px;
 }
 
 /* =========================
@@ -350,36 +323,44 @@ body{
     padding:0 16px;
 
     border-radius:1rem;
-    border:1px solid var(--border);
+    border:2px solid #c7d2fe;
 
-    background:white;
+    background:#ffffff;
 
     font-size:13px;
-    font-weight:700;
-    color:#334155;
+    font-weight:800;
+    color:#1e293b;
 
     transition:.25s;
     outline:none;
 
-    box-shadow:inset 0 2px 5px rgba(15,23,42,.03);
+    box-shadow:
+        inset 0 2px 5px rgba(15,23,42,.03),
+        0 6px 16px rgba(79,70,229,.06);
 }
 
 .filter-group input:focus{
     border-color:var(--primary);
     box-shadow:
-        0 0 0 4px rgba(99,102,241,.10),
+        0 0 0 4px rgba(99,102,241,.14),
         inset 0 2px 5px rgba(15,23,42,.03);
 }
 
+.filter-group input:disabled{
+    opacity:.45;
+    cursor:not-allowed;
+    background:#f1f5f9;
+}
+
 input[type="date"]::-webkit-calendar-picker-indicator{
-    opacity:.65;
+    opacity:1;
     cursor:pointer;
     transition:.2s;
+    filter:hue-rotate(190deg) saturate(1.4);
 }
 
 input[type="date"]::-webkit-calendar-picker-indicator:hover{
-    opacity:1;
-    transform:scale(1.1);
+    transform:scale(1.15);
 }
 
 .btn-filter{
@@ -413,6 +394,13 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{
     transform:translateY(-2px);
     box-shadow:
         0 16px 30px rgba(79,70,229,.30);
+}
+
+.btn-filter:disabled{
+    opacity:.45;
+    cursor:not-allowed;
+    transform:none;
+    box-shadow:none;
 }
 
 /* =========================
@@ -695,59 +683,38 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{
 }
 
 /* =========================
-   BOTÕES
+   SCROLLBAR MAIS VISÍVEL
 ========================= */
 
-.btn-ranking{
-    height:38px;
-    padding:0 16px;
-
-    border:none;
-    border-radius:1rem;
-
-    background:linear-gradient(
-        135deg,
-        #4f46e5,
-        #6366f1
-    );
-
-    color:white;
-
-    font-size:11px;
-    font-weight:900;
-    text-transform:uppercase;
-
-    cursor:pointer;
-
-    transition:.25s;
-
-    box-shadow:
-        0 10px 20px rgba(79,70,229,.18);
+.custom-scrollbar{
+    scrollbar-width:auto;
+    scrollbar-color:#4f46e5 #eef2ff;
+    scrollbar-gutter:stable;
 }
-
-.btn-ranking:hover{
-    transform:translateY(-2px);
-}
-
-/* =========================
-   SCROLLBAR
-========================= */
 
 .custom-scrollbar::-webkit-scrollbar{
-    width:7px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb{
-    background:#cbd5e1;
-    border-radius:999px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb:hover{
-    background:#94a3b8;
+    width:14px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-track{
-    background:transparent;
+    background:#eef2ff;
+    border-radius:999px;
+    border:1px solid #c7d2fe;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb{
+    background:linear-gradient(180deg, #818cf8 0%, #4f46e5 50%, #3730a3 100%);
+    border-radius:999px;
+    border:3px solid #eef2ff;
+    min-height:70px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover{
+    background:linear-gradient(180deg, #a5b4fc 0%, #4f46e5 45%, #312e81 100%);
+}
+
+.custom-scrollbar::-webkit-scrollbar-corner{
+    background:#eef2ff;
 }
 
 /* =========================
@@ -755,14 +722,6 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{
 ========================= */
 
 @media(max-width:768px){
-
-    .dashboard-header{
-        padding:22px;
-    }
-
-    .dashboard-title{
-        font-size:22px;
-    }
 
     .filters-container{
         width:100%;
@@ -788,7 +747,6 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{
         min-height:300px;
     }
 }
-
 </style>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -831,37 +789,147 @@ document.addEventListener('click', function(e){
     }
 });
 
-
+document.addEventListener("DOMContentLoaded", function () {
     const formFiltros = document.getElementById("formFiltros");
+    const dataInicio = document.getElementById("dataInicio");
+    const dataFim = document.getElementById("dataFim");
+    const btnAplicar = document.getElementById("btnAplicarFiltro");
+    const jsonDatas = document.getElementById("datasDisponiveisJson");
 
-async function carregarDashboard() {
-    const dataInicio = document.querySelector("input[name='data_inicio']").value;
-    const dataFim = document.querySelector("input[name='data_fim']").value;
+    if (!formFiltros || !dataInicio || !dataFim || !jsonDatas) {
+        return;
+    }
 
-    const params = new URLSearchParams({
-        data_inicio: dataInicio,
-        data_fim: dataFim,
-        ajax: "1"
+    const datasDisponiveis = JSON.parse(jsonDatas.textContent || "[]");
+
+    if (!datasDisponiveis.length) {
+        dataInicio.disabled = true;
+        dataFim.disabled = true;
+
+        if (btnAplicar) {
+            btnAplicar.disabled = true;
+        }
+
+        return;
+    }
+
+    const primeiraData = datasDisponiveis[0];
+    const ultimaData = datasDisponiveis[datasDisponiveis.length - 1];
+
+    dataInicio.min = primeiraData;
+    dataInicio.max = ultimaData;
+
+    dataFim.min = primeiraData;
+    dataFim.max = ultimaData;
+
+    if (!dataInicio.value) {
+        dataInicio.value = primeiraData;
+    }
+
+    if (!dataFim.value) {
+        dataFim.value = ultimaData;
+    }
+
+    function dataExiste(data) {
+        return datasDisponiveis.includes(data);
+    }
+
+    function encontrarProximaDataPermitida(data) {
+        for (let i = 0; i < datasDisponiveis.length; i++) {
+            if (datasDisponiveis[i] >= data) {
+                return datasDisponiveis[i];
+            }
+        }
+
+        return ultimaData;
+    }
+
+    function encontrarDataAnteriorPermitida(data) {
+        for (let i = datasDisponiveis.length - 1; i >= 0; i--) {
+            if (datasDisponiveis[i] <= data) {
+                return datasDisponiveis[i];
+            }
+        }
+
+        return primeiraData;
+    }
+
+    function validarInputData(input, tipo, mostrarAviso) {
+        const valor = input.value;
+
+        if (!valor) {
+            input.value = tipo === "inicio" ? primeiraData : ultimaData;
+            return;
+        }
+
+        if (valor < primeiraData) {
+            input.value = primeiraData;
+
+            if (mostrarAviso) {
+                alert("Essa data é anterior ao primeiro registro. Ajustei para a primeira data disponível.");
+            }
+
+            return;
+        }
+
+        if (valor > ultimaData) {
+            input.value = ultimaData;
+
+            if (mostrarAviso) {
+                alert("Essa data é posterior ao último registro. Ajustei para a última data disponível.");
+            }
+
+            return;
+        }
+
+        if (dataExiste(valor)) {
+            return;
+        }
+
+        if (tipo === "inicio") {
+            input.value = encontrarProximaDataPermitida(valor);
+        } else {
+            input.value = encontrarDataAnteriorPermitida(valor);
+        }
+
+        if (mostrarAviso) {
+            alert("Essa data não possui registro. Ajustei para a data disponível mais próxima.");
+        }
+    }
+
+    function corrigirIntervalo() {
+        if (dataInicio.value > dataFim.value) {
+            dataInicio.value = primeiraData;
+            dataFim.value = ultimaData;
+
+            alert("A data inicial não pode ser maior que a data final. O período voltou para o relatório total.");
+        }
+    }
+
+    dataInicio.addEventListener("change", function () {
+        validarInputData(dataInicio, "inicio", true);
+        corrigirIntervalo();
     });
 
-    const response = await fetch(`${window.location.pathname}?${params.toString()}`);
-    const data = await response.json();
+    dataFim.addEventListener("change", function () {
+        validarInputData(dataFim, "fim", true);
+        corrigirIntervalo();
+    });
 
-    document.getElementById("kpiReceita").innerText = `R$ ${data.receita_total}`;
-    document.getElementById("kpiPedidos").innerText = data.total_pedidos;
-    document.getElementById("kpiTicket").innerText = `R$ ${data.ticket_medio}`;
-    document.getElementById("kpiProdutos").innerText = data.produtos_vendidos_total;
+    formFiltros.addEventListener("submit", function (e) {
+        validarInputData(dataInicio, "inicio", false);
+        validarInputData(dataFim, "fim", false);
 
-    console.log("Dashboard atualizado:", data);
-}
+        if (dataInicio.value > dataFim.value) {
+            e.preventDefault();
 
-formFiltros.addEventListener("submit", function(e) {
-    e.preventDefault();
-    carregarDashboard();
-});
+            dataInicio.value = primeiraData;
+            dataFim.value = ultimaData;
 
-document.addEventListener("DOMContentLoaded", function() {
-    carregarDashboard();
+            alert("A data inicial não pode ser maior que a data final. O período voltou para o relatório total.");
+            return false;
+        }
+    });
 });
 </script>
 

@@ -746,6 +746,9 @@ class LogoutView(View):
 
 
 
+from django.db.models.functions import Coalesce, TruncDate
+
+
 class DashboardAnalyticsView(LoginRequiredMixin, TemplateView):
     template_name = "dashboards.html"
 
@@ -757,36 +760,129 @@ class DashboardAnalyticsView(LoginRequiredMixin, TemplateView):
             .replace("X", ".")
         )
 
-    def _get_datas(self):
-        hoje = now().date()
-
-        data_inicio = self.request.GET.get("data_inicio")
-        data_fim = self.request.GET.get("data_fim")
-
+    def _parse_data(self, valor):
         try:
-            data_inicio = datetime.strptime(data_inicio, "%Y-%m-%d").date() if data_inicio else hoje - timedelta(days=30)
-            data_fim = datetime.strptime(data_fim, "%Y-%m-%d").date() if data_fim else hoje
+            return datetime.strptime(valor, "%Y-%m-%d").date()
         except Exception:
-            data_inicio = hoje - timedelta(days=30)
-            data_fim = hoje
+            return None
 
-        return data_inicio, data_fim
-
-    def _get_dashboard_data(self):
-        data_inicio, data_fim = self._get_datas()
-
-        pedidos = Pedidos.objects.filter(
-            criado_em__date__range=[data_inicio, data_fim]
+    def _get_datas_com_registro(self):
+        datas = list(
+            Pedidos.objects
+            .exclude(criado_em__isnull=True)
+            .annotate(data_registro=TruncDate("criado_em"))
+            .values_list("data_registro", flat=True)
+            .distinct()
+            .order_by("data_registro")
         )
 
-        itens_pedido = ItensPedido.objects.filter(
-            pedidos__criado_em__date__range=[data_inicio, data_fim]
-        ).distinct()
+        return [d for d in datas if d]
+
+    def _data_mais_proxima_disponivel(self, data, datas_disponiveis, direcao="inicio"):
+        if not data or not datas_disponiveis:
+            return None
+
+        if data in datas_disponiveis:
+            return data
+
+        if direcao == "inicio":
+            maiores_ou_iguais = [d for d in datas_disponiveis if d >= data]
+
+            if maiores_ou_iguais:
+                return maiores_ou_iguais[0]
+
+            return datas_disponiveis[-1]
+
+        menores_ou_iguais = [d for d in datas_disponiveis if d <= data]
+
+        if menores_ou_iguais:
+            return menores_ou_iguais[-1]
+
+        return datas_disponiveis[0]
+
+    def _get_datas(self):
+        datas_com_registro = self._get_datas_com_registro()
+
+        if not datas_com_registro:
+            hoje = now().date()
+
+            return {
+                "data_inicio": hoje,
+                "data_fim": hoje,
+                "primeira_data_registro": None,
+                "ultima_data_registro": None,
+                "datas_com_registro": [],
+            }
+
+        primeira_data_registro = datas_com_registro[0]
+        ultima_data_registro = datas_com_registro[-1]
+
+        data_inicio_get = self._parse_data(self.request.GET.get("data_inicio"))
+        data_fim_get = self._parse_data(self.request.GET.get("data_fim"))
+
+        if data_inicio_get:
+            data_inicio = self._data_mais_proxima_disponivel(
+                data_inicio_get,
+                datas_com_registro,
+                "inicio"
+            )
+        else:
+            data_inicio = primeira_data_registro
+
+        if data_fim_get:
+            data_fim = self._data_mais_proxima_disponivel(
+                data_fim_get,
+                datas_com_registro,
+                "fim"
+            )
+        else:
+            data_fim = ultima_data_registro
+
+        if data_inicio > data_fim:
+            data_inicio = primeira_data_registro
+            data_fim = ultima_data_registro
+
+        return {
+            "data_inicio": data_inicio,
+            "data_fim": data_fim,
+            "primeira_data_registro": primeira_data_registro,
+            "ultima_data_registro": ultima_data_registro,
+            "datas_com_registro": [
+                d.strftime("%Y-%m-%d") for d in datas_com_registro
+            ],
+        }
+
+    def _get_dashboard_data(self):
+        datas_info = self._get_datas()
+
+        data_inicio = datas_info["data_inicio"]
+        data_fim = datas_info["data_fim"]
+        primeira_data_registro = datas_info["primeira_data_registro"]
+        ultima_data_registro = datas_info["ultima_data_registro"]
+        datas_com_registro = datas_info["datas_com_registro"]
+
+        if primeira_data_registro and ultima_data_registro:
+            pedidos = Pedidos.objects.filter(
+                criado_em__date__range=[data_inicio, data_fim]
+            )
+
+            itens_pedido = ItensPedido.objects.filter(
+                pedidos__criado_em__date__range=[data_inicio, data_fim]
+            ).distinct()
+        else:
+            pedidos = Pedidos.objects.none()
+            itens_pedido = ItensPedido.objects.none()
 
         mais_vendidos_qs = (
             itens_pedido
             .values("produto__nome_produto")
-            .annotate(total=Coalesce(Sum("quantidade"), Value(0), output_field=IntegerField()))
+            .annotate(
+                total=Coalesce(
+                    Sum("quantidade"),
+                    Value(0),
+                    output_field=IntegerField()
+                )
+            )
             .order_by("-total")
         )
 
@@ -807,11 +903,13 @@ class DashboardAnalyticsView(LoginRequiredMixin, TemplateView):
         total_pedidos = pedidos.count()
 
         ticket_medio = Decimal("0.00")
+
         if total_pedidos > 0:
             ticket_medio = receita_total / total_pedidos
 
         pedidos_status = list(
-            pedidos.values("status")
+            pedidos
+            .values("status")
             .annotate(total=Count("id"))
             .order_by("status")
         )
@@ -834,13 +932,20 @@ class DashboardAnalyticsView(LoginRequiredMixin, TemplateView):
         return {
             "data_inicio": data_inicio,
             "data_fim": data_fim,
+            "primeira_data_registro": primeira_data_registro,
+            "ultima_data_registro": ultima_data_registro,
+            "datas_com_registro": datas_com_registro,
+
             "receita_total": self._format_money(receita_total),
             "total_pedidos": total_pedidos,
             "ticket_medio": self._format_money(ticket_medio),
+
             "mais_vendidos": mais_vendidos,
             "mais_vendidos_todos": mais_vendidos_todos,
+
             "produtos_click": produtos_click,
             "produtos_click_todos": produtos_click_todos,
+
             "pedidos_status": pedidos_status,
             "produtos_vendidos_total": len(mais_vendidos_todos),
         }
@@ -856,4 +961,3 @@ class DashboardAnalyticsView(LoginRequiredMixin, TemplateView):
 
         context = self.get_context_data(**kwargs)
         return self.render_to_response(context)
-
