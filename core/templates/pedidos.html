@@ -5,6 +5,7 @@
 {% block content %}
 <div class="flex flex-col h-[calc(100vh-80px)] gap-4 overflow-hidden relative">
 
+    <!-- TOPO / FILTROS / TOTAIS -->
     <div class="bg-white p-5 rounded-[2rem] shadow-sm border border-gray-100">
         <div class="flex flex-col gap-6 xl:flex-row xl:items-center xl:justify-between">
 
@@ -16,18 +17,43 @@
 
                 <div class="flex flex-col gap-3 w-full sm:w-auto">
                     <div class="flex flex-wrap gap-2">
-                        <button onclick="setPeriodo('hoje')" class="btnPeriodo {% if periodo_atual == 'hoje' %}ativo{% endif %}">Hoje</button>
-                        <button onclick="setPeriodo('semana')" class="btnPeriodo {% if periodo_atual == 'semana' %}ativo{% endif %}">Semana</button>
-                        <button onclick="setPeriodo('quinzena')" class="btnPeriodo {% if periodo_atual == 'quinzena' %}ativo{% endif %}">Quinzena</button>
-                        <button onclick="setPeriodo('mes')" class="btnPeriodo {% if periodo_atual == 'mes' %}ativo{% endif %}">Mês</button>
-                        <button onclick="setPeriodo('todos')" class="btnPeriodo {% if periodo_atual == 'todos' %}ativo{% endif %}">Todos</button>
+                        <button onclick="setPeriodo('hoje')" class="btnPeriodo {% if periodo_atual == 'hoje' %}ativo{% endif %}">
+                            Hoje
+                        </button>
+
+                        <button onclick="setPeriodo('semana')" class="btnPeriodo {% if periodo_atual == 'semana' %}ativo{% endif %}">
+                            Semana
+                        </button>
+
+                        <button onclick="setPeriodo('quinzena')" class="btnPeriodo {% if periodo_atual == 'quinzena' %}ativo{% endif %}">
+                            Quinzena
+                        </button>
+
+                        <button onclick="setPeriodo('mes')" class="btnPeriodo {% if periodo_atual == 'mes' %}ativo{% endif %}">
+                            Mês
+                        </button>
+
+                        <button onclick="setPeriodo('todos')" class="btnPeriodo {% if periodo_atual == 'todos' %}ativo{% endif %}">
+                            Todos
+                        </button>
                     </div>
 
                     <div class="flex flex-wrap gap-2">
-                        <button onclick="togglePagamento('DINHEIRO')" class="btnPagamento {% if 'DINHEIRO' in pagamentos_atuais %}ativo{% endif %}">Dinheiro</button>
-                        <button onclick="togglePagamento('PIX')" class="btnPagamento {% if 'PIX' in pagamentos_atuais %}ativo{% endif %}">Pix</button>
-                        <button onclick="togglePagamento('CARTAO')" class="btnPagamento {% if 'CARTAO' in pagamentos_atuais %}ativo{% endif %}">Cartão</button>
-                        <button onclick="togglePagamento('MISTO')" class="btnPagamento {% if 'MISTO' in pagamentos_atuais %}ativo{% endif %}">Misto</button>
+                        <button onclick="togglePagamento('DINHEIRO')" class="btnPagamento {% if 'DINHEIRO' in pagamentos_atuais %}ativo{% endif %}">
+                            Dinheiro
+                        </button>
+
+                        <button onclick="togglePagamento('PIX')" class="btnPagamento {% if 'PIX' in pagamentos_atuais %}ativo{% endif %}">
+                            Pix
+                        </button>
+
+                        <button onclick="togglePagamento('CARTAO')" class="btnPagamento {% if 'CARTAO' in pagamentos_atuais %}ativo{% endif %}">
+                            Cartão
+                        </button>
+
+                        <button onclick="togglePagamento('MISTO')" class="btnPagamento {% if 'MISTO' in pagamentos_atuais %}ativo{% endif %}">
+                            Misto
+                        </button>
                     </div>
                 </div>
             </div>
@@ -35,34 +61,47 @@
             <div class="flex flex-wrap items-center gap-2 justify-start md:justify-end">
                 <div class="bg-green-50 text-green-600 px-4 py-2 rounded-2xl flex flex-col shadow-sm border border-green-100 min-w-[100px]">
                     <span class="text-[9px] font-black uppercase">Dinheiro</span>
-                    <span class="font-black text-sm leading-none" data-dinheiro>R$ {{ total_dinheiro|default:"0,00" }}</span>
+                    <span class="font-black text-sm leading-none" data-dinheiro>
+                        R$ {{ total_dinheiro|default:"0,00" }}
+                    </span>
                 </div>
 
                 <div class="bg-teal-50 text-teal-600 px-4 py-2 rounded-2xl flex flex-col shadow-sm border border-teal-100 min-w-[100px]">
                     <span class="text-[9px] font-black uppercase">Pix</span>
-                    <span class="font-black text-sm leading-none" data-pix>R$ {{ total_pix|default:"0,00" }}</span>
+                    <span class="font-black text-sm leading-none" data-pix>
+                        R$ {{ total_pix|default:"0,00" }}
+                    </span>
                 </div>
 
                 <div class="bg-blue-50 text-blue-600 px-4 py-2 rounded-2xl flex flex-col shadow-sm border border-blue-100 min-w-[100px]">
-                    <span class="text-[9px] font-black uppercase" >Cartão</span>
-                    <span class="font-black text-sm leading-none" data-cartao>R$ {{ total_cartao|default:"0,00" }}</span>
+                    <span class="text-[9px] font-black uppercase">Cartão</span>
+                    <span class="font-black text-sm leading-none" data-cartao>
+                        R$ {{ total_cartao|default:"0,00" }}
+                    </span>
                 </div>
 
-                <!-- NOVA JANELINHA -->
                 <div class="bg-violet-50 text-violet-600 px-4 py-2 rounded-2xl flex flex-col shadow-sm border border-violet-100 min-w-[120px]">
                     <span class="text-[9px] font-black uppercase">Taxa Motoca</span>
-                    <span class="font-black text-sm leading-none" data-taxa>R$ {{ total_taxa_motoca|default:"0,00" }}</span>
+                    <span class="font-black text-sm leading-none" data-taxa>
+                        R$ {{ total_taxa_motoca|default:"0,00" }}
+                    </span>
                 </div>
 
                 <div class="bg-orange-100 text-orange-600 px-5 py-2 rounded-2xl flex flex-col shadow-sm border border-orange-200">
-                    <span class="text-[10px] font-black uppercase" data-label-total>Total</span>
-                    <span class="font-black text-lg leading-none" data-total-dia>R$ {{ total_dia|default:"0,00" }}</span>
+                    <span class="text-[10px] font-black uppercase" data-label-total>
+                        {{ label_total|default:"Total" }}
+                    </span>
+                    <span class="font-black text-lg leading-none" data-total-dia>
+                        R$ {{ total_dia|default:"0,00" }}
+                    </span>
                 </div>
             </div>
         </div>
     </div>
 
+    <!-- LISTA DE PEDIDOS + PAGINAÇÃO -->
     <div class="flex-1 overflow-y-auto custom-scrollbar pb-10">
+
         <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4" id="listaPedidos">
             {% for pedido in pedidos %}
             <div class="pedido-card bg-white rounded-[2.5rem] p-6 shadow-xl border border-gray-50 hover:border-orange-200 transition-all group flex flex-col h-full"
@@ -71,15 +110,26 @@
 
                 <div class="flex-1">
                     {% if not pedido.impresso %}
-                    <div class="bg-black text-white text-[9px] font-black px-4 py-1 rounded-full inline-block mb-2">NÃO IMPRESSO</div>
+                    <div class="bg-black text-white text-[9px] font-black px-4 py-1 rounded-full inline-block mb-2">
+                        NÃO IMPRESSO
+                    </div>
                     {% endif %}
 
                     <div class="flex justify-between items-start mb-3">
                         <div>
-                            <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Pedido #{{ pedido.id }}</span>
-                            <h3 class="text-gray-800 font-black text-lg leading-none">{{ pedido.criado_em|date:"H:i" }}</h3>
-                            <p class="text-[10px] text-gray-400 font-bold uppercase">{{ pedido.criado_em|date:"d \d\e F" }}</p>
+                            <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                                Pedido #{{ pedido.id }}
+                            </span>
+
+                            <h3 class="text-gray-800 font-black text-lg leading-none">
+                                {{ pedido.criado_em|date:"H:i" }}
+                            </h3>
+
+                            <p class="text-[10px] text-gray-400 font-bold uppercase">
+                                {{ pedido.criado_em|date:"d \d\e F" }}
+                            </p>
                         </div>
+
                         <div class="px-4 py-2 rounded-2xl text-xs font-black shadow-sm
                             {% if pedido.status == 'PAGO' %} bg-yellow-100 text-yellow-700
                             {% elif pedido.status == 'PREPARO' %} bg-blue-100 text-blue-700
@@ -91,10 +141,11 @@
                         </div>
                     </div>
 
-                    <!-- TOTAL + TAXA MOTOCA -->
                     <div class="flex justify-between items-start mb-4 gap-3">
                         <div class="space-y-2">
-                            <div class="text-lg font-black text-green-600">R$ {{ pedido.total }}</div>
+                            <div class="text-lg font-black text-green-600">
+                                R$ {{ pedido.total }}
+                            </div>
 
                             {% if pedido.taxa_motoca and pedido.taxa_motoca > 0 %}
                             <div class="inline-flex items-center gap-2 bg-violet-50 text-violet-600 px-3 py-1 rounded-xl border border-violet-100">
@@ -123,7 +174,6 @@
                             {% endif %}
                         </div>
 
-                        <!-- DESCRIÇÃO -->
                         {% if pedido.descricao %}
                         <div class="bg-amber-50 border border-amber-100 rounded-2xl p-3 shadow-sm">
                             <div class="flex items-start gap-3">
@@ -179,7 +229,8 @@
                             <div class="flex justify-between items-start gap-3">
                                 <div class="min-w-0">
                                     <div class="text-sm font-bold text-gray-700 leading-tight break-words">
-                                        <span class="text-orange-500">{{ item.quantidade }}x</span> {{ item.produto.nome_produto }}
+                                        <span class="text-orange-500">{{ item.quantidade }}x</span>
+                                        {{ item.produto.nome_produto }}
                                     </div>
 
                                     {% if item.adicionais %}
@@ -219,7 +270,8 @@
                         <i class="fas fa-print"></i> Reimprimir
                     </button>
                 </div>
-                </div>
+            </div>
+
             {% empty %}
             <div class="col-span-full flex flex-col items-center justify-center p-20 text-gray-300">
                 <i class="fas fa-ghost text-6xl mb-4 opacity-20"></i>
@@ -227,9 +279,81 @@
             </div>
             {% endfor %}
         </div>
+
+        <!-- PAGINAÇÃO MODERNA -->
+        {% if page_obj.paginator.num_pages > 1 %}
+        <div class="mt-8 flex flex-col items-center gap-4 pb-8">
+
+            <div class="text-[11px] font-black text-gray-400 uppercase tracking-widest text-center">
+                Mostrando {{ page_obj.start_index }} até {{ page_obj.end_index }}
+                de {{ page_obj.paginator.count }} pedidos
+            </div>
+
+            <div class="flex flex-wrap items-center justify-center gap-2 bg-white border border-gray-100 shadow-lg rounded-[2rem] px-4 py-3">
+
+                {% if page_obj.has_previous %}
+                <a href="?{% if query_string %}{{ query_string }}&{% endif %}page=1"
+                   class="paginacao-btn">
+                    <i class="fas fa-angles-left"></i>
+                </a>
+
+                <a href="?{% if query_string %}{{ query_string }}&{% endif %}page={{ page_obj.previous_page_number }}"
+                   class="paginacao-btn">
+                    <i class="fas fa-chevron-left"></i>
+                </a>
+                {% else %}
+                <span class="paginacao-btn paginacao-disabled">
+                    <i class="fas fa-angles-left"></i>
+                </span>
+
+                <span class="paginacao-btn paginacao-disabled">
+                    <i class="fas fa-chevron-left"></i>
+                </span>
+                {% endif %}
+
+                {% for pagina in paginas_range %}
+                    {% if pagina == "..." %}
+                        <span class="px-2 text-gray-300 font-black">...</span>
+                    {% elif pagina == page_obj.number %}
+                        <span class="paginacao-numero paginacao-ativa">
+                            {{ pagina }}
+                        </span>
+                    {% else %}
+                        <a href="?{% if query_string %}{{ query_string }}&{% endif %}page={{ pagina }}"
+                           class="paginacao-numero">
+                            {{ pagina }}
+                        </a>
+                    {% endif %}
+                {% endfor %}
+
+                {% if page_obj.has_next %}
+                <a href="?{% if query_string %}{{ query_string }}&{% endif %}page={{ page_obj.next_page_number }}"
+                   class="paginacao-btn">
+                    <i class="fas fa-chevron-right"></i>
+                </a>
+
+                <a href="?{% if query_string %}{{ query_string }}&{% endif %}page={{ page_obj.paginator.num_pages }}"
+                   class="paginacao-btn">
+                    <i class="fas fa-angles-right"></i>
+                </a>
+                {% else %}
+                <span class="paginacao-btn paginacao-disabled">
+                    <i class="fas fa-chevron-right"></i>
+                </span>
+
+                <span class="paginacao-btn paginacao-disabled">
+                    <i class="fas fa-angles-right"></i>
+                </span>
+                {% endif %}
+
+            </div>
+        </div>
+        {% endif %}
+
     </div>
 </div>
 
+<!-- MODAL REIMPRESSÃO -->
 <div id="modalPrint" class="modal-pedido hidden">
     <div class="modal-caixa max-w-sm">
         <h2 class="text-xl font-black mb-2 text-gray-800">Reimprimir Pedido</h2>
@@ -252,6 +376,7 @@
     </div>
 </div>
 
+<!-- MODAL STATUS -->
 <div id="modalStatus" class="modal-pedido hidden">
     <div class="modal-caixa max-w-md" id="modalStatusContent">
         <div class="flex justify-between items-center mb-6">
@@ -290,36 +415,55 @@
     </div>
 </div>
 
-
 <style>
-.custom-scrollbar::-webkit-scrollbar { width:6px; }
-.custom-scrollbar::-webkit-scrollbar-thumb { background:#e2e8f0; border-radius:10px; }
-.pedido-card { animation:slideUp .4s ease forwards; }
-@keyframes slideUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+.custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #e2e8f0;
+    border-radius: 10px;
+}
+
+.pedido-card {
+    animation: slideUp .4s ease forwards;
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
 
 .btnPeriodo,
 .btnPagamento {
-background:#f3f4f6;
-color:#6b7280;
-padding:8px 18px;
-border-radius:999px;
-font-size:11px;
-font-weight:900;
-letter-spacing:.08em;
-transition:.2s;
+    background: #f3f4f6;
+    color: #6b7280;
+    padding: 8px 18px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: .08em;
+    transition: .2s;
 }
 
 .btnPeriodo:hover,
 .btnPagamento:hover {
-background:#fed7aa;
-color:#ea580c;
+    background: #fed7aa;
+    color: #ea580c;
 }
 
 .btnPeriodo.ativo,
 .btnPagamento.ativo {
-background:#f97316;
-color:white;
-box-shadow:0 6px 18px rgba(249,115,22,.25);
+    background: #f97316;
+    color: white;
+    box-shadow: 0 6px 18px rgba(249, 115, 22, .25);
 }
 
 .endereco-entrega-card {
@@ -327,13 +471,48 @@ box-shadow:0 6px 18px rgba(249,115,22,.25);
     border: 1px solid #c7d2fe;
 }
 
+.paginacao-btn,
+.paginacao-numero {
+    width: 42px;
+    height: 42px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #f3f4f6;
+    color: #6b7280;
+    font-size: 12px;
+    font-weight: 900;
+    transition: .2s;
+    border: 1px solid #f1f5f9;
+}
+
+.paginacao-btn:hover,
+.paginacao-numero:hover {
+    background: #fed7aa;
+    color: #ea580c;
+    transform: translateY(-1px);
+}
+
+.paginacao-ativa {
+    background: #f97316 !important;
+    color: white !important;
+    box-shadow: 0 8px 24px rgba(249, 115, 22, .28);
+    border-color: #fb923c !important;
+}
+
+.paginacao-disabled {
+    opacity: .35;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
 #modalPrint,
 #modalStatus {
     z-index: 999999 !important;
 }
 
-
-    .modal-pedido {
+.modal-pedido {
     position: fixed !important;
     inset: 0 !important;
     background: rgba(17, 24, 39, .55) !important;
@@ -353,7 +532,7 @@ box-shadow:0 6px 18px rgba(249,115,22,.25);
     background: white;
     border-radius: 2rem;
     padding: 2rem;
-    box-shadow: 0 30px 80px rgba(0,0,0,.25);
+    box-shadow: 0 30px 80px rgba(0, 0, 0, .25);
 }
 </style>
 
@@ -365,7 +544,9 @@ box-shadow:0 6px 18px rgba(249,115,22,.25);
 
     window.setPeriodo = function (periodo) {
         const url = new URL(window.location.href);
+
         url.searchParams.set("periodo", periodo);
+        url.searchParams.delete("page");
 
         const pagamentos = url.searchParams.getAll("pagamento");
         url.searchParams.delete("pagamento");
@@ -382,6 +563,7 @@ box-shadow:0 6px 18px rgba(249,115,22,.25);
         const atuais = url.searchParams.getAll("pagamento");
 
         url.searchParams.delete("pagamento");
+        url.searchParams.delete("page");
 
         if (atuais.includes(pagamento)) {
             atuais.filter(p => p !== pagamento).forEach(p => {
@@ -539,58 +721,58 @@ box-shadow:0 6px 18px rgba(249,115,22,.25);
     }
 
     function normalizarPedidoImpressao(p) {
-    const endereco = p.endereco || {};
+        const endereco = p.endereco || {};
 
-    const taxaMotoca = Number(
-        p.taxaMotoca ??
-        p.taxa_motoca ??
-        p.taxa_entrega ??
-        0
-    );
+        const taxaMotoca = Number(
+            p.taxaMotoca ??
+            p.taxa_motoca ??
+            p.taxa_entrega ??
+            0
+        );
 
-    const totalPedido = Number(
-        p.totalPedido ??
-        p.total_pedido ??
-        p.total ??
-        0
-    );
+        const totalPedido = Number(
+            p.totalPedido ??
+            p.total_pedido ??
+            p.total ??
+            0
+        );
 
-    const totalFinal = Number(
-        p.totalFinal ??
-        p.total_final ??
-        p.total ??
-        totalPedido
-    );
+        const totalFinal = Number(
+            p.totalFinal ??
+            p.total_final ??
+            p.total ??
+            totalPedido
+        );
 
-    return {
-        id: p.id,
-        criadoEm: p.criadoEm || p.criado_em || p.data || "",
-        nomeCliente: p.nomeCliente || p.nome_cliente || "SEM NOME",
+        return {
+            id: p.id,
+            criadoEm: p.criadoEm || p.criado_em || p.data || "",
+            nomeCliente: p.nomeCliente || p.nome_cliente || "SEM NOME",
 
-        metodo: (
-            p.metodo ||
-            p.forma_pagamento ||
-            p.pagamento ||
-            ""
-        ),
+            metodo: (
+                p.metodo ||
+                p.forma_pagamento ||
+                p.pagamento ||
+                ""
+            ),
 
-        entrega: Boolean(p.entrega),
+            entrega: Boolean(p.entrega),
 
-        descricao: p.descricao || p.observacao || "",
+            descricao: p.descricao || p.observacao || "",
 
-        endereco: {
-            rua: endereco.rua || p.rua || "",
-            numero: endereco.numero || p.numero || "",
-            cep: endereco.cep || p.cep || ""
-        },
+            endereco: {
+                rua: endereco.rua || p.rua || "",
+                numero: endereco.numero || p.numero || "",
+                cep: endereco.cep || p.cep || ""
+            },
 
-        itens: normalizarItensImpressao(p.itens || []),
+            itens: normalizarItensImpressao(p.itens || []),
 
-        totalPedido: totalPedido,
-        taxaMotoca: taxaMotoca,
-        totalFinal: totalFinal
-    };
-}
+            totalPedido: totalPedido,
+            taxaMotoca: taxaMotoca,
+            totalFinal: totalFinal
+        };
+    }
 
     function calcularPrecoAdicionaisImpressao(adicionais) {
         let total = 0;

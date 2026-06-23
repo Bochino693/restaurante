@@ -12,6 +12,16 @@ from django.contrib.auth.models import User
 from django.contrib import messages
 
 
+from decimal import Decimal
+from datetime import datetime, time, timedelta
+
+from django.core.paginator import Paginator
+from django.db.models import Q, Sum
+from django.shortcuts import render
+from django.utils import timezone
+from django.views import View
+from django.contrib.auth.mixins import LoginRequiredMixin
+
 class CardapioClienteView(View):
     def get(self, request):
         produtos_ativos = Produtos.objects.filter(ativo=True).prefetch_related("adicionais_disponiveis")
@@ -350,28 +360,22 @@ def _filtrar_pedidos(request):
     periodo = request.GET.get("periodo", "hoje")
     pagamentos = request.GET.getlist("pagamento")
 
-    pedidos = Pedidos.objects.all().prefetch_related("itens", "itens__produto").order_by("-criado_em")
+    pedidos = (
+        Pedidos.objects
+        .all()
+        .prefetch_related("itens", "itens__produto")
+        .order_by("-criado_em")
+    )
 
-    agora = timezone.localtime()
-    hoje = agora.date()
+    inicio_dt, fim_dt, label = _range_periodo(periodo)
 
-    if periodo == "hoje":
-        pedidos = pedidos.filter(criado_em__date=hoje)
-        label = "Total Hoje"
-    elif periodo == "semana":
-        inicio = hoje - timedelta(days=7)
-        pedidos = pedidos.filter(criado_em__date__gte=inicio)
-        label = "Total Semana"
-    elif periodo == "quinzena":
-        inicio = hoje - timedelta(days=15)
-        pedidos = pedidos.filter(criado_em__date__gte=inicio)
-        label = "Total Quinzena"
-    elif periodo == "mes":
-        pedidos = pedidos.filter(criado_em__year=hoje.year, criado_em__month=hoje.month)
-        label = "Total Mês"
+    if inicio_dt and fim_dt:
+        pedidos = pedidos.filter(
+            criado_em__gte=inicio_dt,
+            criado_em__lt=fim_dt
+        )
     else:
         periodo = "todos"
-        label = "Total Geral"
 
     pagamentos_validos = [
         Pedidos.FormaPagamento.DINHEIRO,
@@ -394,13 +398,40 @@ def _formatar_moeda(valor):
     return f"{valor:.2f}".replace(".", ",")
 
 
+def _montar_range_paginacao(page_obj, janela=2):
+    paginator = page_obj.paginator
+    pagina_atual = page_obj.number
+    total_paginas = paginator.num_pages
+
+    if total_paginas <= 7:
+        return list(range(1, total_paginas + 1))
+
+    paginas = {1, total_paginas}
+
+    for numero in range(pagina_atual - janela, pagina_atual + janela + 1):
+        if 1 <= numero <= total_paginas:
+            paginas.add(numero)
+
+    resultado = []
+    anterior = None
+
+    for numero in sorted(paginas):
+        if anterior is not None and numero - anterior > 1:
+            resultado.append("...")
+        resultado.append(numero)
+        anterior = numero
+
+    return resultado
+
+
+
 class PedidosView(LoginRequiredMixin, View):
     login_url = "login"
 
     def get(self, request):
-        pedidos, periodo, pagamentos, label = _filtrar_pedidos(request)
+        pedidos_filtrados, periodo, pagamentos, label = _filtrar_pedidos(request)
 
-        pedidos_totais = pedidos.exclude(
+        pedidos_totais = pedidos_filtrados.exclude(
             status=Pedidos.StatusPedido.CANCELADO
         )
 
@@ -426,8 +457,23 @@ class PedidosView(LoginRequiredMixin, View):
             ),
         )
 
+        por_pagina = 12
+        paginator = Paginator(pedidos_filtrados, por_pagina)
+
+        pagina_atual = request.GET.get("page", 1)
+        page_obj = paginator.get_page(pagina_atual)
+
+        query_params = request.GET.copy()
+        query_params.pop("page", None)
+        query_string = query_params.urlencode()
+
         return render(request, "pedidos.html", {
-            "pedidos": pedidos,
+            "pedidos": page_obj,
+            "page_obj": page_obj,
+            "paginator": paginator,
+            "paginas_range": _montar_range_paginacao(page_obj),
+            "query_string": query_string,
+
             "periodo_atual": periodo,
             "pagamentos_atuais": pagamentos,
 
@@ -442,6 +488,7 @@ class PedidosView(LoginRequiredMixin, View):
             "status_options": Pedidos.StatusPedido.choices,
             "pagamento_options": Pedidos.FormaPagamento.choices,
         })
+
 
 
 class ResumoPedidosView(LoginRequiredMixin, View):
