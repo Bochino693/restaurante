@@ -416,13 +416,38 @@
 </div>
 
 <style>
+
+    .custom-scrollbar {
+    scrollbar-width: auto;
+    scrollbar-color: #f97316 #fff7ed;
+    scrollbar-gutter: stable;
+    padding-right: 8px;
+}
+
+/* Chrome, Edge e Safari */
 .custom-scrollbar::-webkit-scrollbar {
-    width: 6px;
+    width: 14px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: #fff7ed;
+    border-radius: 999px;
+    border: 1px solid #fed7aa;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: #e2e8f0;
-    border-radius: 10px;
+    background: linear-gradient(180deg, #fb923c 0%, #f97316 50%, #ea580c 100%);
+    border-radius: 999px;
+    border: 3px solid #fff7ed;
+    min-height: 70px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, #fdba74 0%, #f97316 45%, #c2410c 100%);
+}
+
+.custom-scrollbar::-webkit-scrollbar-corner {
+    background: #fff7ed;
 }
 
 .pedido-card {
