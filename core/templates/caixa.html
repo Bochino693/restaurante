@@ -1618,47 +1618,53 @@ function gerarTextoCozinha(pedido) {
     let totalProdutos = 0;
 
     agruparItens(pedido.itens || []).forEach(item => {
-        const qtd = Number(item.qtd || 1);
+        const qtdProduto = Number(item.qtd || 1);
         const adicionais = item.adicionais || [];
 
-        let subtotalItem = Number(item.subtotalServidor || item.subtotal || 0);
-
-        let precoUnitario = Number(item.precoUnitarioServidor || item.precoBase || 0);
-
-        if (subtotalItem <= 0) {
-            subtotalItem = precoUnitario * qtd;
-        }
-
-        if (precoUnitario <= 0 && qtd > 0) {
-            precoUnitario = subtotalItem / qtd;
-        }
+        /*
+         * Regra única para impressão:
+         * preço unitário = produto + todos os adicionais selecionados
+         * subtotal = preço unitário x quantidade do produto
+         *
+         * Não usamos subtotalServidor aqui porque ele pode chegar
+         * representando apenas o preço-base, dependendo do fluxo.
+         */
+        const precoBase = Number(item.precoBase || 0);
+        const precoAdicionais = calcularPrecoAdicionais(adicionais);
+        const precoUnitarioCompleto = precoBase + precoAdicionais;
+        const subtotalItem = precoUnitarioCompleto * qtdProduto;
 
         totalProdutos += subtotalItem;
 
         t += ESC_POS.BOLD_ON;
-        t += qtd + "x " + limparTexto(item.nome).toUpperCase();
+        t += qtdProduto + "x " + limparTexto(item.nome).toUpperCase();
         t += "  R$ " + moeda(subtotalItem) + "\n";
         t += ESC_POS.BOLD_OFF;
 
-        t += "   UNIT: R$ " + moeda(precoUnitario) + "\n";
+        t += "   UNIT: R$ " + moeda(precoUnitarioCompleto) + "\n";
 
         adicionais.forEach(a => {
-            const qtdAdd = Number(a.qtd || 1);
-            const totalAdd = Number(a.preco || 0) * qtdAdd;
+            const qtdAdicional = Number(a.qtd || 1);
+            const precoAdicional = Number(a.preco || 0);
+            const totalAdicionalUnitario = precoAdicional * qtdAdicional;
 
-            if (totalAdd > 0) {
-                t += "   + " + qtdAdd + "x " +
-                     limparTexto(a.nome).toUpperCase() +
-                     " R$ " + moeda(totalAdd) + "\n";
-            } else {
-                t += "   + " + qtdAdd + "x " +
-                     limparTexto(a.nome).toUpperCase() + "\n";
+            t += "   + " + qtdAdicional + "x " +
+                 limparTexto(a.nome).toUpperCase();
+
+            if (totalAdicionalUnitario > 0) {
+                t += " R$ " + moeda(totalAdicionalUnitario);
             }
+
+            t += "\n";
         });
 
         t += "\n";
     });
 
+    /*
+     * Fallback apenas para pedidos antigos sem itens/preços utilizáveis.
+     * Em pedidos normais, totalProdutos já contém produto + adicionais.
+     */
     if (totalProdutos <= 0) {
         totalProdutos = Number(pedido.totalPedido || 0);
     }
@@ -1667,8 +1673,33 @@ function gerarTextoCozinha(pedido) {
     t += ESC_POS.BOLD_ON;
     t += "TOTAL PRODUTOS: R$ " + moeda(totalProdutos) + "\n";
     t += ESC_POS.BOLD_OFF;
-    t += "--------------------------------\n";
 
+    const totalPedido = Number(pedido.totalPedido || 0);
+    const taxaMotoca = Number(pedido.taxaMotoca || 0);
+    const totalFinal = Number(pedido.totalFinal || 0);
+
+    /*
+     * Exibe desconto quando o total dos produtos é maior que o total
+     * do pedido salvo. Assim a cozinha consegue conferir a diferença.
+     */
+    const descontoCalculado = Math.max(0, totalProdutos - totalPedido);
+
+    if (descontoCalculado > 0.009) {
+        t += "DESCONTO:       R$ " + moeda(descontoCalculado) + "\n";
+        t += "APOS DESCONTO:  R$ " + moeda(totalPedido) + "\n";
+    }
+
+    if (taxaMotoca > 0) {
+        t += "TAXA ENTREGA:   R$ " + moeda(taxaMotoca) + "\n";
+    }
+
+    if (totalFinal > 0) {
+        t += ESC_POS.BOLD_ON;
+        t += "TOTAL FINAL:    R$ " + moeda(totalFinal) + "\n";
+        t += ESC_POS.BOLD_OFF;
+    }
+
+    t += "--------------------------------\n";
     t += ESC_POS.CENTER;
     t += ESC_POS.BOLD_ON + "BOM TRABALHO!\n" + ESC_POS.BOLD_OFF;
     t += "\n\n\n\n\n\n";
@@ -1676,7 +1707,6 @@ function gerarTextoCozinha(pedido) {
 
     return t;
 }
-
 
 /* =========================================================
    IMPRESSÃO DE UM PEDIDO (balcão + cozinha)
