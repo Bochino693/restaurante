@@ -746,15 +746,25 @@ class LogoutView(View):
 
 
 
-from django.db.models.functions import Coalesce, TruncDate
+from django.db.models.functions import Coalesce, TruncDate, ExtractHour
+from django.db.models import (
+    Sum, Count, Value, DecimalField, IntegerField,
+    ExpressionWrapper, F
+)
+from django.utils.timezone import now
 
 
 class DashboardAnalyticsView(LoginRequiredMixin, TemplateView):
     template_name = "dashboards.html"
+    login_url = "login"
+
+    STATUS_LABELS = dict(Pedidos.StatusPedido.choices)
+    PAGAMENTO_LABELS = dict(Pedidos.FormaPagamento.choices)
 
     def _format_money(self, valor):
+        valor = valor or Decimal("0.00")
         return (
-            f"{valor or Decimal('0.00'):,.2f}"
+            f"{valor:,.2f}"
             .replace(",", "X")
             .replace(".", ",")
             .replace("X", ".")
@@ -763,11 +773,11 @@ class DashboardAnalyticsView(LoginRequiredMixin, TemplateView):
     def _parse_data(self, valor):
         try:
             return datetime.strptime(valor, "%Y-%m-%d").date()
-        except Exception:
+        except (TypeError, ValueError):
             return None
 
     def _get_datas_com_registro(self):
-        datas = list(
+        return list(
             Pedidos.objects
             .exclude(criado_em__isnull=True)
             .annotate(data_registro=TruncDate("criado_em"))
@@ -776,36 +786,11 @@ class DashboardAnalyticsView(LoginRequiredMixin, TemplateView):
             .order_by("data_registro")
         )
 
-        return [d for d in datas if d]
-
-    def _data_mais_proxima_disponivel(self, data, datas_disponiveis, direcao="inicio"):
-        if not data or not datas_disponiveis:
-            return None
-
-        if data in datas_disponiveis:
-            return data
-
-        if direcao == "inicio":
-            maiores_ou_iguais = [d for d in datas_disponiveis if d >= data]
-
-            if maiores_ou_iguais:
-                return maiores_ou_iguais[0]
-
-            return datas_disponiveis[-1]
-
-        menores_ou_iguais = [d for d in datas_disponiveis if d <= data]
-
-        if menores_ou_iguais:
-            return menores_ou_iguais[-1]
-
-        return datas_disponiveis[0]
-
     def _get_datas(self):
-        datas_com_registro = self._get_datas_com_registro()
+        datas = [data for data in self._get_datas_com_registro() if data]
 
-        if not datas_com_registro:
+        if not datas:
             hoje = now().date()
-
             return {
                 "data_inicio": hoje,
                 "data_fim": hoje,
@@ -814,140 +799,310 @@ class DashboardAnalyticsView(LoginRequiredMixin, TemplateView):
                 "datas_com_registro": [],
             }
 
-        primeira_data_registro = datas_com_registro[0]
-        ultima_data_registro = datas_com_registro[-1]
+        primeira = datas[0]
+        ultima = datas[-1]
 
-        data_inicio_get = self._parse_data(self.request.GET.get("data_inicio"))
-        data_fim_get = self._parse_data(self.request.GET.get("data_fim"))
+        inicio = self._parse_data(self.request.GET.get("data_inicio")) or primeira
+        fim = self._parse_data(self.request.GET.get("data_fim")) or ultima
 
-        if data_inicio_get:
-            data_inicio = self._data_mais_proxima_disponivel(
-                data_inicio_get,
-                datas_com_registro,
-                "inicio"
-            )
-        else:
-            data_inicio = primeira_data_registro
+        inicio = max(primeira, min(inicio, ultima))
+        fim = max(primeira, min(fim, ultima))
 
-        if data_fim_get:
-            data_fim = self._data_mais_proxima_disponivel(
-                data_fim_get,
-                datas_com_registro,
-                "fim"
-            )
-        else:
-            data_fim = ultima_data_registro
-
-        if data_inicio > data_fim:
-            data_inicio = primeira_data_registro
-            data_fim = ultima_data_registro
+        if inicio > fim:
+            inicio, fim = primeira, ultima
 
         return {
-            "data_inicio": data_inicio,
-            "data_fim": data_fim,
-            "primeira_data_registro": primeira_data_registro,
-            "ultima_data_registro": ultima_data_registro,
-            "datas_com_registro": [
-                d.strftime("%Y-%m-%d") for d in datas_com_registro
-            ],
+            "data_inicio": inicio,
+            "data_fim": fim,
+            "primeira_data_registro": primeira,
+            "ultima_data_registro": ultima,
+            "datas_com_registro": [data.strftime("%Y-%m-%d") for data in datas],
+        }
+
+    def _serie_datas_completa(self, data_inicio, data_fim, vendas_por_data):
+        mapa = {
+            item["data"]: {
+                "pedidos": item["pedidos"],
+                "receita": float(item["receita"] or 0),
+            }
+            for item in vendas_por_data
+        }
+
+        labels = []
+        pedidos = []
+        receita = []
+
+        dia = data_inicio
+        while dia <= data_fim:
+            labels.append(dia.strftime("%d/%m"))
+            valores = mapa.get(dia, {"pedidos": 0, "receita": 0})
+            pedidos.append(valores["pedidos"])
+            receita.append(valores["receita"])
+            dia += timedelta(days=1)
+
+        return {
+            "labels": labels,
+            "pedidos": pedidos,
+            "receita": receita,
         }
 
     def _get_dashboard_data(self):
-        datas_info = self._get_datas()
+        datas = self._get_datas()
+        data_inicio = datas["data_inicio"]
+        data_fim = datas["data_fim"]
 
-        data_inicio = datas_info["data_inicio"]
-        data_fim = datas_info["data_fim"]
-        primeira_data_registro = datas_info["primeira_data_registro"]
-        ultima_data_registro = datas_info["ultima_data_registro"]
-        datas_com_registro = datas_info["datas_com_registro"]
-
-        if primeira_data_registro and ultima_data_registro:
-            pedidos = Pedidos.objects.filter(
-                criado_em__date__range=[data_inicio, data_fim]
+        if datas["primeira_data_registro"]:
+            pedidos_periodo = Pedidos.objects.filter(
+                criado_em__date__range=(data_inicio, data_fim)
             )
-
-            itens_pedido = ItensPedido.objects.filter(
-                pedidos__criado_em__date__range=[data_inicio, data_fim]
-            ).distinct()
         else:
-            pedidos = Pedidos.objects.none()
-            itens_pedido = ItensPedido.objects.none()
+            pedidos_periodo = Pedidos.objects.none()
 
-        mais_vendidos_qs = (
-            itens_pedido
-            .values("produto__nome_produto")
-            .annotate(
-                total=Coalesce(
-                    Sum("quantidade"),
-                    Value(0),
-                    output_field=IntegerField()
-                )
-            )
-            .order_by("-total")
+        pedidos_validos = pedidos_periodo.exclude(
+            status=Pedidos.StatusPedido.CANCELADO
         )
 
-        produtos_click_qs = (
-            ProdutosMaisClick.objects
+        itens_validos = (
+            ItensPedido.objects
+            .filter(pedidos__in=pedidos_validos)
             .select_related("produto")
-            .order_by("-quantidade")
+            .distinct()
         )
 
-        receita_total = pedidos.aggregate(
-            total=Coalesce(
+        receita_total = pedidos_validos.aggregate(
+            valor=Coalesce(
                 Sum("total"),
                 Value(Decimal("0.00")),
-                output_field=DecimalField(max_digits=12, decimal_places=2)
+                output_field=DecimalField(max_digits=14, decimal_places=2),
             )
-        )["total"]
+        )["valor"]
 
-        total_pedidos = pedidos.count()
+        taxas_entrega = pedidos_validos.aggregate(
+            valor=Coalesce(
+                Sum("taxa_motoca"),
+                Value(Decimal("0.00")),
+                output_field=DecimalField(max_digits=14, decimal_places=2),
+            )
+        )["valor"]
 
-        ticket_medio = Decimal("0.00")
+        total_pedidos = pedidos_validos.count()
+        pedidos_cancelados = pedidos_periodo.filter(
+            status=Pedidos.StatusPedido.CANCELADO
+        ).count()
 
-        if total_pedidos > 0:
-            ticket_medio = receita_total / total_pedidos
+        ticket_medio = (
+            receita_total / total_pedidos
+            if total_pedidos
+            else Decimal("0.00")
+        )
 
-        pedidos_status = list(
-            pedidos
+        unidades_vendidas = itens_validos.aggregate(
+            valor=Coalesce(
+                Sum("quantidade"),
+                Value(0),
+                output_field=IntegerField(),
+            )
+        )["valor"]
+
+        produtos_distintos = (
+            itens_validos
+            .exclude(produto__isnull=True)
+            .values("produto_id")
+            .distinct()
+            .count()
+        )
+
+        ranking_produtos = list(
+            itens_validos
+            .values("produto__nome_produto")
+            .annotate(
+                total_quantidade=Coalesce(
+                    Sum("quantidade"),
+                    Value(0),
+                    output_field=IntegerField(),
+                ),
+                total_receita=Coalesce(
+                    Sum("subtotal"),
+                    Value(Decimal("0.00")),
+                    output_field=DecimalField(max_digits=14, decimal_places=2),
+                ),
+            )
+            .order_by("-total_quantidade", "-total_receita", "produto__nome_produto")
+        )
+
+        for item in ranking_produtos:
+            item["total_receita_formatada"] = self._format_money(item["total_receita"])
+
+        produto_lider = (
+            ranking_produtos[0]["produto__nome_produto"]
+            if ranking_produtos else "Sem vendas"
+        )
+        produto_lider_quantidade = (
+            ranking_produtos[0]["total_quantidade"]
+            if ranking_produtos else 0
+        )
+
+        vendas_diarias_qs = list(
+            pedidos_validos
+            .annotate(data=TruncDate("criado_em"))
+            .values("data")
+            .annotate(
+                pedidos=Count("id"),
+                receita=Coalesce(
+                    Sum("total"),
+                    Value(Decimal("0.00")),
+                    output_field=DecimalField(max_digits=14, decimal_places=2),
+                ),
+            )
+            .order_by("data")
+        )
+
+        status_qs = list(
+            pedidos_periodo
             .values("status")
             .annotate(total=Count("id"))
             .order_by("status")
         )
 
-        mais_vendidos_todos = list(mais_vendidos_qs)
-        mais_vendidos = mais_vendidos_todos[:5]
+        pagamentos_qs = list(
+            pedidos_validos
+            .values("forma_pagamento")
+            .annotate(total=Count("id"))
+            .order_by("forma_pagamento")
+        )
+
+        entregas = pedidos_validos.filter(entrega=True).count()
+        retiradas = pedidos_validos.filter(entrega=False).count()
+
+        horarios_qs = list(
+            pedidos_validos
+            .annotate(hora=ExtractHour("criado_em"))
+            .values("hora")
+            .annotate(total=Count("id"))
+            .order_by("hora")
+        )
+        horarios_map = {int(item["hora"]): item["total"] for item in horarios_qs}
+
+        if horarios_qs:
+            pico = max(horarios_qs, key=lambda item: item["total"])
+            horario_pico = f'{int(pico["hora"]):02d}:00'
+            horario_pico_pedidos = pico["total"]
+        else:
+            horario_pico = "--:--"
+            horario_pico_pedidos = 0
+
+        clicks_qs = ProdutosMaisClick.objects.select_related("produto")
+        if datas["primeira_data_registro"]:
+            clicks_qs = clicks_qs.filter(
+                criacao__date__range=(data_inicio, data_fim)
+            )
 
         produtos_click_todos = [
             {
                 "produto": {
-                    "nome_produto": item.produto.nome_produto if item.produto else "Sem produto"
+                    "nome_produto": (
+                        item.produto.nome_produto
+                        if item.produto else "Produto removido"
+                    )
                 },
-                "quantidade": item.quantidade
+                "quantidade": item.quantidade,
             }
-            for item in produtos_click_qs
+            for item in clicks_qs.order_by("-quantidade", "produto__nome_produto")
         ]
 
-        produtos_click = produtos_click_todos[:5]
+        top_quantidade = ranking_produtos[:10]
+        top_receita = sorted(
+            ranking_produtos,
+            key=lambda item: item["total_receita"],
+            reverse=True,
+        )[:10]
+        top_clicks = produtos_click_todos[:10]
 
         return {
-            "data_inicio": data_inicio,
-            "data_fim": data_fim,
-            "primeira_data_registro": primeira_data_registro,
-            "ultima_data_registro": ultima_data_registro,
-            "datas_com_registro": datas_com_registro,
+            **datas,
 
             "receita_total": self._format_money(receita_total),
+            "taxas_entrega": self._format_money(taxas_entrega),
             "total_pedidos": total_pedidos,
+            "pedidos_cancelados": pedidos_cancelados,
             "ticket_medio": self._format_money(ticket_medio),
+            "unidades_vendidas": unidades_vendidas,
+            "produtos_distintos": produtos_distintos,
+            "total_entregas": entregas,
+            "total_retiradas": retiradas,
+            "produto_lider": produto_lider,
+            "produto_lider_quantidade": produto_lider_quantidade,
+            "horario_pico": horario_pico,
+            "horario_pico_pedidos": horario_pico_pedidos,
 
-            "mais_vendidos": mais_vendidos,
-            "mais_vendidos_todos": mais_vendidos_todos,
-
-            "produtos_click": produtos_click,
+            "mais_vendidos": ranking_produtos[:5],
+            "mais_vendidos_todos": ranking_produtos,
+            "produtos_click": produtos_click_todos[:5],
             "produtos_click_todos": produtos_click_todos,
 
-            "pedidos_status": pedidos_status,
-            "produtos_vendidos_total": len(mais_vendidos_todos),
+            "grafico_vendas_diarias": self._serie_datas_completa(
+                data_inicio,
+                data_fim,
+                vendas_diarias_qs,
+            ),
+            "grafico_status": {
+                "labels": [
+                    self.STATUS_LABELS.get(item["status"], item["status"])
+                    for item in status_qs
+                ],
+                "valores": [item["total"] for item in status_qs],
+            },
+            "grafico_pagamentos": {
+                "labels": [
+                    self.PAGAMENTO_LABELS.get(
+                        item["forma_pagamento"],
+                        item["forma_pagamento"],
+                    )
+                    for item in pagamentos_qs
+                ],
+                "valores": [item["total"] for item in pagamentos_qs],
+            },
+            "grafico_entrega": {
+                "labels": ["Entrega", "Retirada"],
+                "valores": [entregas, retiradas],
+            },
+            "grafico_horarios": {
+                "labels": [f"{hora:02d}h" for hora in range(24)],
+                "valores": [horarios_map.get(hora, 0) for hora in range(24)],
+            },
+            "grafico_top_produtos": {
+                "titulo": "Unidades",
+                "labels": [
+                    item["produto__nome_produto"] or "Produto removido"
+                    for item in reversed(top_quantidade)
+                ],
+                "valores": [
+                    item["total_quantidade"]
+                    for item in reversed(top_quantidade)
+                ],
+            },
+            "grafico_top_receita": {
+                "titulo": "Receita",
+                "labels": [
+                    item["produto__nome_produto"] or "Produto removido"
+                    for item in reversed(top_receita)
+                ],
+                "valores": [
+                    float(item["total_receita"])
+                    for item in reversed(top_receita)
+                ],
+            },
+            "grafico_cliques": {
+                "titulo": "Cliques",
+                "labels": [
+                    item["produto"]["nome_produto"]
+                    for item in reversed(top_clicks)
+                ],
+                "valores": [
+                    item["quantidade"]
+                    for item in reversed(top_clicks)
+                ],
+            },
         }
 
     def get_context_data(self, **kwargs):
@@ -959,5 +1114,4 @@ class DashboardAnalyticsView(LoginRequiredMixin, TemplateView):
         if request.GET.get("ajax") == "1":
             return JsonResponse(self._get_dashboard_data(), safe=False)
 
-        context = self.get_context_data(**kwargs)
-        return self.render_to_response(context)
+        return super().get(request, *args, **kwargs)
