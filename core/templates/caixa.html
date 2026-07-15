@@ -1541,13 +1541,31 @@ function gerarTextoBalcao(pedido) {
     t += ESC_POS.BOLD_ON + "ITENS DO PEDIDO\n" + ESC_POS.BOLD_OFF;
     t += "--------------------------------\n";
 
+    let subtotalGeralReal = 0;
+
     agruparItens(pedido.itens).forEach(item => {
         const adicionais = item.adicionais || [];
-        const precoAdicionais = calcularPrecoAdicionais(adicionais);
-        const precoUnitario = Number(item.precoBase || 0) + precoAdicionais;
-        const subtotalItem = precoUnitario * Number(item.qtd || 1);
+        const qtd = Number(item.qtd || 1);
 
-        quebrarLinha(`${item.qtd}x ${item.nome}`, 24).forEach((linha, index) => {
+        // Fonte de verdade: se o backend já mandou subtotal (grupo somado
+        // pelo agruparItens em `subtotalServidor`), usamos ele direto — é
+        // Decimal calculado no servidor e já inclui os adicionais UMA vez.
+        // Só recalculamos manualmente quando não há subtotal nenhum
+        // (caso do carrinho recém-montado, onde precoBase é confiável e
+        // ainda NÃO inclui adicionais).
+        let subtotalItem;
+        if (item.subtotalServidor && item.subtotalServidor > 0) {
+            subtotalItem = item.subtotalServidor;
+        } else {
+            const precoAdicionais = calcularPrecoAdicionais(adicionais);
+            const precoUnitario = Number(item.precoBase || 0) + precoAdicionais;
+            subtotalItem = precoUnitario * qtd;
+        }
+
+        const precoUnitarioExibicao = qtd > 0 ? subtotalItem / qtd : 0;
+        subtotalGeralReal += subtotalItem;
+
+        quebrarLinha(`${qtd}x ${item.nome}`, 24).forEach((linha, index) => {
             if (index === 0) {
                 t += linha.padEnd(24).slice(0, 24);
                 t += " R$ " + moeda(subtotalItem) + "\n";
@@ -1556,7 +1574,7 @@ function gerarTextoBalcao(pedido) {
             }
         });
 
-        t += "   Unit: R$ " + moeda(precoUnitario) + "\n";
+        t += "   Unit: R$ " + moeda(precoUnitarioExibicao) + "\n";
 
         adicionais.forEach(a => {
             const qtdAdd = Number(a.qtd || 1);
@@ -1568,21 +1586,20 @@ function gerarTextoBalcao(pedido) {
         t += "\n";
     });
 
+    // Subtotal exibido = soma real dos itens impressos acima, não
+    // pedido.totalPedido isolado — assim a conta bate com o que foi
+    // impresso linha a linha, mesmo se o campo do pedido divergir.
     t += "--------------------------------\n";
-    t += "Subtotal:     R$ " + moeda(pedido.totalPedido) + "\n";
+    t += "Subtotal:     R$ " + moeda(subtotalGeralReal) + "\n";
     t += "Taxa Entrega: R$ " + moeda(pedido.taxaMotoca) + "\n";
     t += ESC_POS.BOLD_ON;
-    t += "TOTAL FINAL:  R$ " + moeda(pedido.totalFinal) + "\n";
+    t += "TOTAL FINAL:  R$ " + moeda(subtotalGeralReal + Number(pedido.taxaMotoca || 0)) + "\n";
     t += ESC_POS.BOLD_OFF;
     t += "--------------------------------\n";
-    // Forma de pagamento em destaque, alinhada com o TOTAL — visível de longe
     t += ESC_POS.BOLD_ON;
     t += "PAGAMENTO:    " + limparTexto(pedido.metodo).toUpperCase() + "\n";
     t += ESC_POS.BOLD_OFF;
-    // Espaço generoso antes do corte para não ficar rente o conteúdo
     t += "\n\n\n\n\n\n";
-    // Corte PARCIAL: o papel fica unido por uma "destacada" leve,
-    // separando visualmente a via do balcão da via da cozinha
     t += ESC_POS.PARTIAL_CUT;
 
     return t;
