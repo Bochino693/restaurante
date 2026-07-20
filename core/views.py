@@ -425,6 +425,91 @@ def _montar_range_paginacao(page_obj, janela=2):
 
 
 
+from decimal import Decimal
+
+from django.contrib.auth.mixins import LoginRequiredMixin
+from django.core.paginator import Paginator
+from django.db.models import Q, Sum
+from django.http import JsonResponse
+from django.shortcuts import render
+from django.views import View
+
+# Mantenha os outros imports que já existem no seu views.py.
+
+
+def _agregar_totais_pedidos(pedidos):
+    """
+    Calcula os totais gerais e a conferência do caixa físico.
+
+    Regras do caixa em dinheiro:
+    - retirada: valor do pedido;
+    - entrega: valor do pedido + taxa do motoca;
+    - cancelados devem ser excluídos antes de chamar esta função.
+    """
+    totais = pedidos.aggregate(
+        soma_total=Sum("total"),
+        soma_taxa=Sum("taxa_motoca"),
+
+        soma_dinheiro=Sum(
+            "total",
+            filter=Q(forma_pagamento=Pedidos.FormaPagamento.DINHEIRO),
+        ),
+        soma_pix=Sum(
+            "total",
+            filter=Q(forma_pagamento=Pedidos.FormaPagamento.PIX),
+        ),
+        soma_cartao=Sum(
+            "total",
+            filter=Q(forma_pagamento=Pedidos.FormaPagamento.CARTAO),
+        ),
+        soma_misto=Sum(
+            "total",
+            filter=Q(forma_pagamento=Pedidos.FormaPagamento.MISTO),
+        ),
+
+        # Dinheiro recebido em pedidos de retirada.
+        soma_dinheiro_retirada=Sum(
+            "total",
+            filter=Q(
+                forma_pagamento=Pedidos.FormaPagamento.DINHEIRO,
+                entrega=False,
+            ),
+        ),
+
+        # Parte do pedido recebida em dinheiro nas entregas.
+        soma_dinheiro_entrega_pedidos=Sum(
+            "total",
+            filter=Q(
+                forma_pagamento=Pedidos.FormaPagamento.DINHEIRO,
+                entrega=True,
+            ),
+        ),
+
+        # A taxa também entra no caixa quando a entrega foi paga em dinheiro.
+        soma_dinheiro_entrega_taxas=Sum(
+            "taxa_motoca",
+            filter=Q(
+                forma_pagamento=Pedidos.FormaPagamento.DINHEIRO,
+                entrega=True,
+            ),
+        ),
+    )
+
+    zero = Decimal("0.00")
+
+    dinheiro_retirada = totais["soma_dinheiro_retirada"] or zero
+    dinheiro_entrega = (
+        (totais["soma_dinheiro_entrega_pedidos"] or zero)
+        + (totais["soma_dinheiro_entrega_taxas"] or zero)
+    )
+
+    totais["dinheiro_retirada"] = dinheiro_retirada
+    totais["dinheiro_entrega"] = dinheiro_entrega
+    totais["dinheiro_caixa"] = dinheiro_retirada + dinheiro_entrega
+
+    return totais
+
+
 class PedidosView(LoginRequiredMixin, View):
     login_url = "login"
 
@@ -435,27 +520,7 @@ class PedidosView(LoginRequiredMixin, View):
             status=Pedidos.StatusPedido.CANCELADO
         )
 
-        totais = pedidos_totais.aggregate(
-            soma_total=Sum("total"),
-            soma_taxa=Sum("taxa_motoca"),
-
-            soma_dinheiro=Sum(
-                "total",
-                filter=Q(forma_pagamento=Pedidos.FormaPagamento.DINHEIRO)
-            ),
-            soma_pix=Sum(
-                "total",
-                filter=Q(forma_pagamento=Pedidos.FormaPagamento.PIX)
-            ),
-            soma_cartao=Sum(
-                "total",
-                filter=Q(forma_pagamento=Pedidos.FormaPagamento.CARTAO)
-            ),
-            soma_misto=Sum(
-                "total",
-                filter=Q(forma_pagamento=Pedidos.FormaPagamento.MISTO)
-            ),
-        )
+        totais = _agregar_totais_pedidos(pedidos_totais)
 
         por_pagina = 12
         paginator = Paginator(pedidos_filtrados, por_pagina)
@@ -485,10 +550,14 @@ class PedidosView(LoginRequiredMixin, View):
             "total_misto": _formatar_moeda(totais["soma_misto"]),
             "total_taxa_motoca": _formatar_moeda(totais["soma_taxa"]),
 
+            # Novos valores para conferência do caixa físico.
+            "dinheiro_retirada": _formatar_moeda(totais["dinheiro_retirada"]),
+            "dinheiro_entrega": _formatar_moeda(totais["dinheiro_entrega"]),
+            "dinheiro_caixa": _formatar_moeda(totais["dinheiro_caixa"]),
+
             "status_options": Pedidos.StatusPedido.choices,
             "pagamento_options": Pedidos.FormaPagamento.choices,
         })
-
 
 
 class ResumoPedidosView(LoginRequiredMixin, View):
@@ -501,27 +570,7 @@ class ResumoPedidosView(LoginRequiredMixin, View):
             status=Pedidos.StatusPedido.CANCELADO
         )
 
-        totais = pedidos_totais.aggregate(
-            soma_total=Sum("total"),
-            soma_taxa=Sum("taxa_motoca"),
-
-            soma_dinheiro=Sum(
-                "total",
-                filter=Q(forma_pagamento=Pedidos.FormaPagamento.DINHEIRO)
-            ),
-            soma_pix=Sum(
-                "total",
-                filter=Q(forma_pagamento=Pedidos.FormaPagamento.PIX)
-            ),
-            soma_cartao=Sum(
-                "total",
-                filter=Q(forma_pagamento=Pedidos.FormaPagamento.CARTAO)
-            ),
-            soma_misto=Sum(
-                "total",
-                filter=Q(forma_pagamento=Pedidos.FormaPagamento.MISTO)
-            ),
-        )
+        totais = _agregar_totais_pedidos(pedidos_totais)
 
         return JsonResponse({
             "label": label,
@@ -531,7 +580,13 @@ class ResumoPedidosView(LoginRequiredMixin, View):
             "total_pix": _formatar_moeda(totais["soma_pix"]),
             "total_cartao": _formatar_moeda(totais["soma_cartao"]),
             "total_misto": _formatar_moeda(totais["soma_misto"]),
+
+            # Novos valores, também obedecendo aos filtros atuais.
+            "dinheiro_retirada": _formatar_moeda(totais["dinheiro_retirada"]),
+            "dinheiro_entrega": _formatar_moeda(totais["dinheiro_entrega"]),
+            "dinheiro_caixa": _formatar_moeda(totais["dinheiro_caixa"]),
         })
+
 
 class PedidoReimprimirView(LoginRequiredMixin, View):
     def post(self, request, pedido_id):

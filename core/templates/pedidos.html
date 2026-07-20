@@ -97,6 +97,56 @@
                 </div>
             </div>
         </div>
+
+        <!-- CONFERÊNCIA DO CAIXA EM DINHEIRO -->
+        <div class="mt-4 pt-4 border-t border-gray-100 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+            <div class="flex items-center gap-3 min-w-0">
+                <div class="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
+                    <i class="fas fa-cash-register"></i>
+                </div>
+
+                <div class="min-w-0">
+                    <div class="text-[10px] font-black uppercase tracking-widest text-gray-500">
+                        Conferência do caixa em dinheiro
+                    </div>
+                    <div class="text-[10px] font-bold text-gray-400 leading-tight">
+                        Entrega já inclui a taxa do motoca paga em dinheiro.
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 w-full lg:w-auto">
+                <div class="bg-gray-50 text-gray-700 px-4 py-2.5 rounded-2xl border border-gray-100 min-w-[145px]">
+                    <div class="flex items-center gap-2 mb-1">
+                        <i class="fas fa-store text-[10px] text-gray-400"></i>
+                        <span class="text-[9px] font-black uppercase">Retirada</span>
+                    </div>
+                    <span class="font-black text-sm leading-none" data-dinheiro-retirada>
+                        R$ {{ dinheiro_retirada|default:"0,00" }}
+                    </span>
+                </div>
+
+                <div class="bg-indigo-50 text-indigo-700 px-4 py-2.5 rounded-2xl border border-indigo-100 min-w-[145px]">
+                    <div class="flex items-center gap-2 mb-1">
+                        <i class="fas fa-motorcycle text-[10px] text-indigo-400"></i>
+                        <span class="text-[9px] font-black uppercase">Entrega</span>
+                    </div>
+                    <span class="font-black text-sm leading-none" data-dinheiro-entrega>
+                        R$ {{ dinheiro_entrega|default:"0,00" }}
+                    </span>
+                </div>
+
+                <div class="bg-emerald-100 text-emerald-700 px-4 py-2.5 rounded-2xl border border-emerald-200 min-w-[160px] shadow-sm">
+                    <div class="flex items-center gap-2 mb-1">
+                        <i class="fas fa-money-bill-wave text-[10px] text-emerald-500"></i>
+                        <span class="text-[9px] font-black uppercase">Total no caixa</span>
+                    </div>
+                    <span class="font-black text-base leading-none" data-dinheiro-caixa>
+                        R$ {{ dinheiro_caixa|default:"0,00" }}
+                    </span>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- LISTA DE PEDIDOS + PAGINAÇÃO -->
