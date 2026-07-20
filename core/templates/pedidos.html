@@ -5,149 +5,307 @@
 {% block content %}
 <div class="flex flex-col h-[calc(100vh-80px)] gap-4 overflow-hidden relative">
 
-    <!-- TOPO / FILTROS / TOTAIS -->
-    <div class="bg-white p-5 rounded-[2rem] shadow-sm border border-gray-100">
-        <div class="flex flex-col gap-6 xl:flex-row xl:items-center xl:justify-between">
+    <!-- PAINEL FINANCEIRO / FILTROS -->
+    <section class="relative overflow-hidden rounded-[2rem] border border-slate-200 bg-slate-950 shadow-xl">
+        <!-- brilho decorativo -->
+        <div class="pointer-events-none absolute -right-20 -top-24 h-72 w-72 rounded-full bg-orange-500/20 blur-3xl"></div>
+        <div class="pointer-events-none absolute -bottom-24 left-1/3 h-64 w-64 rounded-full bg-emerald-500/10 blur-3xl"></div>
 
-            <div class="flex flex-col md:flex-row items-start md:items-center gap-4 md:gap-8">
-
-                <h1 class="text-xl font-black text-gray-800 uppercase tracking-tight flex items-center gap-2 whitespace-nowrap">
-                    <i class="fas fa-receipt text-orange-500"></i> Pedidos
-                </h1>
-
-                <div class="flex flex-col gap-3 w-full sm:w-auto">
-                    <div class="flex flex-wrap gap-2">
-                        <button onclick="setPeriodo('hoje')" class="btnPeriodo {% if periodo_atual == 'hoje' %}ativo{% endif %}">
-                            Hoje
-                        </button>
-
-                        <button onclick="setPeriodo('semana')" class="btnPeriodo {% if periodo_atual == 'semana' %}ativo{% endif %}">
-                            Semana
-                        </button>
-
-                        <button onclick="setPeriodo('quinzena')" class="btnPeriodo {% if periodo_atual == 'quinzena' %}ativo{% endif %}">
-                            Quinzena
-                        </button>
-
-                        <button onclick="setPeriodo('mes')" class="btnPeriodo {% if periodo_atual == 'mes' %}ativo{% endif %}">
-                            Mês
-                        </button>
-
-                        <button onclick="setPeriodo('todos')" class="btnPeriodo {% if periodo_atual == 'todos' %}ativo{% endif %}">
-                            Todos
-                        </button>
-                    </div>
-
-                    <div class="flex flex-wrap gap-2">
-                        <button onclick="togglePagamento('DINHEIRO')" class="btnPagamento {% if 'DINHEIRO' in pagamentos_atuais %}ativo{% endif %}">
-                            Dinheiro
-                        </button>
-
-                        <button onclick="togglePagamento('PIX')" class="btnPagamento {% if 'PIX' in pagamentos_atuais %}ativo{% endif %}">
-                            Pix
-                        </button>
-
-                        <button onclick="togglePagamento('CARTAO')" class="btnPagamento {% if 'CARTAO' in pagamentos_atuais %}ativo{% endif %}">
-                            Cartão
-                        </button>
-
-                        <button onclick="togglePagamento('MISTO')" class="btnPagamento {% if 'MISTO' in pagamentos_atuais %}ativo{% endif %}">
-                            Misto
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <div class="flex flex-wrap items-center gap-2 justify-start md:justify-end">
-                <div class="bg-green-50 text-green-600 px-4 py-2 rounded-2xl flex flex-col shadow-sm border border-green-100 min-w-[100px]">
-                    <span class="text-[9px] font-black uppercase">Dinheiro</span>
-                    <span class="font-black text-sm leading-none" data-dinheiro>
-                        R$ {{ total_dinheiro|default:"0,00" }}
-                    </span>
-                </div>
-
-                <div class="bg-teal-50 text-teal-600 px-4 py-2 rounded-2xl flex flex-col shadow-sm border border-teal-100 min-w-[100px]">
-                    <span class="text-[9px] font-black uppercase">Pix</span>
-                    <span class="font-black text-sm leading-none" data-pix>
-                        R$ {{ total_pix|default:"0,00" }}
-                    </span>
-                </div>
-
-                <div class="bg-blue-50 text-blue-600 px-4 py-2 rounded-2xl flex flex-col shadow-sm border border-blue-100 min-w-[100px]">
-                    <span class="text-[9px] font-black uppercase">Cartão</span>
-                    <span class="font-black text-sm leading-none" data-cartao>
-                        R$ {{ total_cartao|default:"0,00" }}
-                    </span>
-                </div>
-
-                <div class="bg-violet-50 text-violet-600 px-4 py-2 rounded-2xl flex flex-col shadow-sm border border-violet-100 min-w-[120px]">
-                    <span class="text-[9px] font-black uppercase">Taxa Motoca</span>
-                    <span class="font-black text-sm leading-none" data-taxa>
-                        R$ {{ total_taxa_motoca|default:"0,00" }}
-                    </span>
-                </div>
-
-                <div class="bg-orange-100 text-orange-600 px-5 py-2 rounded-2xl flex flex-col shadow-sm border border-orange-200">
-                    <span class="text-[10px] font-black uppercase" data-label-total>
-                        {{ label_total|default:"Total" }}
-                    </span>
-                    <span class="font-black text-lg leading-none" data-total-dia>
-                        R$ {{ total_dia|default:"0,00" }}
-                    </span>
-                </div>
-            </div>
-        </div>
-
-        <!-- CONFERÊNCIA DO CAIXA EM DINHEIRO -->
-        <div class="mt-4 pt-4 border-t border-gray-100 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
-            <div class="flex items-center gap-3 min-w-0">
-                <div class="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
-                    <i class="fas fa-cash-register"></i>
-                </div>
-
+        <div class="relative p-4 sm:p-5">
+            <!-- CABEÇALHO -->
+            <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                 <div class="min-w-0">
-                    <div class="text-[10px] font-black uppercase tracking-widest text-gray-500">
-                        Conferência do caixa em dinheiro
+                    <div class="flex flex-wrap items-center gap-2">
+                        <span class="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-orange-500 text-white shadow-lg shadow-orange-500/30">
+                            <i class="fas fa-chart-pie"></i>
+                        </span>
+
+                        <div>
+                            <h1 class="text-lg font-black uppercase tracking-tight text-white sm:text-xl">
+                                Painel financeiro dos pedidos
+                            </h1>
+                            <p class="text-[11px] font-bold text-slate-400">
+                                Veja rapidamente o que entrou no caixa, de onde veio e quanto foi vendido.
+                            </p>
+                        </div>
                     </div>
-                    <div class="text-[10px] font-bold text-gray-400 leading-tight">
-                        Entrega já inclui a taxa do motoca paga em dinheiro.
+                </div>
+
+                <!-- QUANTIDADE DE PEDIDOS -->
+                <div class="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 backdrop-blur">
+                    <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-orange-300">
+                        <i class="fas fa-receipt"></i>
+                    </div>
+                    <div>
+                        <div class="text-[9px] font-black uppercase tracking-[0.18em] text-slate-400">
+                            Pedidos encontrados
+                        </div>
+                        <div class="text-xl font-black leading-none text-white">
+                            {{ page_obj.paginator.count|default:"0" }}
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 w-full lg:w-auto">
-                <div class="bg-gray-50 text-gray-700 px-4 py-2.5 rounded-2xl border border-gray-100 min-w-[145px]">
-                    <div class="flex items-center gap-2 mb-1">
-                        <i class="fas fa-store text-[10px] text-gray-400"></i>
-                        <span class="text-[9px] font-black uppercase">Retirada</span>
+            <!-- FILTROS -->
+            <div class="mt-4 grid gap-3 border-t border-white/10 pt-4 xl:grid-cols-[1fr_auto] xl:items-end">
+                <div class="space-y-3">
+                    <div>
+                        <div class="mb-2 flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.18em] text-slate-400">
+                            <i class="fas fa-calendar-days text-orange-400"></i>
+                            Período
+                        </div>
+
+                        <div class="flex flex-wrap gap-2">
+                            <button onclick="setPeriodo('hoje')" class="btnPeriodo {% if periodo_atual == 'hoje' %}ativo{% endif %}">
+                                Hoje
+                            </button>
+                            <button onclick="setPeriodo('semana')" class="btnPeriodo {% if periodo_atual == 'semana' %}ativo{% endif %}">
+                                Semana
+                            </button>
+                            <button onclick="setPeriodo('quinzena')" class="btnPeriodo {% if periodo_atual == 'quinzena' %}ativo{% endif %}">
+                                Quinzena
+                            </button>
+                            <button onclick="setPeriodo('mes')" class="btnPeriodo {% if periodo_atual == 'mes' %}ativo{% endif %}">
+                                Mês
+                            </button>
+                            <button onclick="setPeriodo('todos')" class="btnPeriodo {% if periodo_atual == 'todos' %}ativo{% endif %}">
+                                Todos
+                            </button>
+                        </div>
                     </div>
-                    <span class="font-black text-sm leading-none" data-dinheiro-retirada>
-                        R$ {{ dinheiro_retirada|default:"0,00" }}
+
+                    <div>
+                        <div class="mb-2 flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.18em] text-slate-400">
+                            <i class="fas fa-filter text-orange-400"></i>
+                            Forma de pagamento
+                        </div>
+
+                        <div class="flex flex-wrap gap-2">
+                            <button onclick="togglePagamento('DINHEIRO')" class="btnPagamento {% if 'DINHEIRO' in pagamentos_atuais %}ativo{% endif %}">
+                                <i class="fas fa-money-bill-wave mr-1"></i> Dinheiro
+                            </button>
+                            <button onclick="togglePagamento('PIX')" class="btnPagamento {% if 'PIX' in pagamentos_atuais %}ativo{% endif %}">
+                                <i class="fas fa-qrcode mr-1"></i> Pix
+                            </button>
+                            <button onclick="togglePagamento('CARTAO')" class="btnPagamento {% if 'CARTAO' in pagamentos_atuais %}ativo{% endif %}">
+                                <i class="fas fa-credit-card mr-1"></i> Cartão
+                            </button>
+                            <button onclick="togglePagamento('MISTO')" class="btnPagamento {% if 'MISTO' in pagamentos_atuais %}ativo{% endif %}">
+                                <i class="fas fa-shuffle mr-1"></i> Misto
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="rounded-2xl border border-orange-400/20 bg-orange-500/10 px-4 py-3 text-[10px] font-bold text-orange-100">
+                    <i class="fas fa-circle-info mr-1 text-orange-400"></i>
+                    Os valores abaixo acompanham os filtros selecionados.
+                </div>
+            </div>
+
+            <!-- RESUMO PRINCIPAL -->
+            <div class="mt-4 grid gap-3 2xl:grid-cols-[1.35fr_1fr_1fr]">
+                <!-- DINHEIRO FÍSICO EM DESTAQUE -->
+                <div class="relative overflow-hidden rounded-[1.75rem] border border-emerald-400/30 bg-gradient-to-br from-emerald-500 to-emerald-700 p-5 text-white shadow-lg shadow-emerald-950/20">
+                    <div class="absolute -right-8 -top-8 text-[110px] text-white/10">
+                        <i class="fas fa-cash-register"></i>
+                    </div>
+
+                    <div class="relative">
+                        <div class="flex items-start justify-between gap-3">
+                            <div>
+                                <div class="inline-flex items-center gap-2 rounded-full bg-black/15 px-3 py-1 text-[9px] font-black uppercase tracking-[0.16em]">
+                                    <span class="h-2 w-2 animate-pulse rounded-full bg-lime-300"></span>
+                                    Conferir no caixa físico
+                                </div>
+
+                                <div class="mt-3 text-[11px] font-black uppercase tracking-wider text-emerald-100">
+                                    Dinheiro esperado no caixa
+                                </div>
+
+                                <div class="mt-1 text-3xl font-black leading-none sm:text-4xl" data-dinheiro-caixa>
+                                    R$ {{ dinheiro_caixa|default:"0,00" }}
+                                </div>
+
+                                <p class="mt-2 max-w-md text-[10px] font-bold leading-relaxed text-emerald-100">
+                                    Soma do dinheiro recebido nos pedidos de retirada e de entrega.
+                                    A entrega já considera a taxa do motoca quando ela foi paga em dinheiro.
+                                </p>
+                            </div>
+
+                            <div class="hidden h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white/15 text-2xl sm:flex">
+                                <i class="fas fa-money-bill-transfer"></i>
+                            </div>
+                        </div>
+
+                        <div class="mt-4 grid grid-cols-2 gap-2">
+                            <div class="rounded-2xl border border-white/15 bg-black/10 p-3">
+                                <div class="flex items-center gap-2 text-[9px] font-black uppercase tracking-wider text-emerald-100">
+                                    <i class="fas fa-store"></i>
+                                    Veio da retirada
+                                </div>
+                                <div class="mt-1 text-lg font-black" data-dinheiro-retirada>
+                                    R$ {{ dinheiro_retirada|default:"0,00" }}
+                                </div>
+                            </div>
+
+                            <div class="rounded-2xl border border-white/15 bg-black/10 p-3">
+                                <div class="flex items-center gap-2 text-[9px] font-black uppercase tracking-wider text-emerald-100">
+                                    <i class="fas fa-motorcycle"></i>
+                                    Veio da entrega
+                                </div>
+                                <div class="mt-1 text-lg font-black" data-dinheiro-entrega>
+                                    R$ {{ dinheiro_entrega|default:"0,00" }}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TOTAL VENDIDO -->
+                <div class="relative overflow-hidden rounded-[1.75rem] border border-orange-300 bg-gradient-to-br from-orange-400 to-orange-600 p-5 text-white shadow-lg shadow-orange-950/20">
+                    <div class="absolute -bottom-5 -right-3 text-[92px] text-white/10">
+                        <i class="fas fa-sack-dollar"></i>
+                    </div>
+
+                    <div class="relative flex h-full flex-col justify-between">
+                        <div>
+                            <div class="text-[9px] font-black uppercase tracking-[0.18em] text-orange-100" data-label-total>
+                                {{ label_total|default:"Total vendido" }}
+                            </div>
+                            <div class="mt-2 text-3xl font-black leading-none" data-total-dia>
+                                R$ {{ total_dia|default:"0,00" }}
+                            </div>
+                            <p class="mt-2 text-[10px] font-bold leading-relaxed text-orange-100">
+                                Faturamento total dos pedidos encontrados, somando todas as formas de pagamento.
+                            </p>
+                        </div>
+
+                        <div class="mt-4 inline-flex w-fit items-center gap-2 rounded-full bg-white/15 px-3 py-1.5 text-[9px] font-black uppercase tracking-wider">
+                            <i class="fas fa-chart-line"></i>
+                            Visão geral das vendas
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAXA MOTOCA -->
+                <div class="relative overflow-hidden rounded-[1.75rem] border border-violet-300/30 bg-gradient-to-br from-violet-500 to-indigo-700 p-5 text-white shadow-lg shadow-indigo-950/20">
+                    <div class="absolute -bottom-5 -right-3 text-[92px] text-white/10">
+                        <i class="fas fa-motorcycle"></i>
+                    </div>
+
+                    <div class="relative flex h-full flex-col justify-between">
+                        <div>
+                            <div class="text-[9px] font-black uppercase tracking-[0.18em] text-violet-100">
+                                Taxas de entrega
+                            </div>
+                            <div class="mt-2 text-3xl font-black leading-none" data-taxa>
+                                R$ {{ total_taxa_motoca|default:"0,00" }}
+                            </div>
+                            <p class="mt-2 text-[10px] font-bold leading-relaxed text-violet-100">
+                                Total cobrado de taxa do motoca no período selecionado.
+                            </p>
+                        </div>
+
+                        <div class="mt-4 inline-flex w-fit items-center gap-2 rounded-full bg-white/15 px-3 py-1.5 text-[9px] font-black uppercase tracking-wider">
+                            <i class="fas fa-route"></i>
+                            Custo operacional
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- FORMAS DE RECEBIMENTO -->
+            <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div class="group rounded-[1.5rem] border border-emerald-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+                    <div class="flex items-center justify-between gap-3">
+                        <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-600">
+                            <i class="fas fa-money-bill-wave"></i>
+                        </div>
+                        <span class="rounded-full bg-emerald-50 px-2.5 py-1 text-[8px] font-black uppercase tracking-wider text-emerald-600">
+                            Caixa físico
+                        </span>
+                    </div>
+
+                    <div class="mt-3 text-[9px] font-black uppercase tracking-[0.16em] text-slate-400">
+                        Total recebido em dinheiro
+                    </div>
+                    <div class="mt-1 text-2xl font-black text-slate-900" data-dinheiro>
+                        R$ {{ total_dinheiro|default:"0,00" }}
+                    </div>
+                    <div class="mt-1 text-[10px] font-bold text-slate-500">
+                        Pagamentos feitos com cédulas ou moedas.
+                    </div>
+                </div>
+
+                <div class="group rounded-[1.5rem] border border-cyan-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+                    <div class="flex items-center justify-between gap-3">
+                        <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-cyan-100 text-cyan-600">
+                            <i class="fas fa-qrcode"></i>
+                        </div>
+                        <span class="rounded-full bg-cyan-50 px-2.5 py-1 text-[8px] font-black uppercase tracking-wider text-cyan-600">
+                            Conta / Pix
+                        </span>
+                    </div>
+
+                    <div class="mt-3 text-[9px] font-black uppercase tracking-[0.16em] text-slate-400">
+                        Total recebido via Pix
+                    </div>
+                    <div class="mt-1 text-2xl font-black text-slate-900" data-pix>
+                        R$ {{ total_pix|default:"0,00" }}
+                    </div>
+                    <div class="mt-1 text-[10px] font-bold text-slate-500">
+                        Valor que deve aparecer na conta vinculada ao Pix.
+                    </div>
+                </div>
+
+                <div class="group rounded-[1.5rem] border border-blue-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+                    <div class="flex items-center justify-between gap-3">
+                        <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-100 text-blue-600">
+                            <i class="fas fa-credit-card"></i>
+                        </div>
+                        <span class="rounded-full bg-blue-50 px-2.5 py-1 text-[8px] font-black uppercase tracking-wider text-blue-600">
+                            Maquininha
+                        </span>
+                    </div>
+
+                    <div class="mt-3 text-[9px] font-black uppercase tracking-[0.16em] text-slate-400">
+                        Total recebido no cartão
+                    </div>
+                    <div class="mt-1 text-2xl font-black text-slate-900" data-cartao>
+                        R$ {{ total_cartao|default:"0,00" }}
+                    </div>
+                    <div class="mt-1 text-[10px] font-bold text-slate-500">
+                        Vendas aprovadas em débito ou crédito.
+                    </div>
+                </div>
+            </div>
+
+            <!-- LEGENDA DE CONFERÊNCIA -->
+            <div class="mt-3 flex flex-col gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-[10px] font-bold text-slate-300 lg:flex-row lg:items-center lg:justify-between">
+                <div class="flex items-center gap-2">
+                    <i class="fas fa-lightbulb text-amber-300"></i>
+                    <span>
+                        Para fechar o caixa, confira primeiro o cartão verde
+                        <strong class="text-white">“Dinheiro esperado no caixa”</strong>.
                     </span>
                 </div>
 
-                <div class="bg-indigo-50 text-indigo-700 px-4 py-2.5 rounded-2xl border border-indigo-100 min-w-[145px]">
-                    <div class="flex items-center gap-2 mb-1">
-                        <i class="fas fa-motorcycle text-[10px] text-indigo-400"></i>
-                        <span class="text-[9px] font-black uppercase">Entrega</span>
-                    </div>
-                    <span class="font-black text-sm leading-none" data-dinheiro-entrega>
-                        R$ {{ dinheiro_entrega|default:"0,00" }}
+                <div class="flex flex-wrap items-center gap-2 text-[9px] font-black uppercase tracking-wider">
+                    <span class="rounded-full bg-emerald-500/15 px-3 py-1 text-emerald-300">
+                        Retirada + Entrega = Caixa
                     </span>
-                </div>
-
-                <div class="bg-emerald-100 text-emerald-700 px-4 py-2.5 rounded-2xl border border-emerald-200 min-w-[160px] shadow-sm">
-                    <div class="flex items-center gap-2 mb-1">
-                        <i class="fas fa-money-bill-wave text-[10px] text-emerald-500"></i>
-                        <span class="text-[9px] font-black uppercase">Total no caixa</span>
-                    </div>
-                    <span class="font-black text-base leading-none" data-dinheiro-caixa>
-                        R$ {{ dinheiro_caixa|default:"0,00" }}
+                    <span class="rounded-full bg-cyan-500/15 px-3 py-1 text-cyan-300">
+                        Pix = Conta
+                    </span>
+                    <span class="rounded-full bg-blue-500/15 px-3 py-1 text-blue-300">
+                        Cartão = Maquininha
                     </span>
                 </div>
             </div>
         </div>
-    </div>
+    </section>
 
     <!-- LISTA DE PEDIDOS + PAGINAÇÃO -->
     <div class="flex-1 overflow-y-auto custom-scrollbar pb-10">
