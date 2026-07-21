@@ -7,7 +7,27 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.environ.get("SECRET_KEY", "troque-isso")
 DEBUG = os.environ.get("DEBUG", "True") == "True"
 
-ALLOWED_HOSTS = ["127.0.0.1", "localhost", ".onrender.com"]
+ALLOWED_HOSTS = [
+    "127.0.0.1",
+    "localhost",
+    ".onrender.com",
+    ".vercel.app",
+]
+
+# Permite adicionar hosts extras via variável de ambiente, sem precisar redeploy do código
+hosts_extra = os.environ.get("ALLOWED_HOSTS_EXTRA", "")
+if hosts_extra:
+    ALLOWED_HOSTS += [h.strip() for h in hosts_extra.split(",") if h.strip()]
+
+# Necessário no Django 4+ para aceitar POST/CSRF vindos de domínios https externos
+CSRF_TRUSTED_ORIGINS = [
+    "https://*.onrender.com",
+    "https://*.vercel.app",
+]
+
+csrf_extra = os.environ.get("CSRF_TRUSTED_ORIGINS_EXTRA", "")
+if csrf_extra:
+    CSRF_TRUSTED_ORIGINS += [c.strip() for c in csrf_extra.split(",") if c.strip()]
 
 LOGIN_URL = "login"
 LOGIN_REDIRECT_URL = "pedidos"
