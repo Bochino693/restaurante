@@ -12,27 +12,28 @@
             <div class="bg-white p-3 rounded-2xl shadow-sm mb-4 border border-gray-100 shrink-0">
                 <div class="relative mb-3">
                     <i class="fas fa-search absolute left-4 top-3.5 text-gray-400"></i>
-                    <input id="searchUnificado" type="text" placeholder="Pesquise por nome ou código do produto..."
-                        class="pl-12 w-full bg-gray-50 border-none rounded-2xl py-3 text-sm focus:ring-2 focus:ring-blue-500 shadow-inner"
-                        onkeyup="filtrar()">
+                    <input id="searchUnificado" type="text"
+                           placeholder="Pesquise por nome ou código do produto..."
+                           class="pl-12 w-full bg-gray-50 border-none rounded-2xl py-3 text-sm focus:ring-2 focus:ring-blue-500 shadow-inner"
+                           onkeyup="filtrar()">
                 </div>
 
                 <div class="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
                     <button onclick="filtrarCategoria('all', this)"
-                        class="categoria-btn active px-5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all">
+                            class="categoria-btn active px-5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all">
                         Todas
                     </button>
 
                     {% if pratos_do_dia %}
                     <button onclick="filtrarCategoria('pratos-dia', this)"
-                        class="categoria-btn bg-orange-100 text-orange-600 px-5 py-2 rounded-xl text-xs font-bold whitespace-nowrap hover:bg-orange-200 transition-all">
+                            class="categoria-btn bg-orange-100 text-orange-600 px-5 py-2 rounded-xl text-xs font-bold whitespace-nowrap hover:bg-orange-200 transition-all">
                         Pratos do Dia
                     </button>
                     {% endif %}
 
                     {% for categoria in categorias %}
                     <button onclick="filtrarCategoria('{{ categoria.id }}', this)"
-                        class="categoria-btn bg-gray-100 text-gray-500 px-5 py-2 rounded-xl text-xs font-bold whitespace-nowrap hover:bg-gray-200 transition-all">
+                            class="categoria-btn bg-gray-100 text-gray-500 px-5 py-2 rounded-xl text-xs font-bold whitespace-nowrap hover:bg-gray-200 transition-all">
                         {{ categoria.nome_categoria }}
                     </button>
                     {% endfor %}
@@ -43,11 +44,9 @@
                 {% if pratos_do_dia %}
                 <div id="secaoPratosDia" class="space-y-3">
                     <div class="flex items-center justify-between">
-                        <div>
-                            <h2 class="text-sm font-black uppercase tracking-wide text-orange-600 flex items-center gap-2">
-                                <i class="fas fa-utensils"></i> Pratos do Dia
-                            </h2>
-                        </div>
+                        <h2 class="text-sm font-black uppercase tracking-wide text-orange-600 flex items-center gap-2">
+                            <i class="fas fa-utensils"></i> Pratos do Dia
+                        </h2>
                     </div>
 
                     <div id="pratosDiaGrid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -58,12 +57,14 @@
                              data-categoria="{{ prato.produto.categoria.id|default:'' }}">
 
                             <div class="aspect-video bg-orange-100 flex items-center justify-center relative cursor-pointer"
-                                onclick="{% if prato.produto.adicionais_disponiveis.exists %}abrirModalAdicionais('{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}'){% else %}addProduto('{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}'){% endif %}">
+                                 onclick="{% if prato.produto.adicionais_disponiveis.exists %}abrirModalAdicionais('{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}'){% else %}addProduto('{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}'){% endif %}">
 
                                 {% if prato.produto.image_produto %}
-                                    <img src="{{ prato.produto.image_produto.url }}" class="object-cover w-full h-full">
+                                <img src="{{ prato.produto.image_produto.url }}"
+                                     alt="{{ prato.produto.nome_produto }}"
+                                     class="object-cover w-full h-full">
                                 {% else %}
-                                    <i class="fas fa-utensils text-orange-300 text-3xl"></i>
+                                <i class="fas fa-utensils text-orange-300 text-3xl"></i>
                                 {% endif %}
 
                                 <div class="absolute top-2 left-2 bg-orange-500 text-white text-[10px] px-3 py-1 rounded-full font-black uppercase tracking-wide shadow">
@@ -72,24 +73,26 @@
 
                                 {% if prato.produto.adicionais_disponiveis.exists %}
                                 <button type="button"
-                                    onclick="event.stopPropagation(); abrirModalAdicionais('{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}')"
-                                    class="absolute top-2 right-2 bg-white/90 backdrop-blur p-2 rounded-full shadow-md text-orange-500 hover:scale-110 transition-transform z-10">
+                                        onclick="event.stopPropagation(); abrirModalAdicionais('{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}')"
+                                        class="absolute top-2 right-2 bg-white/90 backdrop-blur p-2 rounded-full shadow-md text-orange-500 hover:scale-110 transition-transform z-10">
                                     <i class="fas fa-plus-circle"></i>
                                 </button>
                                 {% endif %}
                             </div>
 
                             <div class="p-4 cursor-pointer"
-                                onclick="{% if prato.produto.adicionais_disponiveis.exists %}abrirModalAdicionais('{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}'){% else %}addProduto('{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}'){% endif %}">
+                                 onclick="{% if prato.produto.adicionais_disponiveis.exists %}abrirModalAdicionais('{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}'){% else %}addProduto('{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}'){% endif %}">
                                 <div class="flex justify-between items-start mb-1 gap-2">
-                                    <h3 class="text-sm font-black text-gray-800 leading-tight">{{ prato.produto.nome_produto }}</h3>
+                                    <h3 class="text-sm font-black text-gray-800 leading-tight">
+                                        {{ prato.produto.nome_produto }}
+                                    </h3>
                                     <span class="text-[10px] bg-white px-2 py-0.5 rounded-md text-orange-500 font-mono border border-orange-200">
                                         #{{ prato.produto.codigo }}
                                     </span>
                                 </div>
-                                <div class="flex items-center justify-between gap-2">
-                                    <span class="text-orange-600 font-black text-lg">R$ {{ prato.produto.preco }}</span>
-                                </div>
+                                <span class="text-orange-600 font-black text-lg">
+                                    R$ {{ prato.produto.preco }}
+                                </span>
                             </div>
                         </div>
                         {% endfor %}
@@ -110,32 +113,38 @@
                              data-categoria="{{ produto.categoria.id|default:'' }}">
 
                             <div class="aspect-video bg-gray-50 flex items-center justify-center relative cursor-pointer"
-                                onclick="{% if produto.adicionais_disponiveis.exists %}abrirModalAdicionais('{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}'){% else %}addProduto('{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}'){% endif %}">
+                                 onclick="{% if produto.adicionais_disponiveis.exists %}abrirModalAdicionais('{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}'){% else %}addProduto('{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}'){% endif %}">
 
                                 {% if produto.image_produto %}
-                                    <img src="{{ produto.image_produto.url }}" class="object-cover w-full h-full">
+                                <img src="{{ produto.image_produto.url }}"
+                                     alt="{{ produto.nome_produto }}"
+                                     class="object-cover w-full h-full">
                                 {% else %}
-                                    <i class="fas fa-box text-gray-200 text-3xl"></i>
+                                <i class="fas fa-box text-gray-200 text-3xl"></i>
                                 {% endif %}
 
                                 {% if produto.adicionais_disponiveis.exists %}
                                 <button type="button"
-                                    onclick="event.stopPropagation(); abrirModalAdicionais('{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}')"
-                                    class="absolute top-2 right-2 bg-white/90 backdrop-blur p-2 rounded-full shadow-md text-orange-500 hover:scale-110 transition-transform z-10">
+                                        onclick="event.stopPropagation(); abrirModalAdicionais('{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}')"
+                                        class="absolute top-2 right-2 bg-white/90 backdrop-blur p-2 rounded-full shadow-md text-orange-500 hover:scale-110 transition-transform z-10">
                                     <i class="fas fa-plus-circle"></i>
                                 </button>
                                 {% endif %}
                             </div>
 
                             <div class="p-4 cursor-pointer"
-                                onclick="{% if produto.adicionais_disponiveis.exists %}abrirModalAdicionais('{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}'){% else %}addProduto('{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}'){% endif %}">
+                                 onclick="{% if produto.adicionais_disponiveis.exists %}abrirModalAdicionais('{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}'){% else %}addProduto('{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}'){% endif %}">
                                 <div class="flex justify-between items-start mb-1 gap-2">
-                                    <h3 class="text-sm font-bold text-gray-800 leading-tight">{{ produto.nome_produto }}</h3>
+                                    <h3 class="text-sm font-bold text-gray-800 leading-tight">
+                                        {{ produto.nome_produto }}
+                                    </h3>
                                     <span class="text-[10px] bg-gray-100 px-2 py-0.5 rounded-md text-gray-400 font-mono">
                                         #{{ produto.codigo }}
                                     </span>
                                 </div>
-                                <span class="text-blue-600 font-black text-lg">R$ {{ produto.preco }}</span>
+                                <span class="text-blue-600 font-black text-lg">
+                                    R$ {{ produto.preco }}
+                                </span>
                             </div>
                         </div>
                         {% endfor %}
@@ -144,179 +153,177 @@
             </div>
         </div>
 
-       <!-- COLUNA DIREITA / CARRINHO -->
-<div class="lg:col-span-4 xl:col-span-3 min-h-0">
-    <div class="h-full bg-white rounded-[2rem] shadow-2xl border border-gray-100 overflow-hidden flex flex-col">
+        <!-- COLUNA DIREITA / CARRINHO -->
+        <div class="lg:col-span-4 xl:col-span-3 min-h-0">
+            <div class="h-full bg-white rounded-[2rem] shadow-2xl border border-gray-100 overflow-hidden flex flex-col">
 
-        <!-- TOPO -->
-        <div class="p-4 bg-blue-600 text-white flex justify-between items-center shrink-0">
-            <h2 class="font-bold flex items-center gap-2 text-sm">
-                <i class="fas fa-shopping-basket"></i> CARRINHO
-            </h2>
-            <div class="flex items-center gap-2">
-                <span id="qzStatus" class="hidden bg-amber-400 text-amber-900 text-[10px] px-2 py-1 rounded-full font-bold" title="Status da impressora">
-                    <i class="fas fa-print"></i>
-                </span>
-                <span id="cartCount" class="bg-blue-400 text-[10px] px-2 py-1 rounded-full font-bold">0 ITENS</span>
+                <!-- TOPO -->
+                <div class="p-4 bg-blue-600 text-white flex justify-between items-center shrink-0">
+                    <h2 class="font-bold flex items-center gap-2 text-sm">
+                        <i class="fas fa-shopping-basket"></i> CARRINHO
+                    </h2>
+                    <div class="flex items-center gap-2">
+                        <span id="qzStatus"
+                              class="hidden bg-amber-400 text-amber-900 text-[10px] px-2 py-1 rounded-full font-bold"
+                              title="Status da impressora">
+                            <i class="fas fa-print"></i>
+                        </span>
+                        <span id="cartCount" class="bg-blue-400 text-[10px] px-2 py-1 rounded-full font-bold">
+                            0 ITENS
+                        </span>
+                    </div>
+                </div>
+
+                <!-- LISTA -->
+                <div id="carrinhoItens" class="flex-1 min-h-0 p-4 space-y-3 custom-scrollbar bg-slate-50">
+                    <div id="emptyCart" class="h-full min-h-[320px] flex flex-col items-center justify-center text-center text-gray-300">
+                        <div class="w-24 h-24 rounded-full bg-white shadow-sm border border-gray-100 flex items-center justify-center mb-4">
+                            <i class="fas fa-ghost text-5xl opacity-80"></i>
+                        </div>
+                        <p class="text-sm font-semibold text-gray-400">Seu carrinho está vazio</p>
+                        <span class="text-xs text-gray-300 mt-1">Adicione produtos para começar</span>
+                    </div>
+                </div>
+
+                <!-- RODAPÉ COMPACTO -->
+                <div class="shrink-0 border-t border-gray-200 bg-white px-3 py-3 space-y-2.5 shadow-[0_-8px_20px_rgba(15,23,42,0.05)]">
+
+                    <!-- DESCONTO + TOTAL -->
+                    <div class="grid grid-cols-2 gap-2">
+                        <div class="bg-white border rounded-xl px-3 py-2">
+                            <div class="text-[9px] font-black text-gray-400 uppercase leading-none mb-1">
+                                Desconto
+                            </div>
+                            <input id="inputDesconto"
+                                   type="text"
+                                   value="0,00"
+                                   inputmode="decimal"
+                                   onkeyup="mascaraMoeda(this)"
+                                   class="w-full text-left font-mono font-black text-gray-700 outline-none bg-transparent text-xs leading-none">
+                        </div>
+
+                        <div class="bg-gray-900 rounded-xl px-3 py-2 text-white">
+                            <div class="text-[9px] font-black uppercase opacity-70 leading-none mb-1">
+                                Total
+                            </div>
+                            <div id="totalFinal" class="text-base font-black font-mono leading-none">
+                                R$ 0,00
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- NOME -->
+                    <div>
+                        <label for="nomeCliente" class="block text-[10px] font-black uppercase tracking-wide text-gray-500 mb-1">
+                            Nome do Cliente *
+                        </label>
+                        <input id="nomeCliente"
+                               type="text"
+                               placeholder="Digite o nome do cliente"
+                               class="w-full border rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+
+                    <div>
+                        <label for="descricaoPedido" class="block text-[10px] font-black uppercase tracking-wide text-gray-500 mb-1">
+                            Descrição do Pedido
+                        </label>
+                        <textarea id="descricaoPedido"
+                                  rows="2"
+                                  placeholder="Ex: s/macarrão, sem omelete, pouco sal..."
+                                  class="w-full border rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"></textarea>
+                    </div>
+
+                    <!-- ENTREGA / RETIRADA -->
+                    <div class="grid grid-cols-2 gap-2">
+                        <button type="button"
+                                onclick="setEntrega(true, this)"
+                                class="entrega-btn selected border rounded-xl h-9 px-2 flex items-center justify-center gap-2 text-[11px] font-black transition-all">
+                            <span class="text-sm leading-none">🏍️</span>
+                            <span>Entrega</span>
+                        </button>
+
+                        <button type="button"
+                                onclick="setEntrega(false, this)"
+                                class="entrega-btn border rounded-xl h-9 px-2 flex items-center justify-center gap-2 text-[11px] font-black transition-all">
+                            <span class="text-sm leading-none">🏪</span>
+                            <span>Retirada</span>
+                        </button>
+                    </div>
+
+                    <!-- ENTREGA BOX -->
+                    <div id="enderecoBox" class="space-y-2">
+                        <div class="grid grid-cols-3 gap-2">
+                            <input id="cep"
+                                   placeholder="CEP"
+                                   inputmode="numeric"
+                                   maxlength="9"
+                                   oninput="formatarCEP(this)"
+                                   class="col-span-2 w-full border rounded-xl px-3 py-2 text-xs">
+                            <input id="numero"
+                                   placeholder="Número"
+                                   class="col-span-1 w-full border rounded-xl px-3 py-2 text-xs">
+                        </div>
+
+                        <input id="rua"
+                               placeholder="Rua"
+                               class="w-full border rounded-xl px-3 py-2 text-xs">
+
+                        <div class="bg-white border rounded-xl px-3 py-2">
+                            <div class="text-[9px] font-black text-gray-400 uppercase leading-none mb-1">
+                                Taxa Motoca
+                            </div>
+                            <input id="inputMotoca"
+                                   type="text"
+                                   value="0,00"
+                                   inputmode="decimal"
+                                   onkeyup="mascaraMoeda(this)"
+                                   class="w-full text-left font-mono font-black text-gray-700 outline-none bg-transparent text-xs leading-none">
+                        </div>
+                    </div>
+
+                    <!-- RETIRADA -->
+                    <div id="retiradaInfo" class="hidden">
+                        <div class="bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 flex items-center gap-2">
+                            <i class="fas fa-store text-emerald-600 text-sm"></i>
+                            <div class="min-w-0">
+                                <div class="text-[10px] font-black uppercase tracking-wide text-emerald-700 leading-none">
+                                    Retirada no balcão
+                                </div>
+                                <div class="text-[10px] text-emerald-600 mt-1 leading-none">
+                                    Sem endereço
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- PAGAMENTO -->
+                    <div class="grid grid-cols-3 gap-2">
+                        <button type="button" onclick="setMetodo('pix', this)"
+                                class="metodo-btn border rounded-xl h-9 font-black text-[11px]">
+                            PIX
+                        </button>
+
+                        <button type="button" onclick="setMetodo('cartao', this)"
+                                class="metodo-btn border rounded-xl h-9 font-black text-[11px]">
+                            Cartão
+                        </button>
+
+                        <button type="button" onclick="setMetodo('dinheiro', this)"
+                                class="metodo-btn border rounded-xl h-9 font-black text-[11px]">
+                            Dinheiro
+                        </button>
+                    </div>
+
+                    <!-- BOTÃO FINALIZAR -->
+                    <button id="btnFinalizar"
+                            type="button"
+                            onclick="finalizarVenda()"
+                            class="w-full bg-green-500 hover:bg-green-600 text-white font-black h-10 rounded-xl shadow-lg transition-all text-xs uppercase tracking-[0.15em] disabled:opacity-60 disabled:cursor-not-allowed">
+                        <span id="btnFinalizarTexto">Finalizar Pedido</span>
+                    </button>
+                </div>
             </div>
         </div>
-
-        <!-- LISTA -->
-        <div id="carrinhoItens" class="flex-1 min-h-0 p-4 space-y-3 custom-scrollbar bg-slate-50">
-            <div id="emptyCart" class="h-full min-h-[320px] flex flex-col items-center justify-center text-center text-gray-300">
-                <div class="w-24 h-24 rounded-full bg-white shadow-sm border border-gray-100 flex items-center justify-center mb-4">
-                    <i class="fas fa-ghost text-5xl opacity-80"></i>
-                </div>
-                <p class="text-sm font-semibold text-gray-400">Seu carrinho está vazio</p>
-                <span class="text-xs text-gray-300 mt-1">Adicione produtos para começar</span>
-            </div>
-        </div>
-
-        <!-- RODAPÉ COMPACTO -->
-<div class="shrink-0 border-t border-gray-200 bg-white px-3 py-3 space-y-2.5 shadow-[0_-8px_20px_rgba(15,23,42,0.05)]">
-
-    <!-- DESCONTO + TOTAL -->
-    <div class="grid grid-cols-2 gap-2">
-        <div class="bg-white border rounded-xl px-3 py-2">
-            <div class="text-[9px] font-black text-gray-400 uppercase leading-none mb-1">Desconto</div>
-            <input
-                id="inputDesconto"
-                type="text"
-                value="0,00"
-                onkeyup="mascaraMoeda(this)"
-                class="w-full text-left font-mono font-black text-gray-700 outline-none bg-transparent text-xs leading-none"
-            >
-        </div>
-
-        <div class="bg-gray-900 rounded-xl px-3 py-2 text-white">
-            <div class="text-[9px] font-black uppercase opacity-70 leading-none mb-1">Total</div>
-            <div id="totalFinal" class="text-base font-black font-mono leading-none">R$ 0,00</div>
-        </div>
-    </div>
-
-    <!-- NOME -->
-    <div>
-        <label for="nomeCliente" class="block text-[10px] font-black uppercase tracking-wide text-gray-500 mb-1">
-            Nome do Cliente *
-        </label>
-        <input
-            id="nomeCliente"
-            type="text"
-            placeholder="Digite o nome do cliente"
-            class="w-full border rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-    </div>
-
-    <div>
-    <label for="descricaoPedido" class="block text-[10px] font-black uppercase tracking-wide text-gray-500 mb-1">
-        Descrição do Pedido
-    </label>
-    <textarea
-        id="descricaoPedido"
-        rows="2"
-        placeholder="Ex: s/macarrão, sem omelete, pouco sal..."
-        class="w-full border rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-    ></textarea>
-    </div>
-
-    <!-- ENTREGA / RETIRADA -->
-    <div class="grid grid-cols-3 gap-2">
-        <button
-            type="button"
-            onclick="setEntrega(true, this)"
-            class="entrega-btn selected border rounded-xl h-9 px-2 flex items-center justify-center gap-2 text-[11px] font-black transition-all"
-        >
-            <span class="text-sm leading-none">🏍️</span>
-            <span>Entrega</span>
-        </button>
-
-        <button
-            type="button"
-            onclick="setEntrega(false, this)"
-            class="entrega-btn border rounded-xl h-9 px-2 flex items-center justify-center gap-2 text-[11px] font-black transition-all"
-        >
-            <span class="text-sm leading-none">🏪</span>
-            <span>Retirada</span>
-        </button>
-    </div>
-
-    <!-- ENTREGA BOX -->
-    <div id="enderecoBox" class="space-y-2">
-        <div class="grid grid-cols-3 gap-2">
-            <input
-                id="cep"
-                placeholder="CEP"
-                oninput="formatarCEP(this)"
-                class="col-span-2 w-full border rounded-xl px-3 py-2 text-xs"
-            >
-            <input
-                id="numero"
-                placeholder="Número"
-                class="col-span-1 w-full border rounded-xl px-3 py-2 text-xs"
-            >
-        </div>
-
-        <input
-            id="rua"
-            placeholder="Rua"
-            class="w-full border rounded-xl px-3 py-2 text-xs"
-        >
-
-        <div class="bg-white border rounded-xl px-3 py-2">
-    <div class="text-[9px] font-black text-gray-400 uppercase leading-none mb-1">
-        Taxa Motoca
-    </div>
-    <input
-        id="inputMotoca"
-        type="text"
-        value="0,00"
-        onkeyup="mascaraMoeda(this)"
-        class="w-full text-left font-mono font-black text-gray-700 outline-none bg-transparent text-xs leading-none"
-    >
-</div>
-    </div>
-
-    <!-- RETIRADA -->
-    <div id="retiradaInfo" class="hidden">
-        <div class="bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 flex items-center gap-2">
-            <i class="fas fa-store text-emerald-600 text-sm"></i>
-            <div class="min-w-0">
-                <div class="text-[10px] font-black uppercase tracking-wide text-emerald-700 leading-none">
-                    Retirada no balcão
-                </div>
-                <div class="text-[10px] text-emerald-600 mt-1 leading-none">
-                    Sem endereço
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- PAGAMENTO -->
-    <div class="grid grid-cols-3 gap-2">
-        <button type="button" onclick="setMetodo('pix', this)"
-            class="metodo-btn border rounded-xl h-9 font-black text-[11px]">
-            PIX
-        </button>
-
-        <button type="button" onclick="setMetodo('cartao', this)"
-            class="metodo-btn border rounded-xl h-9 font-black text-[11px]">
-            Cartão
-        </button>
-
-        <button type="button" onclick="setMetodo('dinheiro', this)"
-            class="metodo-btn border rounded-xl h-9 font-black text-[11px]">
-            Dinheiro
-        </button>
-    </div>
-
-    <!-- BOTÃO FINALIZAR -->
-    <button id="btnFinalizar" onclick="finalizarVenda()"
-        class="w-full bg-green-500 hover:bg-green-600 text-white font-black h-10 rounded-xl shadow-lg transition-all text-xs uppercase tracking-[0.15em] disabled:opacity-60 disabled:cursor-not-allowed">
-        <span id="btnFinalizarTexto">Finalizar Pedido</span>
-    </button>
-</div>
-    </div>
-</div>
     </div>
 </div>
 
@@ -325,10 +332,12 @@
     <div class="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl overflow-hidden">
         <div class="p-6 border-b flex justify-between items-center">
             <div>
-                <h3 id="modalProdNome" class="text-lg font-black text-gray-800 uppercase leading-none">Nome do Produto</h3>
+                <h3 id="modalProdNome" class="text-lg font-black text-gray-800 uppercase leading-none">
+                    Nome do Produto
+                </h3>
                 <span class="text-xs text-gray-400">Escolha seus adicionais</span>
             </div>
-            <button onclick="fecharModal()" class="text-gray-400 hover:text-red-500 transition-colors">
+            <button type="button" onclick="fecharModal()" class="text-gray-400 hover:text-red-500 transition-colors">
                 <i class="fas fa-times-circle text-2xl"></i>
             </button>
         </div>
@@ -336,7 +345,9 @@
         <div id="listaAdicionais" class="p-6 space-y-4 max-h-[50vh] overflow-y-auto custom-scrollbar"></div>
 
         <div class="p-6 bg-gray-50">
-            <button id="btnConfirmarAdicional" class="w-full bg-blue-600 text-white font-black py-4 rounded-2xl shadow-lg shadow-blue-200 uppercase tracking-tighter">
+            <button id="btnConfirmarAdicional"
+                    type="button"
+                    class="w-full bg-blue-600 text-white font-black py-4 rounded-2xl shadow-lg shadow-blue-200 uppercase tracking-tighter">
                 Adicionar ao Carrinho
             </button>
         </div>
@@ -352,7 +363,9 @@
             </div>
 
             <h3 class="text-2xl font-black text-gray-800 mb-2">Pedido Finalizado!</h3>
-            <p id="sucessoStatusImpressao" class="text-gray-500 text-sm mb-6">Enviando para a impressora...</p>
+            <p id="sucessoStatusImpressao" class="text-gray-500 text-sm mb-6">
+                Enviando para a impressora...
+            </p>
 
             <div class="bg-gray-50 rounded-2xl p-4 mb-6 border border-dashed border-gray-200 text-left">
                 <div class="flex justify-between text-xs mb-1">
@@ -369,13 +382,16 @@
                 </div>
             </div>
 
-            <button id="btnReimprimir" onclick="reimprimirUltimoPedido()"
-                class="hidden w-full bg-amber-500 hover:bg-amber-600 text-white font-black py-3 rounded-2xl transition-all active:scale-95 shadow-lg mb-2">
+            <button id="btnReimprimir"
+                    type="button"
+                    onclick="reimprimirUltimoPedido()"
+                    class="hidden w-full bg-amber-500 hover:bg-amber-600 text-white font-black py-3 rounded-2xl transition-all active:scale-95 shadow-lg mb-2">
                 <i class="fas fa-print mr-2"></i> REIMPRIMIR
             </button>
 
-            <button onclick="fecharModalSucesso()"
-                class="w-full bg-gray-900 hover:bg-black text-white font-black py-4 rounded-2xl transition-all active:scale-95 shadow-xl">
+            <button type="button"
+                    onclick="fecharModalSucesso()"
+                    class="w-full bg-gray-900 hover:bg-black text-white font-black py-4 rounded-2xl transition-all active:scale-95 shadow-xl">
                 NOVA VENDA
             </button>
         </div>
@@ -393,8 +409,9 @@
             <h3 id="alertaTitulo" class="text-xl font-black text-gray-800 mb-2">Atenção!</h3>
             <p id="alertaMensagem" class="text-gray-500 text-sm mb-6 px-2">Mensagem de aviso aqui.</p>
 
-            <button onclick="fecharModalAlerta()"
-                class="w-full bg-amber-500 hover:bg-amber-600 text-white font-black py-3 rounded-xl transition-all active:scale-95 shadow-lg shadow-amber-100">
+            <button type="button"
+                    onclick="fecharModalAlerta()"
+                    class="w-full bg-amber-500 hover:bg-amber-600 text-white font-black py-3 rounded-xl transition-all active:scale-95 shadow-lg shadow-amber-100">
                 ENTENDI
             </button>
         </div>
@@ -402,7 +419,9 @@
 </div>
 
 <style>
-.no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar::-webkit-scrollbar {
+        display: none;
+    }
 
     .custom-scrollbar::-webkit-scrollbar {
         width: 6px;
@@ -431,7 +450,7 @@
         background: #2563eb;
         border-color: #2563eb;
         color: white;
-        box-shadow: 0 4px 10px rgba(37,99,235,0.20);
+        box-shadow: 0 4px 10px rgba(37, 99, 235, 0.20);
     }
 
     .prato-dia-card {
@@ -446,7 +465,7 @@
         background: #2563eb;
         border-color: #2563eb;
         color: white;
-        box-shadow: 0 4px 10px rgba(37,99,235,0.18);
+        box-shadow: 0 4px 10px rgba(37, 99, 235, 0.18);
     }
 
     #carrinhoItens .cart-item-compact:last-child {
@@ -463,7 +482,6 @@
         height: 100%;
     }
 
-    /* Spinner para impressão */
     .spinner-print {
         display: inline-block;
         width: 12px;
@@ -477,10 +495,11 @@
     }
 
     @keyframes spin {
-        to { transform: rotate(360deg); }
+        to {
+            transform: rotate(360deg);
+        }
     }
 </style>
-
 
 <script src="https://cdn.jsdelivr.net/npm/qz-tray@2.2.4/qz-tray.js"></script>
 
@@ -494,25 +513,23 @@ let metodoPagamento = '';
 let categoriaAtual = 'all';
 let tipoEntrega = true;
 
-// Modal adicionais
 let modalAdicionaisAberto = false;
 let produtoAdicionalAtual = null;
 
-// Impressão
 let impressoraCache = null;
-let qzConnectingPromise = null;          // evita múltiplas conexões simultâneas
-let printingLock = false;                // mutex de impressão
-let printQueue = [];                     // fila de pedidos para imprimir
-let ultimoPedidoImpresso = null;         // para reimprimir manualmente
-let finalizandoVenda = false;            // evita duplo submit
+let qzConnectingPromise = null;
+let printingLock = false;
+let printQueue = [];
+let ultimoPedidoImpresso = null;
+let finalizandoVenda = false;
 
-const IMPRESSORA_PADRAO = "MP-4200 TH";
-const ENCODING_IMPRESSAO = "CP850";
-const DELAY_ENTRE_VIAS_MS = 700;         // delay entre balcão e cozinha
+const IMPRESSORA_PADRAO = 'MP-4200 TH';
+const ENCODING_IMPRESSAO = 'CP850';
+const DELAY_ENTRE_VIAS_MS = 700;
 const DELAY_RETRY_MS = 1000;
 const MAX_RETRIES = 3;
 const TIMEOUT_CEP_MS = 5000;
-
+const BACKUP_PEDIDO_KEY = 'pdv_ultimo_pedido_impressao';
 
 /* =========================================================
    ESC/POS
@@ -520,8 +537,8 @@ const TIMEOUT_CEP_MS = 5000;
 
 const ESC_POS = {
     INIT: '\x1B\x40',
-    CUT: '\x1D\x56\x00',              // corte TOTAL (separa o papel)
-    PARTIAL_CUT: '\x1D\x56\x01',      // corte PARCIAL (leve destacada)
+    CUT: '\x1D\x56\x00',
+    PARTIAL_CUT: '\x1D\x56\x01',
     FEED: '\n\n\n',
     CENTER: '\x1B\x61\x01',
     LEFT: '\x1B\x61\x00',
@@ -537,18 +554,25 @@ const ESC_POS = {
    HELPERS
 ========================================================= */
 
-const formatar = (v) =>
+const formatar = (valor) =>
     new Intl.NumberFormat('pt-BR', {
         style: 'currency',
         currency: 'BRL'
-    }).format(Number(v || 0));
+    }).format(Number(valor || 0));
 
-function moeda(v) {
-    return Number(v || 0).toFixed(2).replace('.', ',');
+function moeda(valor) {
+    return Number(valor || 0).toFixed(2).replace('.', ',');
 }
 
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function clonarSeguro(valor) {
+    if (typeof structuredClone === 'function') {
+        return structuredClone(valor);
+    }
+    return JSON.parse(JSON.stringify(valor));
 }
 
 function limparTexto(txt) {
@@ -561,55 +585,90 @@ function limparTexto(txt) {
 
 function quebrarLinha(texto, tamanho = 24) {
     texto = limparTexto(texto);
-    const palavras = texto.split(' ');
+
+    if (!texto) return [];
+
+    const palavras = texto.split(/\s+/);
     const linhas = [];
     let linha = '';
 
-    palavras.forEach(p => {
-        if ((linha + p).length > tamanho) {
-            linhas.push(linha.trim());
-            linha = p + ' ';
+    palavras.forEach(palavra => {
+        const teste = linha ? `${linha} ${palavra}` : palavra;
+
+        if (teste.length > tamanho && linha) {
+            linhas.push(linha);
+            linha = palavra;
         } else {
-            linha += p + ' ';
+            linha = teste;
         }
     });
 
-    if (linha.trim()) {
-        linhas.push(linha.trim());
-    }
-
+    if (linha) linhas.push(linha);
     return linhas;
 }
 
 function setQzStatus(estado) {
-    // estado: 'ok' | 'erro' | 'imprimindo' | 'hidden'
     const el = document.getElementById('qzStatus');
     if (!el) return;
 
-    el.classList.remove('hidden', 'bg-amber-400', 'text-amber-900',
-                        'bg-red-500', 'text-white',
-                        'bg-green-400', 'text-green-900');
+    el.classList.remove(
+        'hidden',
+        'bg-amber-400', 'text-amber-900',
+        'bg-red-500', 'text-white',
+        'bg-green-400', 'text-green-900'
+    );
 
     if (estado === 'hidden') {
         el.classList.add('hidden');
         return;
     }
+
     if (estado === 'erro') {
         el.classList.add('bg-red-500', 'text-white');
         el.title = 'Impressora com erro';
         el.innerHTML = '<i class="fas fa-print"></i>';
-    } else if (estado === 'imprimindo') {
+        return;
+    }
+
+    if (estado === 'imprimindo') {
         el.classList.add('bg-amber-400', 'text-amber-900');
         el.title = 'Imprimindo...';
         el.innerHTML = '<i class="fas fa-print fa-pulse"></i>';
-    } else if (estado === 'ok') {
-        el.classList.add('bg-green-400', 'text-green-900');
-        el.title = 'Impressora pronta';
-        el.innerHTML = '<i class="fas fa-print"></i>';
-        // Esconde de novo depois de alguns segundos
-        setTimeout(() => {
-            if (el.title === 'Impressora pronta') el.classList.add('hidden');
-        }, 2500);
+        return;
+    }
+
+    el.classList.add('bg-green-400', 'text-green-900');
+    el.title = 'Impressora pronta';
+    el.innerHTML = '<i class="fas fa-print"></i>';
+
+    setTimeout(() => {
+        if (el.title === 'Impressora pronta') {
+            el.classList.add('hidden');
+        }
+    }, 2500);
+}
+
+function salvarBackupPedido(pedido) {
+    try {
+        const pedidoValidado = validarPedidoParaImpressao(pedido);
+        sessionStorage.setItem(
+            BACKUP_PEDIDO_KEY,
+            JSON.stringify(pedidoValidado)
+        );
+    } catch (erro) {
+        console.warn('Não foi possível salvar backup do pedido:', erro);
+    }
+}
+
+function recuperarBackupPedido() {
+    try {
+        const salvo = sessionStorage.getItem(BACKUP_PEDIDO_KEY);
+        if (!salvo) return null;
+        return validarPedidoParaImpressao(JSON.parse(salvo));
+    } catch (erro) {
+        console.warn('Backup de pedido inválido:', erro);
+        sessionStorage.removeItem(BACKUP_PEDIDO_KEY);
+        return null;
     }
 }
 
@@ -619,16 +678,16 @@ function setQzStatus(estado) {
 
 function mascaraMoeda(input) {
     let value = input.value.replace(/\D/g, '');
-    value = (value / 100).toFixed(2) + '';
-    value = value.replace(".", ",");
-    value = value.replace(/(\d)(\d{3})(\d{3}),/g, "$1.$2.$3,");
-    value = value.replace(/(\d)(\d{3}),/g, "$1.$2,");
+    value = (Number(value || 0) / 100).toFixed(2);
+    value = value.replace('.', ',');
+    value = value.replace(/(\d)(\d{3})(\d{3}),/g, '$1.$2.$3,');
+    value = value.replace(/(\d)(\d{3}),/g, '$1.$2,');
     input.value = value;
     atualizarTotais();
 }
 
 function formatarCEP(input) {
-    let cep = input.value.replace(/\D/g, '');
+    let cep = input.value.replace(/\D/g, '').slice(0, 8);
 
     if (cep.length > 5) {
         cep = cep.replace(/(\d{5})(\d)/, '$1-$2');
@@ -673,15 +732,15 @@ function aplicarFiltros() {
 
     document.querySelectorAll('.produto-card').forEach(card => {
         const nome = (card.dataset.name || '').toLowerCase();
-        const code = (card.dataset.code || '').toLowerCase();
+        const codigo = (card.dataset.code || '').toLowerCase();
         const categoriaId = card.dataset.categoria || '';
 
-        const matchesBusca = nome.includes(termo) || code.includes(termo);
+        const matchesBusca = nome.includes(termo) || codigo.includes(termo);
         const matchesCategoria = categoriaAtual === 'all'
             ? true
             : categoriaId === categoriaAtual;
 
-        card.style.display = (matchesBusca && matchesCategoria) ? 'block' : 'none';
+        card.style.display = matchesBusca && matchesCategoria ? 'block' : 'none';
     });
 
     const secaoPratosDia = document.getElementById('secaoPratosDia');
@@ -692,10 +751,10 @@ function aplicarFiltros() {
 
         pratosDiaCards.forEach(card => {
             const nome = (card.dataset.name || '').toLowerCase();
-            const code = (card.dataset.code || '').toLowerCase();
+            const codigo = (card.dataset.code || '').toLowerCase();
             const categoriaId = card.dataset.categoria || '';
 
-            const matchesBusca = nome.includes(termo) || code.includes(termo);
+            const matchesBusca = nome.includes(termo) || codigo.includes(termo);
 
             let matchesCategoria = false;
             if (categoriaAtual === 'all' || categoriaAtual === 'pratos-dia') {
@@ -718,16 +777,22 @@ function aplicarFiltros() {
 ========================================================= */
 
 function calcularPrecoAdicionais(adicionais) {
-    return (adicionais || []).reduce((acc, a) => {
-        const preco = parseFloat(a.preco || 0);
-        const qtd = parseInt(a.qtd || 1);
+    return (adicionais || []).reduce((acc, adicional) => {
+        const preco = Number(adicional.preco || 0);
+        const qtd = Number(adicional.qtd || 1);
         return acc + (preco * qtd);
     }, 0);
 }
 
 function addProduto(id, nome, preco, adicionais = []) {
-    const addKey = adicionais
-        .map(a => `${a.nome}:${a.qtd || 1}`)
+    const adicionaisNormalizados = (adicionais || []).map(adicional => ({
+        nome: String(adicional.nome || '').trim(),
+        preco: Number(adicional.preco || 0),
+        qtd: Number(adicional.qtd || 1)
+    })).filter(adicional => adicional.nome && adicional.qtd > 0);
+
+    const addKey = adicionaisNormalizados
+        .map(adicional => `${adicional.nome}:${adicional.qtd}:${adicional.preco}`)
         .sort()
         .join('|');
 
@@ -740,9 +805,9 @@ function addProduto(id, nome, preco, adicionais = []) {
         carrinho.push({
             key: uniqueKey,
             id: id,
-            nome: nome,
-            precoBase: parseFloat(preco),
-            adicionais: adicionais,
+            nome: String(nome || '').trim(),
+            precoBase: Number(preco || 0),
+            adicionais: adicionaisNormalizados,
             qtd: 1
         });
     }
@@ -752,23 +817,30 @@ function addProduto(id, nome, preco, adicionais = []) {
 
 function alterQtd(index, delta) {
     if (!carrinho[index]) return;
+
     carrinho[index].qtd += delta;
+
     if (carrinho[index].qtd <= 0) {
         carrinho.splice(index, 1);
     }
+
     renderCarrinho();
 }
 
 function removerItem(index) {
+    if (!carrinho[index]) return;
     carrinho.splice(index, 1);
     renderCarrinho();
 }
 
 function alterQtdAdicional(btn, delta) {
     const wrapper = btn.closest('.add-qtd-box');
+    if (!wrapper) return;
+
     const qtdEl = wrapper.querySelector('.qtd-add');
-    let qtd = parseInt(qtdEl.innerText || '0');
+    let qtd = parseInt(qtdEl.innerText || '0', 10);
     qtd += delta;
+
     if (qtd < 0) qtd = 0;
     qtdEl.innerText = qtd;
 }
@@ -776,13 +848,13 @@ function alterQtdAdicional(btn, delta) {
 function atualizarTotais() {
     const subtotal = carrinho.reduce((acc, item) => {
         const precoAdicionais = calcularPrecoAdicionais(item.adicionais);
-        return acc + ((item.precoBase + precoAdicionais) * item.qtd);
+        return acc + ((Number(item.precoBase || 0) + precoAdicionais) * Number(item.qtd || 0));
     }, 0);
 
-    const descRaw = document.getElementById('inputDesconto')
-        .value.replace(/[^\d]/g, '');
-
-    const desconto = parseFloat(descRaw) / 100 || 0;
+    const inputDesconto = document.getElementById('inputDesconto');
+    const descRaw = inputDesconto.value.replace(/[^\d]/g, '');
+    const descontoDigitado = Number(descRaw) / 100 || 0;
+    const desconto = Math.min(descontoDigitado, subtotal);
     const total = Math.max(0, subtotal - desconto);
 
     document.getElementById('totalFinal').innerText = formatar(total);
@@ -790,9 +862,21 @@ function atualizarTotais() {
     return { subtotal, desconto, total };
 }
 
+function escaparHtml(valor) {
+    return String(valor ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
 function renderCarrinho() {
     const container = document.getElementById('carrinhoItens');
-    const totalItens = carrinho.reduce((acc, item) => acc + item.qtd, 0);
+    const totalItens = carrinho.reduce(
+        (acc, item) => acc + Number(item.qtd || 0),
+        0
+    );
 
     document.getElementById('cartCount').innerText = `${totalItens} ITENS`;
 
@@ -824,16 +908,16 @@ function renderCarrinho() {
 
     container.innerHTML = carrinho.map((item, index) => {
         const precoAdicionais = calcularPrecoAdicionais(item.adicionais);
-        const precoUnitarioFinal = item.precoBase + precoAdicionais;
-        const subtotalItem = precoUnitarioFinal * item.qtd;
+        const precoUnitarioFinal = Number(item.precoBase || 0) + precoAdicionais;
+        const subtotalItem = precoUnitarioFinal * Number(item.qtd || 0);
 
         return `
-            <div class="bg-white px-3 py-3 rounded-[1.1rem] border border-gray-100 shadow-sm">
+            <div class="cart-item-compact bg-white px-3 py-3 rounded-[1.1rem] border border-gray-100 shadow-sm">
                 <div class="flex items-start justify-between gap-2">
                     <div class="flex-1 min-w-0">
                         <div class="flex items-start justify-between gap-2">
                             <h4 class="text-[11px] font-black text-gray-800 uppercase leading-tight break-words pr-1">
-                                ${item.nome}
+                                ${escaparHtml(item.nome)}
                             </h4>
                             <div class="shrink-0 text-right">
                                 <div class="text-[10px] font-black text-blue-600 font-mono leading-none">
@@ -847,12 +931,13 @@ function renderCarrinho() {
 
                         ${item.adicionais.length ? `
                             <div class="mt-2 flex flex-wrap gap-1">
-                                ${item.adicionais.map(a => {
-                                    const qtdAdd = parseInt(a.qtd || 1);
-                                    const totalAdd = parseFloat(a.preco || 0) * qtdAdd;
+                                ${item.adicionais.map(adicional => {
+                                    const qtdAdd = Number(adicional.qtd || 1);
+                                    const totalAdd = Number(adicional.preco || 0) * qtdAdd;
+
                                     return `
                                         <span class="text-[9px] bg-orange-50 text-orange-600 border border-orange-200 px-1.5 py-0.5 rounded-md font-bold leading-none">
-                                            + ${qtdAdd}x ${a.nome}
+                                            + ${qtdAdd}x ${escaparHtml(adicional.nome)}
                                             (${formatar(totalAdd)})
                                         </span>
                                     `;
@@ -899,9 +984,9 @@ function renderCarrinho() {
 function abrirModalAdicionais(id, nome, preco) {
     produtoAdicionalAtual = { id, nome, preco };
 
-    const modal = document.getElementById("modalAdicionais");
-    const container = document.getElementById("listaAdicionais");
-    const btnConfirmar = document.getElementById("btnConfirmarAdicional");
+    const modal = document.getElementById('modalAdicionais');
+    const container = document.getElementById('listaAdicionais');
+    const btnConfirmar = document.getElementById('btnConfirmarAdicional');
 
     modalAdicionaisAberto = true;
     container.innerHTML = `
@@ -910,18 +995,28 @@ function abrirModalAdicionais(id, nome, preco) {
         </div>
     `;
 
-    document.getElementById("modalProdNome").innerText = nome;
-    modal.classList.remove("hidden");
+    document.getElementById('modalProdNome').innerText = nome;
+    modal.classList.remove('hidden');
 
-    fetch(`/produto/${id}/adicionais/`)
-        .then(res => res.json())
+    fetch(`/produto/${id}/adicionais/`, {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+        .then(res => {
+            if (!res.ok) {
+                throw new Error('Falha ao carregar adicionais.');
+            }
+            return res.json();
+        })
         .then(data => {
-            if (!modalAdicionaisAberto || !produtoAdicionalAtual ||
-                produtoAdicionalAtual.id !== id) {
+            if (
+                !modalAdicionaisAberto ||
+                !produtoAdicionalAtual ||
+                String(produtoAdicionalAtual.id) !== String(id)
+            ) {
                 return;
             }
 
-            if (!data || data.length === 0) {
+            if (!Array.isArray(data) || data.length === 0) {
                 addProduto(id, nome, preco, []);
                 fecharModal();
                 return;
@@ -930,41 +1025,44 @@ function abrirModalAdicionais(id, nome, preco) {
             container.innerHTML = data.map(add => `
                 <div class="flex justify-between items-center p-3 bg-gray-50 rounded-2xl hover:bg-blue-50 transition-colors border border-gray-100">
                     <div class="flex-1">
-                        <span class="text-sm font-bold text-gray-700">${add.nome}</span>
+                        <span class="text-sm font-bold text-gray-700">${escaparHtml(add.nome)}</span>
                         <div class="text-xs font-mono font-bold text-blue-600">
                             + R$ ${moeda(add.preco)}
                         </div>
                     </div>
 
                     <div class="add-qtd-box flex items-center gap-2">
-                        <button type="button" onclick="alterQtdAdicional(this, -1)"
-                            class="w-8 h-8 rounded-lg bg-white border border-gray-200 text-red-500 font-black">
+                        <button type="button"
+                                onclick="alterQtdAdicional(this, -1)"
+                                class="w-8 h-8 rounded-lg bg-white border border-gray-200 text-red-500 font-black">
                             -
                         </button>
 
                         <span class="qtd-add min-w-[24px] text-center font-mono font-black"
-                            data-nome="${add.nome}"
-                            data-preco="${add.preco}">
+                              data-nome="${escaparHtml(add.nome)}"
+                              data-preco="${Number(add.preco || 0)}">
                             0
                         </span>
 
-                        <button type="button" onclick="alterQtdAdicional(this, 1)"
-                            class="w-8 h-8 rounded-lg bg-white border border-gray-200 text-green-600 font-black">
+                        <button type="button"
+                                onclick="alterQtdAdicional(this, 1)"
+                                class="w-8 h-8 rounded-lg bg-white border border-gray-200 text-green-600 font-black">
                             +
                         </button>
                     </div>
                 </div>
-            `).join("");
+            `).join('');
 
             btnConfirmar.onclick = function () {
                 const selecionados = [];
 
-                document.querySelectorAll("#listaAdicionais .qtd-add").forEach(el => {
-                    const qtd = parseInt(el.innerText || "0");
+                document.querySelectorAll('#listaAdicionais .qtd-add').forEach(el => {
+                    const qtd = parseInt(el.innerText || '0', 10);
+
                     if (qtd > 0) {
                         selecionados.push({
                             nome: el.dataset.nome,
-                            preco: el.dataset.preco,
+                            preco: Number(el.dataset.preco || 0),
                             qtd: qtd
                         });
                     }
@@ -976,7 +1074,11 @@ function abrirModalAdicionais(id, nome, preco) {
         })
         .catch(() => {
             fecharModal();
-            mostrarAlerta("Erro", "Não foi possível carregar os adicionais.", "erro");
+            mostrarAlerta(
+                'Erro',
+                'Não foi possível carregar os adicionais.',
+                'erro'
+            );
         });
 }
 
@@ -984,23 +1086,17 @@ function fecharModal() {
     modalAdicionaisAberto = false;
     produtoAdicionalAtual = null;
 
-    const modal = document.getElementById("modalAdicionais");
-    const lista = document.getElementById("listaAdicionais");
-    const btn = document.getElementById("btnConfirmarAdicional");
+    const modal = document.getElementById('modalAdicionais');
+    const lista = document.getElementById('listaAdicionais');
+    const btn = document.getElementById('btnConfirmarAdicional');
 
-    modal.classList.add("hidden");
-    lista.innerHTML = "";
+    modal.classList.add('hidden');
+    lista.innerHTML = '';
     btn.onclick = null;
 }
 
-document.addEventListener("keydown", function (e) {
-    if (e.key === "Escape" && modalAdicionaisAberto) {
-        fecharModal();
-    }
-});
-
-document.getElementById("modalAdicionais").addEventListener("click", function (e) {
-    if (e.target.id === "modalAdicionais") {
+document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape' && modalAdicionaisAberto) {
         fecharModal();
     }
 });
@@ -1009,11 +1105,11 @@ document.getElementById("modalAdicionais").addEventListener("click", function (e
    PAGAMENTO / ENTREGA
 ========================================================= */
 
-function setMetodo(met, btnElement) {
-    metodoPagamento = met;
+function setMetodo(metodo, btnElement) {
+    metodoPagamento = metodo;
 
-    document.querySelectorAll('.metodo-btn').forEach(b => {
-        b.classList.remove('selected', 'bg-blue-600', 'text-white');
+    document.querySelectorAll('.metodo-btn').forEach(btn => {
+        btn.classList.remove('selected', 'bg-blue-600', 'text-white');
     });
 
     if (btnElement) {
@@ -1021,15 +1117,15 @@ function setMetodo(met, btnElement) {
     }
 }
 
-function setEntrega(valor, btn) {
+function setEntrega(valor, btnElement) {
     tipoEntrega = valor;
 
-    document.querySelectorAll('.entrega-btn').forEach(b => {
-        b.classList.remove('selected', 'bg-blue-600', 'text-white');
+    document.querySelectorAll('.entrega-btn').forEach(btn => {
+        btn.classList.remove('selected', 'bg-blue-600', 'text-white');
     });
 
-    if (btn) {
-        btn.classList.add('selected', 'bg-blue-600', 'text-white');
+    if (btnElement) {
+        btnElement.classList.add('selected', 'bg-blue-600', 'text-white');
     }
 
     const enderecoBox = document.getElementById('enderecoBox');
@@ -1045,6 +1141,8 @@ function setEntrega(valor, btn) {
         document.getElementById('cep').value = '';
         document.getElementById('rua').value = '';
         document.getElementById('numero').value = '';
+        document.getElementById('inputMotoca').value = '0,00';
+        atualizarTotais();
     }
 }
 
@@ -1062,11 +1160,11 @@ function mostrarAlerta(titulo, mensagem, tipo = 'aviso') {
 
     if (tipo === 'erro') {
         iconeArea.className =
-            "w-16 h-16 bg-red-100 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4";
+            'w-16 h-16 bg-red-100 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4';
         iconeArea.innerHTML = '<i class="fas fa-times text-2xl"></i>';
     } else {
         iconeArea.className =
-            "w-16 h-16 bg-amber-100 text-amber-500 rounded-full flex items-center justify-center mx-auto mb-4";
+            'w-16 h-16 bg-amber-100 text-amber-500 rounded-full flex items-center justify-center mx-auto mb-4';
         iconeArea.innerHTML = '<i class="fas fa-exclamation-triangle text-2xl"></i>';
     }
 
@@ -1102,9 +1200,7 @@ function mostrarSucesso(pedidoId, total, metodo) {
     document.getElementById('resumoTotal').innerText = total;
     document.getElementById('resumoMetodo').innerText = metodo;
 
-    // Status de impressão: inicial
     setSucessoStatusImprimindo();
-
     modal.classList.remove('hidden');
 
     setTimeout(() => {
@@ -1116,34 +1212,40 @@ function mostrarSucesso(pedidoId, total, metodo) {
 function setSucessoStatusImprimindo() {
     const status = document.getElementById('sucessoStatusImpressao');
     const btnReimprimir = document.getElementById('btnReimprimir');
+
     if (status) {
         status.innerHTML =
             '<span class="spinner-print"></span> Enviando para a impressora...';
         status.className = 'text-amber-600 text-sm mb-6 font-bold';
     }
+
     if (btnReimprimir) btnReimprimir.classList.add('hidden');
 }
 
 function setSucessoStatusOk() {
     const status = document.getElementById('sucessoStatusImpressao');
     const btnReimprimir = document.getElementById('btnReimprimir');
+
     if (status) {
         status.innerHTML =
             '<i class="fas fa-check-circle mr-1"></i> Comprovante impresso com sucesso!';
         status.className = 'text-green-600 text-sm mb-6 font-bold';
     }
+
     if (btnReimprimir) btnReimprimir.classList.add('hidden');
 }
 
-function setSucessoStatusErro(msg) {
+function setSucessoStatusErro(mensagem) {
     const status = document.getElementById('sucessoStatusImpressao');
     const btnReimprimir = document.getElementById('btnReimprimir');
+
     if (status) {
         status.innerHTML =
             '<i class="fas fa-exclamation-triangle mr-1"></i> Falha na impressão: ' +
-            (msg || 'verifique a impressora e use REIMPRIMIR.');
+            escaparHtml(mensagem || 'verifique a impressora e use REIMPRIMIR.');
         status.className = 'text-red-600 text-sm mb-6 font-bold px-2';
     }
+
     if (btnReimprimir) btnReimprimir.classList.remove('hidden');
 }
 
@@ -1165,20 +1267,20 @@ function resetarFormulario() {
     metodoPagamento = '';
     tipoEntrega = true;
 
-    document.getElementById('inputDesconto').value = "0,00";
-    document.getElementById('inputMotoca').value = "0,00";
-    document.getElementById('nomeCliente').value = "";
-    document.getElementById('descricaoPedido').value = "";
-    document.getElementById('cep').value = "";
-    document.getElementById('rua').value = "";
-    document.getElementById('numero').value = "";
+    document.getElementById('inputDesconto').value = '0,00';
+    document.getElementById('inputMotoca').value = '0,00';
+    document.getElementById('nomeCliente').value = '';
+    document.getElementById('descricaoPedido').value = '';
+    document.getElementById('cep').value = '';
+    document.getElementById('rua').value = '';
+    document.getElementById('numero').value = '';
 
-    document.querySelectorAll('.metodo-btn').forEach(b => {
-        b.classList.remove('selected', 'bg-blue-600', 'text-white');
+    document.querySelectorAll('.metodo-btn').forEach(btn => {
+        btn.classList.remove('selected', 'bg-blue-600', 'text-white');
     });
 
-    document.querySelectorAll('.entrega-btn').forEach(b => {
-        b.classList.remove('selected', 'bg-blue-600', 'text-white');
+    document.querySelectorAll('.entrega-btn').forEach(btn => {
+        btn.classList.remove('selected', 'bg-blue-600', 'text-white');
     });
 
     const botoesEntrega = document.querySelectorAll('.entrega-btn');
@@ -1193,7 +1295,7 @@ function resetarFormulario() {
 }
 
 /* =========================================================
-   CEP (com timeout)
+   CEP
 ========================================================= */
 
 async function buscarCepAuto() {
@@ -1201,31 +1303,38 @@ async function buscarCepAuto() {
     if (cep.length !== 8) return;
 
     const ruaInput = document.getElementById('rua');
-    ruaInput.value = "Buscando endereço...";
+    ruaInput.value = 'Buscando endereço...';
 
-    const ctrl = new AbortController();
-    const timeoutId = setTimeout(() => ctrl.abort(), TIMEOUT_CEP_MS);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_CEP_MS);
 
     try {
-        const res = await fetch(
+        const response = await fetch(
             `https://viacep.com.br/ws/${cep}/json/`,
-            { signal: ctrl.signal }
+            { signal: controller.signal }
         );
-        clearTimeout(timeoutId);
 
-        const data = await res.json();
+        if (!response.ok) {
+            throw new Error('Falha ao consultar CEP.');
+        }
+
+        const data = await response.json();
 
         if (data.erro) {
             ruaInput.value = '';
-            mostrarAlerta("CEP inválido", "Não encontramos esse CEP", "erro");
+            mostrarAlerta('CEP inválido', 'Não encontramos esse CEP.', 'erro');
             return;
         }
 
         ruaInput.value = data.logradouro || '';
-    } catch (e) {
-        clearTimeout(timeoutId);
+    } catch (erro) {
         ruaInput.value = '';
-        // Em silêncio: se demorou ou caiu, deixa o usuário digitar
+
+        if (erro.name !== 'AbortError') {
+            console.warn('Erro ao consultar CEP:', erro);
+        }
+    } finally {
+        clearTimeout(timeoutId);
     }
 }
 
@@ -1241,7 +1350,8 @@ function getCookie(name) {
 
         for (let i = 0; i < cookies.length; i++) {
             const cookie = cookies[i].trim();
-            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+
+            if (cookie.substring(0, name.length + 1) === `${name}=`) {
                 cookieValue = decodeURIComponent(
                     cookie.substring(name.length + 1)
                 );
@@ -1254,20 +1364,175 @@ function getCookie(name) {
 }
 
 /* =========================================================
-   QZ TRAY - CONEXÃO ROBUSTA
+   NORMALIZAÇÃO E VALIDAÇÃO DA IMPRESSÃO
+========================================================= */
+
+function normalizarItensImpressao(itens) {
+    if (!Array.isArray(itens)) return [];
+
+    return itens.map((item, index) => {
+        const adicionais = Array.isArray(item?.adicionais)
+            ? item.adicionais.map(adicional => ({
+                nome: String(adicional?.nome || '').trim(),
+                qtd: Number(adicional?.qtd ?? 1),
+                preco: Number(adicional?.preco ?? 0)
+            })).filter(adicional =>
+                adicional.nome &&
+                Number.isFinite(adicional.qtd) &&
+                adicional.qtd > 0 &&
+                Number.isFinite(adicional.preco)
+            )
+            : [];
+
+        return {
+            id: item?.id ?? item?.produtoId ?? item?.produto_id ?? index,
+            produtoId: item?.produtoId ?? item?.produto_id ?? item?.id ?? null,
+            nome: String(item?.nome || item?.nome_produto || '').trim(),
+            qtd: Number(item?.qtd ?? item?.quantidade ?? 0),
+            precoBase: Number(
+                item?.precoBase ??
+                item?.preco_base ??
+                item?.preco ??
+                item?.valor ??
+                0
+            ),
+            precoUnitario: Number(
+                item?.precoUnitario ??
+                item?.preco_unitario ??
+                0
+            ),
+            subtotal: Number(item?.subtotal ?? 0),
+            adicionais
+        };
+    }).filter(item =>
+        item.nome &&
+        Number.isFinite(item.qtd) &&
+        item.qtd > 0 &&
+        Number.isFinite(item.precoBase)
+    );
+}
+
+function normalizarPedidoImpressao(pedido = {}) {
+    const entrega =
+        pedido.entrega === true ||
+        pedido.entrega === 1 ||
+        pedido.entrega === 'true' ||
+        pedido.tipo_entrega === 'entrega';
+
+    return {
+        id: pedido.id,
+        criadoEm:
+            pedido.criadoEm ||
+            pedido.criado_em ||
+            new Date().toLocaleString('pt-BR'),
+        nomeCliente:
+            pedido.nomeCliente ||
+            pedido.nome_cliente ||
+            'SEM NOME',
+        metodo:
+            pedido.metodo ||
+            pedido.forma_pagamento ||
+            '',
+        entrega,
+        descricao: pedido.descricao || '',
+        endereco: pedido.endereco || {
+            rua: pedido.rua || '',
+            numero: pedido.numero || '',
+            cep: pedido.cep || ''
+        },
+        itens: normalizarItensImpressao(pedido.itens),
+        desconto: Number(pedido.desconto ?? 0),
+        totalPedido: Number(pedido.totalPedido ?? pedido.total ?? 0),
+        taxaMotoca: Number(pedido.taxaMotoca ?? pedido.taxa_motoca ?? 0),
+        totalFinal: Number(
+            pedido.totalFinal ??
+            pedido.total_final ??
+            pedido.total ??
+            0
+        )
+    };
+}
+
+function validarPedidoParaImpressao(pedido) {
+    const pedidoOK = normalizarPedidoImpressao(pedido);
+
+    if (!pedidoOK.id) {
+        throw new Error('Pedido sem identificação para impressão.');
+    }
+
+    if (!Array.isArray(pedidoOK.itens) || pedidoOK.itens.length === 0) {
+        throw new Error(
+            'A impressão foi bloqueada porque o pedido chegou sem itens.'
+        );
+    }
+
+    pedidoOK.itens.forEach((item, index) => {
+        if (!item.nome) {
+            throw new Error(`O item ${index + 1} está sem nome.`);
+        }
+
+        if (!Number.isFinite(item.qtd) || item.qtd <= 0) {
+            throw new Error(
+                `O item ${item.nome} está com quantidade inválida.`
+            );
+        }
+
+        if (!Number.isFinite(item.precoBase) || item.precoBase < 0) {
+            throw new Error(
+                `O item ${item.nome} está com preço inválido.`
+            );
+        }
+    });
+
+    return pedidoOK;
+}
+
+function assinaturaItensImpressao(itens) {
+    return normalizarItensImpressao(itens)
+        .map(item => {
+            const adicionais = item.adicionais
+                .map(adicional =>
+                    `${adicional.nome.toLowerCase()}:${adicional.qtd}:${adicional.preco}`
+                )
+                .sort()
+                .join('|');
+
+            return `${item.nome.toLowerCase()}:${item.qtd}:${adicionais}`;
+        })
+        .sort()
+        .join('||');
+}
+
+function itensServidorEstaoCompletos(itensServidor, itensCarrinho) {
+    const servidor = normalizarItensImpressao(itensServidor);
+    const carrinhoLocal = normalizarItensImpressao(itensCarrinho);
+
+    if (servidor.length === 0 || carrinhoLocal.length === 0) return false;
+    if (servidor.length !== carrinhoLocal.length) return false;
+
+    return assinaturaItensImpressao(servidor) ===
+           assinaturaItensImpressao(carrinhoLocal);
+}
+
+/* =========================================================
+   QZ TRAY - CONEXÃO
 ========================================================= */
 
 async function carregarQzScriptSeNecessario() {
     if (window.qz) return;
+
     await new Promise((resolve, reject) => {
-        const s = document.createElement("script");
-        s.src = "https://cdn.jsdelivr.net/npm/qz-tray@2.2.4/qz-tray.js";
-        s.onload = resolve;
-        s.onerror = () => reject(new Error("Falha ao carregar o qz-tray.js."));
-        document.head.appendChild(s);
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/qz-tray@2.2.4/qz-tray.js';
+        script.onload = resolve;
+        script.onerror = () => reject(
+            new Error('Falha ao carregar o qz-tray.js.')
+        );
+        document.head.appendChild(script);
     });
+
     if (!window.qz) {
-        throw new Error("QZ Tray não disponível após carregar o script.");
+        throw new Error('QZ Tray não disponível após carregar o script.');
     }
 }
 
@@ -1275,8 +1540,6 @@ async function conectarQZ() {
     await carregarQzScriptSeNecessario();
 
     if (qz.websocket.isActive()) return true;
-
-    // Evita múltiplas conexões simultâneas — todas aguardam a mesma promise
     if (qzConnectingPromise) return qzConnectingPromise;
 
     qzConnectingPromise = (async () => {
@@ -1284,7 +1547,6 @@ async function conectarQZ() {
             await qz.websocket.connect({ retries: 3, delay: 1 });
             return true;
         } finally {
-            // Libera para tentativas futuras
             qzConnectingPromise = null;
         }
     })();
@@ -1294,12 +1556,16 @@ async function conectarQZ() {
 
 async function reconectarForcado() {
     try {
-        if (qz.websocket.isActive()) {
+        if (window.qz && qz.websocket.isActive()) {
             await qz.websocket.disconnect();
         }
-    } catch (_) {}
-    // Limpa promise pendente
+    } catch (_) {
+        // ignora erro de desconexão
+    }
+
     qzConnectingPromise = null;
+    impressoraCache = null;
+
     await sleep(500);
     await conectarQZ();
 }
@@ -1312,9 +1578,10 @@ async function obterImpressora(forceRefresh = false) {
     }
 
     let lista = [];
+
     try {
         lista = await qz.printers.find();
-    } catch (e) {
+    } catch (_) {
         lista = [];
     }
 
@@ -1322,49 +1589,62 @@ async function obterImpressora(forceRefresh = false) {
         lista = lista ? [lista] : [];
     }
 
-    // Se a lista veio vazia, NÃO inventa impressora — avisa de verdade
     if (lista.length === 0) {
         impressoraCache = null;
         throw new Error(
-            "Nenhuma impressora encontrada. Verifique se o QZ Tray está aberto e " +
-            "se a impressora está ligada e conectada ao computador."
+            'Nenhuma impressora encontrada. Verifique se o QZ Tray está aberto ' +
+            'e se a impressora está ligada e conectada ao computador.'
         );
+    }
+
+    const nomeExato = lista.find(impressora =>
+        String(impressora).toUpperCase() === IMPRESSORA_PADRAO.toUpperCase()
+    );
+
+    if (nomeExato) {
+        impressoraCache = nomeExato;
+        return nomeExato;
     }
 
     const preferidas = [
-        "MP-4200", "BEMATECH", "ELGIN",
-        "DARUMA", "POS", "THERMAL"
+        'MP-4200',
+        'BEMATECH',
+        'ELGIN',
+        'DARUMA',
+        'POS',
+        'THERMAL'
     ];
 
-    // 1) Tenta encontrar uma impressora térmica conhecida
     for (const termo of preferidas) {
-        const achada = lista.find(p =>
-            String(p).toUpperCase().includes(termo)
+        const encontrada = lista.find(impressora =>
+            String(impressora).toUpperCase().includes(termo)
         );
-        if (achada) {
-            impressoraCache = achada;
-            return achada;
+
+        if (encontrada) {
+            impressoraCache = encontrada;
+            return encontrada;
         }
     }
 
-    // 2) Tenta a impressora padrão do sistema (precisa estar na lista)
     try {
         const padrao = await qz.printers.getDefault();
-        if (padrao && lista.some(p => String(p) === String(padrao))) {
+
+        if (padrao && lista.some(item => String(item) === String(padrao))) {
             impressoraCache = padrao;
             return padrao;
         }
-    } catch (e) { /* ignora */ }
+    } catch (_) {
+        // continua para a primeira impressora disponível
+    }
 
-    // 3) Última opção: primeira impressora real disponível
     impressoraCache = lista[0];
     return impressoraCache;
 }
 
 function prepararTextoRaw(texto) {
-    return String(texto || "")
-        .replace(/\r\n/g, "\n")
-        .replace(/\r/g, "\n");
+    return String(texto || '')
+        .replace(/\r\n/g, '\n')
+        .replace(/\r/g, '\n');
 }
 
 /* =========================================================
@@ -1373,7 +1653,10 @@ function prepararTextoRaw(texto) {
 
 async function imprimirRaw(texto) {
     texto = prepararTextoRaw(texto);
-    if (!texto.trim()) throw new Error("Texto vazio.");
+
+    if (!texto.trim()) {
+        throw new Error('Texto de impressão vazio.');
+    }
 
     let ultimoErro = null;
 
@@ -1381,79 +1664,74 @@ async function imprimirRaw(texto) {
         try {
             await conectarQZ();
 
-            // Se passou da primeira tentativa, invalida o cache da impressora
             const nomeImpressora = await obterImpressora(tentativa > 1);
-
             const config = qz.configs.create(nomeImpressora, {
                 encoding: ENCODING_IMPRESSAO,
                 copies: 1,
-                jobName: "Pedido Restaurante"
+                jobName: 'Pedido Restaurante'
             });
 
             const dados = [{
-                type: "raw",
-                format: "plain",
-                data: ESC_POS.INIT + ESC_POS.CP850 + texto
+                type: 'raw',
+                format: 'plain',
+                data: texto
             }];
 
             await qz.print(config, dados);
             return true;
+        } catch (erro) {
+            ultimoErro = erro;
 
-        } catch (e) {
-            ultimoErro = e;
             console.warn(
                 `Tentativa ${tentativa}/${MAX_RETRIES} falhou:`,
-                e?.message || e
+                erro?.message || erro
             );
 
             if (tentativa < MAX_RETRIES) {
-                // Reconexão forçada antes de tentar de novo
                 try {
                     await reconectarForcado();
-                } catch (_) {}
+                } catch (_) {
+                    // a próxima tentativa mostrará o erro real
+                }
+
                 await sleep(DELAY_RETRY_MS);
             }
         }
     }
 
     throw new Error(
-        "Falha após " + MAX_RETRIES + " tentativas: " +
+        `Falha após ${MAX_RETRIES} tentativas: ` +
         (ultimoErro?.message || ultimoErro)
     );
 }
 
 /* =========================================================
-   GERAÇÃO DE TEXTO DOS COMPROVANTES
+   GERAÇÃO DOS COMPROVANTES
 ========================================================= */
 
 function agruparItens(itens) {
+    const itensNormalizados = normalizarItensImpressao(itens);
     const mapa = {};
 
-    itens.forEach(item => {
-        const adicionaisKey = (item.adicionais || [])
-            .map(a => `${a.nome}:${a.preco}:${a.qtd || 1}`)
+    itensNormalizados.forEach(item => {
+        const adicionaisKey = item.adicionais
+            .map(adicional =>
+                `${adicional.nome}:${adicional.preco}:${adicional.qtd || 1}`
+            )
             .sort()
             .join('|');
 
         const chave = `${item.nome}_${adicionaisKey}`;
-
-        const qtd = Number(item.qtd || item.quantidade || 1);
-        const precoBase = Number(
-            item.precoBase ||
-            item.preco_unitario ||
-            item.preco ||
-            item.valor ||
-            0
-        );
-
+        const qtd = Number(item.qtd || 1);
+        const precoBase = Number(item.precoBase || 0);
         const subtotal = Number(item.subtotal || 0);
 
         if (!mapa[chave]) {
             mapa[chave] = {
                 nome: item.nome,
-                qtd: qtd,
-                precoBase: precoBase,
-                precoUnitarioServidor: Number(item.preco_unitario || 0),
+                qtd,
+                precoBase,
+                precoUnitarioServidor: Number(item.precoUnitario || 0),
                 subtotalServidor: subtotal,
                 adicionais: item.adicionais || []
             };
@@ -1466,96 +1744,75 @@ function agruparItens(itens) {
     return Object.values(mapa);
 }
 
+function calcularSubtotalItensPedido(pedido) {
+    return agruparItens(pedido.itens).reduce((total, item) => {
+        if (Number(item.subtotalServidor) > 0) {
+            return total + Number(item.subtotalServidor);
+        }
 
-function normalizarPedidoImpressao(p) {
-    return {
-        id: p.id,
-        criadoEm: p.criadoEm || p.criado_em || new Date().toLocaleString("pt-BR"),
-        nomeCliente: p.nomeCliente || p.nome_cliente || "SEM NOME",
-        metodo: p.metodo || p.forma_pagamento || "",
-        entrega: !!p.entrega,
-        descricao: p.descricao || "",
-        endereco: p.endereco || {
-            rua: p.rua || "",
-            numero: p.numero || "",
-            cep: p.cep || ""
-        },
-        itens: (p.itens || []).map(i => ({
-            nome: i.nome || "ITEM",
-            qtd: Number(i.qtd || i.quantidade || 1),
-            precoBase: Number(
-                i.precoBase ||
-                i.preco_unitario ||
-                i.preco ||
-                i.valor ||
-                0
-            ),
-            subtotal: Number(i.subtotal || 0),
-            adicionais: (i.adicionais || []).map(a => ({
-                nome: a.nome || "",
-                qtd: Number(a.qtd || 1),
-                preco: Number(a.preco || 0)
-            }))
-        })),
-        totalPedido: Number(p.totalPedido || p.total || 0),
-        taxaMotoca: Number(p.taxaMotoca || p.taxa_motoca || 0),
-        totalFinal: Number(p.totalFinal || p.total_final || p.total || 0)
-    };
+        const precoUnitario =
+            Number(item.precoBase || 0) +
+            calcularPrecoAdicionais(item.adicionais);
+
+        return total + (precoUnitario * Number(item.qtd || 0));
+    }, 0);
 }
 
 function gerarTextoBalcao(pedido) {
-    let t = "";
+    const pedidoOK = validarPedidoParaImpressao(pedido);
+    const itensAgrupados = agruparItens(pedidoOK.itens);
 
-    t += ESC_POS.INIT;
-    t += ESC_POS.CP850;
-    t += ESC_POS.CENTER;
-    t += ESC_POS.BOLD_ON;
-    t += ESC_POS.DOUBLE_ON;
-    t += "VIA BALCAO\n";
-    t += "PEDIDO #" + pedido.id + "\n";
-    t += ESC_POS.DOUBLE_OFF;
-    t += ESC_POS.BOLD_OFF;
-    t += "--------------------------------\n";
-    t += ESC_POS.LEFT;
-
-    t += "Data: " + limparTexto(pedido.criadoEm) + "\n";
-    t += "Cliente: " + limparTexto(pedido.nomeCliente) + "\n";
-
-    if (pedido.descricao) {
-        t += "Obs: " + limparTexto(pedido.descricao) + "\n";
+    if (itensAgrupados.length === 0) {
+        throw new Error('Não há itens para gerar a via do balcão.');
     }
 
-    t += "Pagamento: " + limparTexto(pedido.metodo).toUpperCase() + "\n";
-    t += pedido.entrega ? "Tipo: ENTREGA\n" : "Tipo: RETIRADA BALCAO\n";
+    let texto = '';
 
-    if (pedido.entrega && pedido.endereco) {
-        t += "End: " + limparTexto(pedido.endereco.rua) +
-             ", " + limparTexto(pedido.endereco.numero) + "\n";
+    texto += ESC_POS.INIT;
+    texto += ESC_POS.CP850;
+    texto += ESC_POS.CENTER;
+    texto += ESC_POS.BOLD_ON;
+    texto += ESC_POS.DOUBLE_ON;
+    texto += 'VIA BALCAO\n';
+    texto += `PEDIDO #${pedidoOK.id}\n`;
+    texto += ESC_POS.DOUBLE_OFF;
+    texto += ESC_POS.BOLD_OFF;
+    texto += '--------------------------------\n';
+    texto += ESC_POS.LEFT;
 
-        if (pedido.endereco.cep) {
-            t += "CEP: " + limparTexto(pedido.endereco.cep) + "\n";
+    texto += `Data: ${limparTexto(pedidoOK.criadoEm)}\n`;
+    texto += `Cliente: ${limparTexto(pedidoOK.nomeCliente)}\n`;
+
+    if (pedidoOK.descricao) {
+        texto += `Obs: ${limparTexto(pedidoOK.descricao)}\n`;
+    }
+
+    texto += `Pagamento: ${limparTexto(pedidoOK.metodo).toUpperCase()}\n`;
+    texto += pedidoOK.entrega ? 'Tipo: ENTREGA\n' : 'Tipo: RETIRADA BALCAO\n';
+
+    if (pedidoOK.entrega && pedidoOK.endereco) {
+        texto += `End: ${limparTexto(pedidoOK.endereco.rua)}, ` +
+                 `${limparTexto(pedidoOK.endereco.numero)}\n`;
+
+        if (pedidoOK.endereco.cep) {
+            texto += `CEP: ${limparTexto(pedidoOK.endereco.cep)}\n`;
         }
     }
 
-    t += "--------------------------------\n";
-    t += ESC_POS.BOLD_ON + "ITENS DO PEDIDO\n" + ESC_POS.BOLD_OFF;
-    t += "--------------------------------\n";
+    texto += '--------------------------------\n';
+    texto += ESC_POS.BOLD_ON + 'ITENS DO PEDIDO\n' + ESC_POS.BOLD_OFF;
+    texto += '--------------------------------\n';
 
-    let subtotalGeralReal = 0;
+    let subtotalGeral = 0;
 
-    agruparItens(pedido.itens).forEach(item => {
+    itensAgrupados.forEach(item => {
         const adicionais = item.adicionais || [];
         const qtd = Number(item.qtd || 1);
 
-        // Fonte de verdade: se o backend já mandou subtotal (grupo somado
-        // pelo agruparItens em `subtotalServidor`), usamos ele direto — é
-        // Decimal calculado no servidor e já inclui os adicionais UMA vez.
-        // Só recalculamos manualmente quando não há subtotal nenhum
-        // (caso do carrinho recém-montado, onde precoBase é confiável e
-        // ainda NÃO inclui adicionais).
         let subtotalItem;
-        if (item.subtotalServidor && item.subtotalServidor > 0) {
-            subtotalItem = item.subtotalServidor;
+
+        if (Number(item.subtotalServidor) > 0) {
+            subtotalItem = Number(item.subtotalServidor);
         } else {
             const precoAdicionais = calcularPrecoAdicionais(adicionais);
             const precoUnitario = Number(item.precoBase || 0) + precoAdicionais;
@@ -1563,223 +1820,315 @@ function gerarTextoBalcao(pedido) {
         }
 
         const precoUnitarioExibicao = qtd > 0 ? subtotalItem / qtd : 0;
-        subtotalGeralReal += subtotalItem;
+        subtotalGeral += subtotalItem;
 
-        quebrarLinha(`${qtd}x ${item.nome}`, 24).forEach((linha, index) => {
+        const linhasNome = quebrarLinha(`${qtd}x ${item.nome}`, 22);
+
+        linhasNome.forEach((linha, index) => {
             if (index === 0) {
-                t += linha.padEnd(24).slice(0, 24);
-                t += " R$ " + moeda(subtotalItem) + "\n";
+                texto += linha.padEnd(22).slice(0, 22);
+                texto += ` R$ ${moeda(subtotalItem)}\n`;
             } else {
-                t += linha + "\n";
+                texto += `${linha}\n`;
             }
         });
 
-        t += "   Unit: R$ " + moeda(precoUnitarioExibicao) + "\n";
+        texto += `   Unit: R$ ${moeda(precoUnitarioExibicao)}\n`;
 
-        adicionais.forEach(a => {
-            const qtdAdd = Number(a.qtd || 1);
-            const totalAdd = Number(a.preco || 0) * qtdAdd;
-            t += "   + " + qtdAdd + "x " +
-                 limparTexto(a.nome) + " R$ " + moeda(totalAdd) + "\n";
+        adicionais.forEach(adicional => {
+            const qtdAdd = Number(adicional.qtd || 1);
+            const totalAdd = Number(adicional.preco || 0) * qtdAdd;
+
+            texto += `   + ${qtdAdd}x ${limparTexto(adicional.nome)}` +
+                     ` R$ ${moeda(totalAdd)}\n`;
         });
 
-        t += "\n";
+        texto += '\n';
     });
 
-    // Subtotal exibido = soma real dos itens impressos acima, não
-    // pedido.totalPedido isolado — assim a conta bate com o que foi
-    // impresso linha a linha, mesmo se o campo do pedido divergir.
-    t += "--------------------------------\n";
-    t += "Subtotal:     R$ " + moeda(subtotalGeralReal) + "\n";
-    t += "Taxa Entrega: R$ " + moeda(pedido.taxaMotoca) + "\n";
-    t += ESC_POS.BOLD_ON;
-    t += "TOTAL FINAL:  R$ " + moeda(subtotalGeralReal + Number(pedido.taxaMotoca || 0)) + "\n";
-    t += ESC_POS.BOLD_OFF;
-    t += "--------------------------------\n";
-    t += ESC_POS.BOLD_ON;
-    t += "PAGAMENTO:    " + limparTexto(pedido.metodo).toUpperCase() + "\n";
-    t += ESC_POS.BOLD_OFF;
-    t += "\n\n\n\n\n\n";
-    t += ESC_POS.PARTIAL_CUT;
+    const totalPedidoInformado = Number(pedidoOK.totalPedido);
+    const totalPedidoValido = Number.isFinite(totalPedidoInformado)
+        ? Math.max(0, totalPedidoInformado)
+        : subtotalGeral;
 
-    return t;
-}
+    const descontoCalculado = Math.max(
+        0,
+        Number(pedidoOK.desconto || 0) ||
+        (subtotalGeral - totalPedidoValido)
+    );
 
-function gerarTextoCozinha(pedido) {
-    let t = "";
+    const totalPedido = totalPedidoValido;
 
-    t += ESC_POS.INIT;
-    t += ESC_POS.CP850;
-    t += ESC_POS.CENTER;
-    t += ESC_POS.BOLD_ON;
-    t += ESC_POS.DOUBLE_ON;
-    t += "VIA COZINHA\n";
-    t += "PEDIDO #" + pedido.id + "\n";
-    t += ESC_POS.DOUBLE_OFF;
-    t += ESC_POS.BOLD_OFF;
-    t += "--------------------------------\n";
-    t += ESC_POS.LEFT;
+    const taxaMotoca = pedidoOK.entrega
+        ? Number(pedidoOK.taxaMotoca || 0)
+        : 0;
 
-    t += "Cliente: " + limparTexto(pedido.nomeCliente).toUpperCase() + "\n";
-    t += pedido.entrega ? "ENTREGA\n" : "RETIRADA BALCAO\n";
-    t += "PAGAMENTO: " + limparTexto(pedido.metodo).toUpperCase() + "\n";
+    const totalFinal = totalPedido + taxaMotoca;
 
-    if (pedido.descricao) {
-        t += "OBS: " + limparTexto(pedido.descricao).toUpperCase() + "\n";
-    }
-
-    t += "--------------------------------\n";
-    t += ESC_POS.BOLD_ON + "PREPARO\n" + ESC_POS.BOLD_OFF;
-    t += "--------------------------------\n";
-
-    let totalProdutos = 0;
-
-    agruparItens(pedido.itens || []).forEach(item => {
-        const qtdProduto = Number(item.qtd || 1);
-        const adicionais = item.adicionais || [];
-
-        /*
-         * Regra única para impressão:
-         * preço unitário = produto + todos os adicionais selecionados
-         * subtotal = preço unitário x quantidade do produto
-         *
-         * Não usamos subtotalServidor aqui porque ele pode chegar
-         * representando apenas o preço-base, dependendo do fluxo.
-         */
-        const precoBase = Number(item.precoBase || 0);
-        const precoAdicionais = calcularPrecoAdicionais(adicionais);
-        const precoUnitarioCompleto = precoBase + precoAdicionais;
-        const subtotalItem = precoUnitarioCompleto * qtdProduto;
-
-        totalProdutos += subtotalItem;
-
-        t += ESC_POS.BOLD_ON;
-        t += qtdProduto + "x " + limparTexto(item.nome).toUpperCase();
-        t += "  R$ " + moeda(subtotalItem) + "\n";
-        t += ESC_POS.BOLD_OFF;
-
-        t += "   UNIT: R$ " + moeda(precoUnitarioCompleto) + "\n";
-
-        adicionais.forEach(a => {
-            const qtdAdicional = Number(a.qtd || 1);
-            const precoAdicional = Number(a.preco || 0);
-            const totalAdicionalUnitario = precoAdicional * qtdAdicional;
-
-            t += "   + " + qtdAdicional + "x " +
-                 limparTexto(a.nome).toUpperCase();
-
-            if (totalAdicionalUnitario > 0) {
-                t += " R$ " + moeda(totalAdicionalUnitario);
-            }
-
-            t += "\n";
-        });
-
-        t += "\n";
-    });
-
-    /*
-     * Fallback apenas para pedidos antigos sem itens/preços utilizáveis.
-     * Em pedidos normais, totalProdutos já contém produto + adicionais.
-     */
-    if (totalProdutos <= 0) {
-        totalProdutos = Number(pedido.totalPedido || 0);
-    }
-
-    t += "--------------------------------\n";
-    t += ESC_POS.BOLD_ON;
-    t += "TOTAL PRODUTOS: R$ " + moeda(totalProdutos) + "\n";
-    t += ESC_POS.BOLD_OFF;
-
-    const totalPedido = Number(pedido.totalPedido || 0);
-    const taxaMotoca = Number(pedido.taxaMotoca || 0);
-    const totalFinal = Number(pedido.totalFinal || 0);
-
-    /*
-     * Exibe desconto quando o total dos produtos é maior que o total
-     * do pedido salvo. Assim a cozinha consegue conferir a diferença.
-     */
-    const descontoCalculado = Math.max(0, totalProdutos - totalPedido);
+    texto += '--------------------------------\n';
+    texto += `Subtotal:     R$ ${moeda(subtotalGeral)}\n`;
 
     if (descontoCalculado > 0.009) {
-        t += "DESCONTO:       R$ " + moeda(descontoCalculado) + "\n";
-        t += "APOS DESCONTO:  R$ " + moeda(totalPedido) + "\n";
+        texto += `Desconto:     R$ ${moeda(descontoCalculado)}\n`;
     }
 
     if (taxaMotoca > 0) {
-        t += "TAXA ENTREGA:   R$ " + moeda(taxaMotoca) + "\n";
+        texto += `Taxa Entrega: R$ ${moeda(taxaMotoca)}\n`;
     }
 
-    if (totalFinal > 0) {
-        t += ESC_POS.BOLD_ON;
-        t += "TOTAL FINAL:    R$ " + moeda(totalFinal) + "\n";
-        t += ESC_POS.BOLD_OFF;
+    texto += ESC_POS.BOLD_ON;
+    texto += `TOTAL FINAL:  R$ ${moeda(totalFinal)}\n`;
+    texto += ESC_POS.BOLD_OFF;
+    texto += '--------------------------------\n';
+    texto += ESC_POS.BOLD_ON;
+    texto += `PAGAMENTO:    ${limparTexto(pedidoOK.metodo).toUpperCase()}\n`;
+    texto += ESC_POS.BOLD_OFF;
+    texto += '\n\n\n\n\n\n';
+    texto += ESC_POS.PARTIAL_CUT;
+
+    return texto;
+}
+
+function gerarTextoCozinha(pedido) {
+    const pedidoOK = validarPedidoParaImpressao(pedido);
+    const itensAgrupados = agruparItens(pedidoOK.itens);
+
+    if (itensAgrupados.length === 0) {
+        throw new Error('Não há itens para gerar a via da cozinha.');
     }
 
-    t += "--------------------------------\n";
-    t += ESC_POS.CENTER;
-    t += ESC_POS.BOLD_ON + "BOM TRABALHO!\n" + ESC_POS.BOLD_OFF;
-    t += "\n\n\n\n\n\n";
-    t += ESC_POS.CUT;
+    let texto = '';
 
-    return t;
+    texto += ESC_POS.INIT;
+    texto += ESC_POS.CP850;
+    texto += ESC_POS.CENTER;
+    texto += ESC_POS.BOLD_ON;
+    texto += ESC_POS.DOUBLE_ON;
+    texto += 'VIA COZINHA\n';
+    texto += `PEDIDO #${pedidoOK.id}\n`;
+    texto += ESC_POS.DOUBLE_OFF;
+    texto += ESC_POS.BOLD_OFF;
+    texto += '--------------------------------\n';
+    texto += ESC_POS.LEFT;
+
+    texto += `Cliente: ${limparTexto(pedidoOK.nomeCliente).toUpperCase()}\n`;
+    texto += pedidoOK.entrega ? 'ENTREGA\n' : 'RETIRADA BALCAO\n';
+    texto += `PAGAMENTO: ${limparTexto(pedidoOK.metodo).toUpperCase()}\n`;
+
+    if (pedidoOK.descricao) {
+        texto += `OBS: ${limparTexto(pedidoOK.descricao).toUpperCase()}\n`;
+    }
+
+    texto += '--------------------------------\n';
+    texto += ESC_POS.BOLD_ON + 'PREPARO\n' + ESC_POS.BOLD_OFF;
+    texto += '--------------------------------\n';
+
+    let totalProdutos = 0;
+
+    itensAgrupados.forEach(item => {
+        const qtdProduto = Number(item.qtd || 1);
+        const adicionais = item.adicionais || [];
+        const precoBase = Number(item.precoBase || 0);
+        const precoAdicionais = calcularPrecoAdicionais(adicionais);
+        const precoUnitarioCompleto = precoBase + precoAdicionais;
+
+        const subtotalItem = Number(item.subtotalServidor) > 0
+            ? Number(item.subtotalServidor)
+            : precoUnitarioCompleto * qtdProduto;
+
+        const precoUnitarioExibicao = qtdProduto > 0
+            ? subtotalItem / qtdProduto
+            : precoUnitarioCompleto;
+
+        totalProdutos += subtotalItem;
+
+        texto += ESC_POS.BOLD_ON;
+        texto += `${qtdProduto}x ${limparTexto(item.nome).toUpperCase()}`;
+        texto += `  R$ ${moeda(subtotalItem)}\n`;
+        texto += ESC_POS.BOLD_OFF;
+        texto += `   UNIT: R$ ${moeda(precoUnitarioExibicao)}\n`;
+
+        adicionais.forEach(adicional => {
+            const qtdAdicional = Number(adicional.qtd || 1);
+            const precoAdicional = Number(adicional.preco || 0);
+            const totalAdicionalUnitario = precoAdicional * qtdAdicional;
+
+            texto += `   + ${qtdAdicional}x ` +
+                     limparTexto(adicional.nome).toUpperCase();
+
+            if (totalAdicionalUnitario > 0) {
+                texto += ` R$ ${moeda(totalAdicionalUnitario)}`;
+            }
+
+            texto += '\n';
+        });
+
+        texto += '\n';
+    });
+
+    const totalPedido = Number(pedidoOK.totalPedido || 0);
+    const taxaMotoca = pedidoOK.entrega
+        ? Number(pedidoOK.taxaMotoca || 0)
+        : 0;
+    const descontoCalculado = Math.max(
+        0,
+        Number(pedidoOK.desconto || 0) ||
+        (totalProdutos - totalPedido)
+    );
+    const totalFinal = totalPedido + taxaMotoca;
+
+    texto += '--------------------------------\n';
+    texto += ESC_POS.BOLD_ON;
+    texto += `TOTAL PRODUTOS: R$ ${moeda(totalProdutos)}\n`;
+    texto += ESC_POS.BOLD_OFF;
+
+    if (descontoCalculado > 0.009) {
+        texto += `DESCONTO:       R$ ${moeda(descontoCalculado)}\n`;
+        texto += `APOS DESCONTO:  R$ ${moeda(totalPedido)}\n`;
+    }
+
+    if (taxaMotoca > 0) {
+        texto += `TAXA ENTREGA:   R$ ${moeda(taxaMotoca)}\n`;
+    }
+
+    texto += ESC_POS.BOLD_ON;
+    texto += `TOTAL FINAL:    R$ ${moeda(totalFinal)}\n`;
+    texto += ESC_POS.BOLD_OFF;
+    texto += '--------------------------------\n';
+    texto += ESC_POS.CENTER;
+    texto += ESC_POS.BOLD_ON + 'BOM TRABALHO!\n' + ESC_POS.BOLD_OFF;
+    texto += '\n\n\n\n\n\n';
+    texto += ESC_POS.CUT;
+
+    return texto;
 }
 
 /* =========================================================
-   IMPRESSÃO DE UM PEDIDO (balcão + cozinha)
+   IMPRESSÃO COMPLETA
 ========================================================= */
 
 async function imprimirPedidoCompleto(pedido) {
-    const pedidoOK = normalizarPedidoImpressao(pedido);
+    const pedidoOK = validarPedidoParaImpressao(pedido);
 
-    // Imprime a via do balcão
-    await imprimirRaw(gerarTextoBalcao(pedidoOK));
-    // Espera o papel terminar de sair antes da próxima
+    const textoBalcao = gerarTextoBalcao(pedidoOK);
+    const textoCozinha = gerarTextoCozinha(pedidoOK);
+
+    if (!textoBalcao.includes('ITENS DO PEDIDO')) {
+        throw new Error('A via do balcão foi gerada sem a seção de itens.');
+    }
+
+    if (!textoCozinha.includes('PREPARO')) {
+        throw new Error('A via da cozinha foi gerada sem a seção de preparo.');
+    }
+
+    const textoConferencia = limparTexto(
+        `${textoBalcao}\n${textoCozinha}`
+    ).toUpperCase();
+
+    for (const item of pedidoOK.itens) {
+        const primeiraPalavra = limparTexto(item.nome)
+            .toUpperCase()
+            .split(/\s+/)[0];
+
+        if (primeiraPalavra && !textoConferencia.includes(primeiraPalavra)) {
+            throw new Error(
+                `O item "${item.nome}" não entrou no texto da impressão.`
+            );
+        }
+    }
+
+    await imprimirRaw(textoBalcao);
     await sleep(DELAY_ENTRE_VIAS_MS);
-    // Imprime a via da cozinha
-    await imprimirRaw(gerarTextoCozinha(pedidoOK));
+    await imprimirRaw(textoCozinha);
 }
 
 /* =========================================================
-   FILA DE IMPRESSÃO COM MUTEX
-   - Garante que só um pedido imprime por vez
-   - Permite enfileirar pedidos rapidamente sem colisão
+   FILA DE IMPRESSÃO
 ========================================================= */
 
 function enfileirarImpressao(pedido, callbacks = {}) {
-    printQueue.push({ pedido, callbacks });
-    processarFilaImpressao();
+    try {
+        const pedidoSeguro = validarPedidoParaImpressao(
+            clonarSeguro(pedido)
+        );
+
+        salvarBackupPedido(pedidoSeguro);
+
+        printQueue.push({
+            pedido: clonarSeguro(pedidoSeguro),
+            callbacks
+        });
+
+        processarFilaImpressao();
+        return true;
+    } catch (erro) {
+        console.error('Pedido bloqueado antes de entrar na fila:', erro);
+        setQzStatus('erro');
+
+        if (typeof callbacks.onErro === 'function') {
+            try {
+                callbacks.onErro(erro);
+            } catch (_) {
+                // callback não deve quebrar o fluxo
+            }
+        }
+
+        return false;
+    }
 }
 
 async function processarFilaImpressao() {
-    if (printingLock) return;
-    if (printQueue.length === 0) return;
+    if (printingLock || printQueue.length === 0) return;
 
     printingLock = true;
     setQzStatus('imprimindo');
 
-    while (printQueue.length > 0) {
-        const { pedido, callbacks } = printQueue.shift();
+    let houveErro = false;
 
-        try {
-            await imprimirPedidoCompleto(pedido);
-            ultimoPedidoImpresso = pedido;
+    try {
+        while (printQueue.length > 0) {
+            const { pedido, callbacks } = printQueue.shift();
 
-            if (typeof callbacks.onOk === 'function') {
-                try { callbacks.onOk(); } catch (_) {}
-            }
-        } catch (e) {
-            console.error('Erro impressão pedido', pedido?.id, e);
-            ultimoPedidoImpresso = pedido; // mantém para reimprimir manualmente
+            try {
+                const pedidoValidado = validarPedidoParaImpressao(pedido);
+                await imprimirPedidoCompleto(pedidoValidado);
 
-            if (typeof callbacks.onErro === 'function') {
-                try { callbacks.onErro(e); } catch (_) {}
+                ultimoPedidoImpresso = clonarSeguro(pedidoValidado);
+                salvarBackupPedido(pedidoValidado);
+
+                if (typeof callbacks.onOk === 'function') {
+                    try {
+                        callbacks.onOk();
+                    } catch (_) {
+                        // callback não deve quebrar a fila
+                    }
+                }
+            } catch (erro) {
+                houveErro = true;
+                console.error('Erro impressão pedido', pedido?.id, erro);
+
+                if (pedido?.itens?.length) {
+                    ultimoPedidoImpresso = clonarSeguro(pedido);
+                    salvarBackupPedido(pedido);
+                }
+
+                if (typeof callbacks.onErro === 'function') {
+                    try {
+                        callbacks.onErro(erro);
+                    } catch (_) {
+                        // callback não deve quebrar a fila
+                    }
+                }
             }
         }
-    }
+    } finally {
+        printingLock = false;
+        setQzStatus(houveErro ? 'erro' : 'ok');
 
-    printingLock = false;
-    setQzStatus('ok');
+        if (printQueue.length > 0) {
+            processarFilaImpressao();
+        }
+    }
 }
 
 /* =========================================================
@@ -1787,16 +2136,22 @@ async function processarFilaImpressao() {
 ========================================================= */
 
 async function reimprimirUltimoPedido() {
-    if (!ultimoPedidoImpresso) {
-        mostrarAlerta("Sem pedido", "Não há pedido para reimprimir.", "aviso");
+    const pedidoDisponivel = ultimoPedidoImpresso || recuperarBackupPedido();
+
+    if (!pedidoDisponivel) {
+        mostrarAlerta(
+            'Sem pedido',
+            'Não há pedido válido para reimprimir.',
+            'aviso'
+        );
         return;
     }
 
     setSucessoStatusImprimindo();
 
-    enfileirarImpressao(ultimoPedidoImpresso, {
+    enfileirarImpressao(pedidoDisponivel, {
         onOk: () => setSucessoStatusOk(),
-        onErro: (e) => setSucessoStatusErro(e?.message)
+        onErro: erro => setSucessoStatusErro(erro?.message)
     });
 }
 
@@ -1807,9 +2162,11 @@ async function reimprimirUltimoPedido() {
 function setBtnFinalizar(processando) {
     const btn = document.getElementById('btnFinalizar');
     const texto = document.getElementById('btnFinalizarTexto');
-    if (!btn) return;
 
-    btn.disabled = !!processando;
+    if (!btn || !texto) return;
+
+    btn.disabled = Boolean(processando);
+
     if (processando) {
         texto.innerHTML = '<span class="spinner-print"></span> Processando...';
     } else {
@@ -1827,27 +2184,37 @@ async function finalizarVenda() {
         const nomeCliente = document.getElementById('nomeCliente').value.trim();
         const descricaoPedido = document.getElementById('descricaoPedido').value.trim();
 
-        const taxaMotoca = parseFloat(
+        const taxaMotocaDigitada = Number(
             document.getElementById('inputMotoca').value.replace(/[^\d]/g, '')
         ) / 100 || 0;
 
-        const desconto = parseFloat(
-            document.getElementById('inputDesconto').value.replace(/[^\d]/g, '')
-        ) / 100 || 0;
+        const taxaMotoca = tipoEntrega ? taxaMotocaDigitada : 0;
 
         if (!nomeCliente) {
-            mostrarAlerta("Nome obrigatório", "Preencha o nome do cliente.", "aviso");
+            mostrarAlerta(
+                'Nome obrigatório',
+                'Preencha o nome do cliente.',
+                'aviso'
+            );
             document.getElementById('nomeCliente').focus();
             return;
         }
 
-        if (carrinho.length === 0) {
-            mostrarAlerta("Carrinho vazio", "Adicione itens ao pedido.", "aviso");
+        if (!Array.isArray(carrinho) || carrinho.length === 0) {
+            mostrarAlerta(
+                'Carrinho vazio',
+                'Adicione itens ao pedido.',
+                'aviso'
+            );
             return;
         }
 
         if (!metodoPagamento) {
-            mostrarAlerta("Pagamento", "Selecione um método de pagamento.", "aviso");
+            mostrarAlerta(
+                'Pagamento',
+                'Selecione um método de pagamento.',
+                'aviso'
+            );
             return;
         }
 
@@ -1856,70 +2223,129 @@ async function finalizarVenda() {
             const numero = document.getElementById('numero').value.trim();
 
             if (!rua || !numero) {
-                mostrarAlerta("Endereço incompleto", "Preencha rua e número.", "aviso");
+                mostrarAlerta(
+                    'Endereço incompleto',
+                    'Preencha rua e número.',
+                    'aviso'
+                );
                 return;
             }
         }
 
+        /*
+         * O snapshot é criado antes do POST e nunca é alterado pelo reset do
+         * formulário. Ele é o fallback caso a resposta do servidor seja
+         * incompleta, embora o view corrigido já devolva os itens do banco.
+         */
+        const carrinhoSnapshot = clonarSeguro(carrinho);
+        const itensSnapshot = normalizarItensImpressao(carrinhoSnapshot);
+
+        if (itensSnapshot.length !== carrinhoSnapshot.length) {
+            mostrarAlerta(
+                'Itens inválidos',
+                'Um ou mais itens do carrinho estão incompletos. Remova e adicione novamente.',
+                'erro'
+            );
+            return;
+        }
+
         const valores = atualizarTotais();
+        const desconto = Number(valores.desconto || 0);
         const totalPedido = Number(valores.total || 0);
         const totalComMotoca = totalPedido + taxaMotoca;
 
+        const endereco = {
+            cep: tipoEntrega ? document.getElementById('cep').value : '',
+            rua: tipoEntrega ? document.getElementById('rua').value : '',
+            numero: tipoEntrega ? document.getElementById('numero').value : ''
+        };
+
         const dadosVenda = {
-            carrinho: JSON.parse(JSON.stringify(carrinho)),
+            carrinho: carrinhoSnapshot,
             subtotal: valores.subtotal,
-            desconto: desconto,
+            desconto,
             total: totalPedido,
             taxa_motoca: taxaMotoca,
             total_final: totalComMotoca,
             descricao: descricaoPedido,
             metodo_pagamento: metodoPagamento,
             nome_cliente: nomeCliente,
-            tipo_entrega: tipoEntrega ? "entrega" : "retirada",
-            endereco: {
-                cep: document.getElementById('cep').value,
-                rua: document.getElementById('rua').value,
-                numero: document.getElementById('numero').value
-            }
+            tipo_entrega: tipoEntrega ? 'entrega' : 'retirada',
+            endereco
         };
 
-        const response = await fetch('', {
+        const response = await fetch(window.location.href, {
             method: 'POST',
+            credentials: 'same-origin',
             headers: {
                 'Content-Type': 'application/json',
-                'X-CSRFToken': getCookie('csrftoken')
+                'X-CSRFToken': getCookie('csrftoken'),
+                'X-Requested-With': 'XMLHttpRequest'
             },
             body: JSON.stringify(dadosVenda)
         });
 
-        let resultado = null;
+        let resultado;
 
         try {
             resultado = await response.json();
-        } catch (e) {
-            throw new Error("O servidor respondeu, mas não retornou JSON válido.");
+        } catch (_) {
+            throw new Error(
+                'O servidor respondeu, mas não retornou JSON válido.'
+            );
         }
 
         if (!response.ok || !resultado.success) {
-            throw new Error(resultado.message || "Erro ao salvar pedido.");
+            throw new Error(resultado.message || 'Erro ao salvar pedido.');
         }
+
+        const pedidoServidor = resultado.pedido_impressao || {};
+
+        const itensParaImprimir = itensServidorEstaoCompletos(
+            pedidoServidor.itens,
+            carrinhoSnapshot
+        )
+            ? pedidoServidor.itens
+            : carrinhoSnapshot;
 
         const pedidoParaImprimir = {
             id: resultado.pedido_id,
-            nomeCliente: nomeCliente,
+            nomeCliente,
             descricao: descricaoPedido,
-            itens: JSON.parse(JSON.stringify(carrinho)),
-            totalPedido: totalPedido,
-            taxaMotoca: taxaMotoca,
+            itens: clonarSeguro(itensParaImprimir),
+            totalPedido,
+            taxaMotoca,
             totalFinal: totalComMotoca,
-            desconto: desconto,
+            desconto,
             metodo: metodoPagamento,
             entrega: tipoEntrega,
-            endereco: dadosVenda.endereco,
-            criadoEm: new Date().toLocaleString('pt-BR')
+            endereco: clonarSeguro(endereco),
+            criadoEm: new Date().toLocaleString('pt-BR'),
+            ...pedidoServidor,
+            desconto,
+            itens: clonarSeguro(itensParaImprimir)
         };
 
-        ultimoPedidoImpresso = pedidoParaImprimir;
+        let pedidoValidado;
+
+        try {
+            pedidoValidado = validarPedidoParaImpressao(pedidoParaImprimir);
+        } catch (erroImpressao) {
+            mostrarSucesso(
+                resultado.pedido_id,
+                formatar(totalComMotoca),
+                metodoPagamento.toUpperCase()
+            );
+
+            setSucessoStatusErro(
+                'Pedido salvo, mas a impressão foi bloqueada: ' +
+                erroImpressao.message
+            );
+            return;
+        }
+
+        ultimoPedidoImpresso = clonarSeguro(pedidoValidado);
+        salvarBackupPedido(pedidoValidado);
 
         mostrarSucesso(
             resultado.pedido_id,
@@ -1927,14 +2353,18 @@ async function finalizarVenda() {
             metodoPagamento.toUpperCase()
         );
 
-        enfileirarImpressao(pedidoParaImprimir, {
+        enfileirarImpressao(pedidoValidado, {
             onOk: () => setSucessoStatusOk(),
-            onErro: (e) => setSucessoStatusErro(e?.message)
+            onErro: erro => setSucessoStatusErro(erro?.message)
         });
+    } catch (erro) {
+        console.error(erro);
 
-    } catch (e) {
-        console.error(e);
-        mostrarAlerta("Erro ao finalizar", e.message || "Não foi possível lançar o pedido.", "erro");
+        mostrarAlerta(
+            'Erro ao finalizar',
+            erro.message || 'Não foi possível lançar o pedido.',
+            'erro'
+        );
     } finally {
         finalizandoVenda = false;
         setBtnFinalizar(false);
@@ -1952,33 +2382,40 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('enderecoBox').classList.remove('hidden');
     document.getElementById('retiradaInfo').classList.add('hidden');
 
-    // Pré-aquece a conexão com a QZ Tray e localiza a impressora.
-    // Se a impressora já estiver online quando o primeiro pedido for finalizado,
-    // a impressão sai sem esperar conexão. Se não estiver, o usuário é avisado.
+    const modalAdicionais = document.getElementById('modalAdicionais');
+    modalAdicionais.addEventListener('click', function (event) {
+        if (event.target.id === 'modalAdicionais') {
+            fecharModal();
+        }
+    });
+
+    const backup = recuperarBackupPedido();
+    if (backup) {
+        ultimoPedidoImpresso = backup;
+    }
+
     (async () => {
         try {
             await conectarQZ();
             const impressora = await obterImpressora();
             setQzStatus('ok');
             console.log('Impressora detectada:', impressora);
-        } catch (e) {
-            const msg = e?.message || String(e);
-            console.warn('Falha ao detectar impressora no init:', msg);
+        } catch (erro) {
+            const mensagem = erro?.message || String(erro);
+            console.warn('Falha ao detectar impressora no init:', mensagem);
             setQzStatus('erro');
 
-            // Avisa o operador logo no carregamento — não espera o primeiro pedido
             mostrarAlerta(
-                "Impressora não encontrada",
-                msg.includes("QZ Tray") || msg.includes("Nenhuma impressora")
-                    ? msg
-                    : "Não foi possível conectar à impressora. Verifique se o " +
-                      "QZ Tray está aberto e se a impressora está ligada.",
-                "erro"
+                'Impressora não encontrada',
+                mensagem.includes('QZ Tray') || mensagem.includes('Nenhuma impressora')
+                    ? mensagem
+                    : 'Não foi possível conectar à impressora. Verifique se o ' +
+                      'QZ Tray está aberto e se a impressora está ligada.',
+                'erro'
             );
         }
     })();
 });
-
 </script>
 
 {% endblock %}

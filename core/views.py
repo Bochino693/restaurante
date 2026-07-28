@@ -96,10 +96,16 @@ class CaixaView(LoginRequiredMixin, View):
 
     def post(self, request):
         try:
-            data = json.loads(request.body)
+            try:
+                data = json.loads(request.body or b"{}")
+            except json.JSONDecodeError:
+                return JsonResponse(
+                    {"success": False, "message": "JSON inválido."},
+                    status=400
+                )
 
             carrinho = data.get("carrinho", [])
-            metodo_pagamento = data.get("metodo_pagamento")
+            metodo_pagamento = (data.get("metodo_pagamento") or "").strip()
             tipo_entrega = data.get("tipo_entrega")
             nome_cliente = (data.get("nome_cliente") or "").strip()
             descricao = (data.get("descricao") or "").strip()
@@ -118,7 +124,7 @@ class CaixaView(LoginRequiredMixin, View):
                     status=400
                 )
 
-            if not carrinho:
+            if not isinstance(carrinho, list) or not carrinho:
                 return JsonResponse(
                     {"success": False, "message": "Carrinho vazio"},
                     status=400
@@ -156,20 +162,62 @@ class CaixaView(LoginRequiredMixin, View):
                     impresso=False
                 )
 
-                itens = []
+                itens_salvos = []
+                itens_impressao = []
 
-                for item in carrinho:
-                    produto = Produtos.objects.get(id=item["id"])
+                for posicao, item in enumerate(carrinho, start=1):
+                    if not isinstance(item, dict):
+                        raise ValueError(f"Item {posicao} do carrinho é inválido.")
 
-                    qtd = int(item["qtd"])
-                    adicionais = item.get("adicionais", []) or []
+                    produto_id = item.get("id")
+                    if not produto_id:
+                        raise ValueError(f"Produto ausente no item {posicao}.")
 
-                    preco_base = Decimal(str(item["precoBase"]))
-                    soma_adicionais = sum(
-                        Decimal(str(a["preco"])) * Decimal(str(a.get("qtd", 1)))
-                        for a in adicionais
-                    )
+                    try:
+                        qtd = int(item.get("qtd", 0))
+                    except (TypeError, ValueError):
+                        raise ValueError(f"Quantidade inválida no item {posicao}.")
 
+                    if qtd <= 0:
+                        raise ValueError(f"Quantidade deve ser maior que zero no item {posicao}.")
+
+                    produto = Produtos.objects.get(id=produto_id)
+
+                    adicionais_recebidos = item.get("adicionais", []) or []
+                    if not isinstance(adicionais_recebidos, list):
+                        raise ValueError(
+                            f"Adicionais inválidos no produto {produto.nome_produto}."
+                        )
+
+                    adicionais_normalizados = []
+                    soma_adicionais = Decimal("0.00")
+
+                    for adicional in adicionais_recebidos:
+                        if not isinstance(adicional, dict):
+                            continue
+
+                        nome_adicional = (adicional.get("nome") or "").strip()
+
+                        try:
+                            qtd_adicional = int(adicional.get("qtd", 1))
+                            preco_adicional = Decimal(str(adicional.get("preco", 0)))
+                        except (InvalidOperation, TypeError, ValueError):
+                            raise ValueError(
+                                f"Adicional inválido no produto {produto.nome_produto}."
+                            )
+
+                        if qtd_adicional <= 0:
+                            continue
+
+                        soma_adicionais += preco_adicional * qtd_adicional
+                        adicionais_normalizados.append({
+                            "nome": nome_adicional,
+                            "qtd": qtd_adicional,
+                            "preco": str(preco_adicional)
+                        })
+
+                    # Usa o preço atual do produto no banco como fonte de verdade.
+                    preco_base = Decimal(str(produto.preco))
                     preco_unitario = preco_base + soma_adicionais
                     subtotal_item = preco_unitario * qtd
 
@@ -178,16 +226,66 @@ class CaixaView(LoginRequiredMixin, View):
                         quantidade=qtd,
                         preco_unitario=preco_unitario,
                         subtotal=subtotal_item,
-                        adicionais=adicionais
+                        adicionais=adicionais_normalizados
                     )
 
-                    itens.append(item_pedido)
+                    itens_salvos.append(item_pedido)
+                    itens_impressao.append({
+                        "id": item_pedido.id,
+                        "produtoId": produto.id,
+                        "nome": produto.nome_produto,
+                        "qtd": qtd,
+                        "precoBase": float(preco_base),
+                        "precoUnitario": float(preco_unitario),
+                        "subtotal": float(subtotal_item),
+                        "adicionais": [
+                            {
+                                "nome": adicional["nome"],
+                                "qtd": adicional["qtd"],
+                                "preco": float(Decimal(adicional["preco"]))
+                            }
+                            for adicional in adicionais_normalizados
+                        ]
+                    })
 
-                pedido.itens.set(itens)
+                if not itens_salvos:
+                    raise ValueError("O pedido não possui itens válidos.")
+
+                pedido.itens.set(itens_salvos)
+
+                # Validação obrigatória: se a relação não foi gravada completa,
+                # a transaction.atomic faz rollback do pedido inteiro.
+                total_itens_relacionados = pedido.itens.count()
+                if total_itens_relacionados != len(itens_salvos):
+                    raise RuntimeError(
+                        "Falha ao relacionar todos os itens ao pedido. "
+                        "O pedido não foi concluído."
+                    )
+
+                pedido_impressao = {
+                    "id": pedido.id,
+                    "criadoEm": timezone.localtime(pedido.criado_em).strftime(
+                        "%d/%m/%Y %H:%M"
+                    ),
+                    "nomeCliente": pedido.nome_cliente,
+                    "metodo": pedido.forma_pagamento,
+                    "entrega": pedido.entrega,
+                    "descricao": pedido.descricao or "",
+                    "endereco": {
+                        "cep": pedido.cep or "",
+                        "rua": pedido.rua or "",
+                        "numero": pedido.numero or ""
+                    },
+                    "itens": itens_impressao,
+                    "totalPedido": float(pedido.total),
+                    "taxaMotoca": float(pedido.taxa_motoca),
+                    "totalFinal": float(pedido.total + pedido.taxa_motoca)
+                }
 
             return JsonResponse({
                 "success": True,
-                "pedido_id": pedido.id
+                "pedido_id": pedido.id,
+                "pedido_impressao": pedido_impressao
             })
 
         except Produtos.DoesNotExist:
@@ -195,6 +293,12 @@ class CaixaView(LoginRequiredMixin, View):
                 "success": False,
                 "message": "Produto não encontrado"
             }, status=404)
+
+        except (KeyError, ValueError, InvalidOperation) as e:
+            return JsonResponse({
+                "success": False,
+                "message": str(e)
+            }, status=400)
 
         except Exception as e:
             return JsonResponse({
@@ -590,15 +694,76 @@ class ResumoPedidosView(LoginRequiredMixin, View):
 
 class PedidoReimprimirView(LoginRequiredMixin, View):
     def post(self, request, pedido_id):
-        pedido = get_object_or_404(Pedidos, id=pedido_id)
+        pedido = get_object_or_404(
+            Pedidos.objects.prefetch_related("itens__produto"),
+            id=pedido_id
+        )
 
-        # marca como impresso
+        itens_pedido = list(pedido.itens.all())
+
+        # Nunca devolve uma reimpressão sem itens.
+        if not itens_pedido:
+            return JsonResponse({
+                "success": False,
+                "message": (
+                    "Este pedido está sem itens relacionados no banco. "
+                    "A reimpressão foi bloqueada para não imprimir uma via vazia."
+                )
+            }, status=409)
+
+        itens_impressao = []
+
+        for item in itens_pedido:
+            adicionais = item.adicionais or []
+            soma_adicionais = Decimal("0.00")
+            adicionais_normalizados = []
+
+            for adicional in adicionais:
+                if not isinstance(adicional, dict):
+                    continue
+
+                try:
+                    qtd_adicional = int(adicional.get("qtd", 1))
+                    preco_adicional = Decimal(str(adicional.get("preco", 0)))
+                except (InvalidOperation, TypeError, ValueError):
+                    qtd_adicional = 1
+                    preco_adicional = Decimal("0.00")
+
+                if qtd_adicional <= 0:
+                    continue
+
+                soma_adicionais += preco_adicional * qtd_adicional
+                adicionais_normalizados.append({
+                    "nome": (adicional.get("nome") or "").strip(),
+                    "qtd": qtd_adicional,
+                    "preco": float(preco_adicional)
+                })
+
+            # No banco, preco_unitario já contém produto + adicionais.
+            # Subtrai os adicionais para não somá-los duas vezes no JavaScript.
+            preco_base = Decimal(str(item.preco_unitario)) - soma_adicionais
+            if preco_base < 0:
+                preco_base = Decimal("0.00")
+
+            itens_impressao.append({
+                "id": item.id,
+                "produtoId": item.produto_id,
+                "nome": item.produto.nome_produto if item.produto else "Item",
+                "qtd": item.quantidade,
+                "precoBase": float(preco_base),
+                "precoUnitario": float(item.preco_unitario),
+                "subtotal": float(item.subtotal),
+                "adicionais": adicionais_normalizados
+            })
+
         pedido.impresso = True
-        pedido.save()
+        pedido.save(update_fields=["impresso"])
 
         data = {
             "id": pedido.id,
-            "criadoEm": pedido.criado_em.strftime("%d/%m/%Y %H:%M"),
+            "criadoEm": timezone.localtime(pedido.criado_em).strftime(
+                "%d/%m/%Y %H:%M"
+            ),
             "nomeCliente": pedido.nome_cliente or "SEM NOME",
             "metodo": pedido.get_forma_pagamento_display(),
             "entrega": pedido.entrega,
@@ -607,19 +772,11 @@ class PedidoReimprimirView(LoginRequiredMixin, View):
             "taxaMotoca": float(pedido.taxa_motoca),
             "totalFinal": float(pedido.total + pedido.taxa_motoca),
             "endereco": {
-                "rua": pedido.rua,
-                "numero": pedido.numero,
-                "cep": pedido.cep,
+                "rua": pedido.rua or "",
+                "numero": pedido.numero or "",
+                "cep": pedido.cep or "",
             },
-            "itens": [
-                {
-                    "nome": item.produto.nome_produto if item.produto else "Item",
-                    "qtd": item.quantidade,
-                    "precoBase": float(item.preco_unitario),
-                    "adicionais": item.adicionais or []
-                }
-                for item in pedido.itens.all()
-            ]
+            "itens": itens_impressao
         }
 
         return JsonResponse(data)
@@ -1170,3 +1327,4 @@ class DashboardAnalyticsView(LoginRequiredMixin, TemplateView):
             return JsonResponse(self._get_dashboard_data(), safe=False)
 
         return super().get(request, *args, **kwargs)
+
