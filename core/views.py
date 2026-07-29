@@ -556,14 +556,35 @@ from django.views.decorators.http import require_POST
 @csrf_exempt
 @require_POST
 def confirmar_impressao(request, pedido_id):
-    chave = request.headers.get('X-API-Key')
-    if chave != 'chave-secreta-restaurante-2026':
-        return JsonResponse({'erro': 'Não autorizado'}, status=401)
+    """Marca o pedido como impresso somente após confirmação do cliente de impressão.
 
-    atualizado = Pedidos.objects.filter(id=pedido_id, impresso=False).update(impresso=True)
-    if atualizado:
-        return JsonResponse({'ok': True})
-    return JsonResponse({'erro': 'Pedido não encontrado ou já impresso'}, status=404)
+    Aceita a sessão autenticada do PDV ou a chave usada pelo agente externo.
+    A operação é idempotente: confirmar novamente um pedido já impresso continua
+    retornando sucesso, evitando falsos erros após reconexões do QZ Tray.
+    """
+    autorizado_por_sessao = bool(
+        getattr(request, "user", None)
+        and request.user.is_authenticated
+    )
+    chave = request.headers.get("X-API-Key")
+    autorizado_por_chave = chave == "chave-secreta-restaurante-2026"
+
+    if not (autorizado_por_sessao or autorizado_por_chave):
+        return JsonResponse({"ok": False, "erro": "Não autorizado"}, status=401)
+
+    pedido = Pedidos.objects.filter(id=pedido_id).only("id", "impresso").first()
+    if not pedido:
+        return JsonResponse({"ok": False, "erro": "Pedido não encontrado"}, status=404)
+
+    ja_impresso = pedido.impresso
+    if not ja_impresso:
+        Pedidos.objects.filter(id=pedido_id, impresso=False).update(impresso=True)
+
+    return JsonResponse({
+        "ok": True,
+        "pedido_id": pedido_id,
+        "ja_impresso": ja_impresso,
+    })
 
 
 def pedidos_pendentes_impressao(request):
@@ -1567,4 +1588,3 @@ class DashboardAnalyticsView(LoginRequiredMixin, TemplateView):
             return JsonResponse(self._get_dashboard_data(), safe=False)
 
         return super().get(request, *args, **kwargs)
-

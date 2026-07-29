@@ -1452,6 +1452,39 @@ function getCookie(name) {
     return cookieValue;
 }
 
+async function confirmarImpressaoNoServidor(pedidoId) {
+    if (!pedidoId) return false;
+
+    try {
+        const response = await fetch(
+            `/api/confirmar-impressao/${encodeURIComponent(pedidoId)}/`,
+            {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken') || '',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            }
+        );
+
+        if (!response.ok) {
+            const texto = await response.text();
+            throw new Error(texto || `HTTP ${response.status}`);
+        }
+
+        return true;
+    } catch (erro) {
+        console.warn(
+            `O pedido #${pedidoId} foi impresso, mas não foi possível ` +
+            'confirmar o status no servidor:',
+            erro
+        );
+        return false;
+    }
+}
+
 /* =========================================================
    NORMALIZAÇÃO E VALIDAÇÃO DA IMPRESSÃO
 ========================================================= */
@@ -2259,7 +2292,10 @@ async function reimprimirUltimoPedido() {
     setSucessoStatusImprimindo();
 
     enfileirarImpressao(pedidoDisponivel, {
-        onOk: () => setSucessoStatusOk(),
+        onOk: () => {
+            setSucessoStatusOk();
+            confirmarImpressaoNoServidor(pedidoDisponivel.id);
+        },
         onErro: erro => setSucessoStatusErro(erro?.message)
     });
 }
@@ -2528,7 +2564,10 @@ async function finalizarVenda() {
         );
 
         enfileirarImpressao(pedidoValidado, {
-            onOk: () => setSucessoStatusOk(),
+            onOk: () => {
+                setSucessoStatusOk();
+                confirmarImpressaoNoServidor(pedidoValidado.id);
+            },
             onErro: erro => setSucessoStatusErro(erro?.message)
         });
     } catch (erro) {
