@@ -337,7 +337,7 @@
                 </h3>
                 <span class="text-xs text-gray-400">Escolha seus adicionais</span>
             </div>
-            <button type="button" onclick="fecharModal()" class="text-gray-400 hover:text-red-500 transition-colors">
+            <button type="button" onclick="fecharModalAdicionais()" class="text-gray-400 hover:text-red-500 transition-colors">
                 <i class="fas fa-times-circle text-2xl"></i>
             </button>
         </div>
@@ -515,6 +515,9 @@ let tipoEntrega = true;
 
 let modalAdicionaisAberto = false;
 let produtoAdicionalAtual = null;
+let modalAdicionaisAbortController = null;
+let modalAdicionaisRequestId = 0;
+let confirmandoAdicional = false;
 
 let impressoraCache = null;
 let qzConnectingPromise = null;
@@ -981,123 +984,209 @@ function renderCarrinho() {
    MODAL ADICIONAIS
 ========================================================= */
 
-function abrirModalAdicionais(id, nome, preco) {
-    produtoAdicionalAtual = { id, nome, preco };
-
+async function abrirModalAdicionais(id, nome, preco) {
     const modal = document.getElementById('modalAdicionais');
     const container = document.getElementById('listaAdicionais');
     const btnConfirmar = document.getElementById('btnConfirmarAdicional');
+    const titulo = document.getElementById('modalProdNome');
+
+    if (!modal || !container || !btnConfirmar || !titulo) {
+        mostrarAlerta(
+            'Erro na tela',
+            'O modal de adicionais não foi encontrado. Atualize a página.',
+            'erro'
+        );
+        return;
+    }
+
+    // Invalida qualquer abertura anterior e cancela o fetch que ainda estiver ativo.
+    modalAdicionaisRequestId += 1;
+    const requestId = modalAdicionaisRequestId;
+
+    if (modalAdicionaisAbortController) {
+        modalAdicionaisAbortController.abort();
+    }
+
+    modalAdicionaisAbortController = new AbortController();
+    const controllerAtual = modalAdicionaisAbortController;
+
+    produtoAdicionalAtual = {
+        id: String(id),
+        nome: String(nome || '').trim(),
+        preco: Number(preco || 0)
+    };
 
     modalAdicionaisAberto = true;
+    confirmandoAdicional = false;
+
+    titulo.innerText = produtoAdicionalAtual.nome;
     container.innerHTML = `
         <div class="text-center py-8 text-gray-400 font-bold">
-            Carregando adicionais...
+            <span class="spinner-print"></span> Carregando adicionais...
         </div>
     `;
 
-    document.getElementById('modalProdNome').innerText = nome;
-    modal.classList.remove('hidden');
+    btnConfirmar.disabled = true;
+    btnConfirmar.onclick = null;
+    btnConfirmar.innerText = 'Carregando...';
 
-    fetch(`/produto/${id}/adicionais/`, {
-        headers: { 'X-Requested-With': 'XMLHttpRequest' }
-    })
-        .then(res => {
-            if (!res.ok) {
-                throw new Error('Falha ao carregar adicionais.');
-            }
-            return res.json();
-        })
-        .then(data => {
+    modal.classList.remove('hidden');
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('overflow-hidden');
+
+    try {
+        const response = await fetch(`/produto/${encodeURIComponent(id)}/adicionais/`, {
+            credentials: 'same-origin',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            signal: controllerAtual.signal
+        });
+
+        if (!response.ok) {
+            throw new Error('Falha ao carregar adicionais.');
+        }
+
+        const data = await response.json();
+
+        const aberturaAindaValida =
+            modalAdicionaisAberto &&
+            requestId === modalAdicionaisRequestId &&
+            produtoAdicionalAtual &&
+            String(produtoAdicionalAtual.id) === String(id);
+
+        if (!aberturaAindaValida) return;
+
+        if (!Array.isArray(data) || data.length === 0) {
+            addProduto(id, nome, preco, []);
+            fecharModalAdicionais();
+            return;
+        }
+
+        container.innerHTML = data.map(add => `
+            <div class="flex justify-between items-center p-3 bg-gray-50 rounded-2xl hover:bg-blue-50 transition-colors border border-gray-100">
+                <div class="flex-1 min-w-0 pr-3">
+                    <span class="text-sm font-bold text-gray-700 break-words">
+                        ${escaparHtml(add.nome)}
+                    </span>
+                    <div class="text-xs font-mono font-bold text-blue-600">
+                        + R$ ${moeda(add.preco)}
+                    </div>
+                </div>
+
+                <div class="add-qtd-box flex items-center gap-2 shrink-0">
+                    <button type="button"
+                            onclick="alterQtdAdicional(this, -1)"
+                            class="w-8 h-8 rounded-lg bg-white border border-gray-200 text-red-500 font-black">
+                        -
+                    </button>
+
+                    <span class="qtd-add min-w-[24px] text-center font-mono font-black"
+                          data-nome="${escaparHtml(add.nome)}"
+                          data-preco="${Number(add.preco || 0)}">
+                        0
+                    </span>
+
+                    <button type="button"
+                            onclick="alterQtdAdicional(this, 1)"
+                            class="w-8 h-8 rounded-lg bg-white border border-gray-200 text-green-600 font-black">
+                        +
+                    </button>
+                </div>
+            </div>
+        `).join('');
+
+        btnConfirmar.disabled = false;
+        btnConfirmar.innerText = 'Adicionar ao Carrinho';
+
+        btnConfirmar.onclick = () => {
             if (
+                confirmandoAdicional ||
                 !modalAdicionaisAberto ||
-                !produtoAdicionalAtual ||
-                String(produtoAdicionalAtual.id) !== String(id)
+                requestId !== modalAdicionaisRequestId
             ) {
                 return;
             }
 
-            if (!Array.isArray(data) || data.length === 0) {
-                addProduto(id, nome, preco, []);
-                fecharModal();
-                return;
-            }
+            confirmandoAdicional = true;
+            btnConfirmar.disabled = true;
 
-            container.innerHTML = data.map(add => `
-                <div class="flex justify-between items-center p-3 bg-gray-50 rounded-2xl hover:bg-blue-50 transition-colors border border-gray-100">
-                    <div class="flex-1">
-                        <span class="text-sm font-bold text-gray-700">${escaparHtml(add.nome)}</span>
-                        <div class="text-xs font-mono font-bold text-blue-600">
-                            + R$ ${moeda(add.preco)}
-                        </div>
-                    </div>
-
-                    <div class="add-qtd-box flex items-center gap-2">
-                        <button type="button"
-                                onclick="alterQtdAdicional(this, -1)"
-                                class="w-8 h-8 rounded-lg bg-white border border-gray-200 text-red-500 font-black">
-                            -
-                        </button>
-
-                        <span class="qtd-add min-w-[24px] text-center font-mono font-black"
-                              data-nome="${escaparHtml(add.nome)}"
-                              data-preco="${Number(add.preco || 0)}">
-                            0
-                        </span>
-
-                        <button type="button"
-                                onclick="alterQtdAdicional(this, 1)"
-                                class="w-8 h-8 rounded-lg bg-white border border-gray-200 text-green-600 font-black">
-                            +
-                        </button>
-                    </div>
-                </div>
-            `).join('');
-
-            btnConfirmar.onclick = function () {
+            try {
                 const selecionados = [];
 
-                document.querySelectorAll('#listaAdicionais .qtd-add').forEach(el => {
-                    const qtd = parseInt(el.innerText || '0', 10);
+                container.querySelectorAll('.qtd-add').forEach(el => {
+                    const qtd = Number.parseInt(el.innerText || '0', 10);
 
-                    if (qtd > 0) {
+                    if (Number.isInteger(qtd) && qtd > 0) {
                         selecionados.push({
-                            nome: el.dataset.nome,
+                            nome: String(el.dataset.nome || '').trim(),
                             preco: Number(el.dataset.preco || 0),
-                            qtd: qtd
+                            qtd
                         });
                     }
                 });
 
                 addProduto(id, nome, preco, selecionados);
-                fecharModal();
-            };
-        })
-        .catch(() => {
-            fecharModal();
-            mostrarAlerta(
-                'Erro',
-                'Não foi possível carregar os adicionais.',
-                'erro'
-            );
-        });
+                fecharModalAdicionais();
+            } finally {
+                confirmandoAdicional = false;
+            }
+        };
+    } catch (erro) {
+        const requisicaoAindaAtual = requestId === modalAdicionaisRequestId;
+
+        if (erro?.name === 'AbortError' || !requisicaoAindaAtual) {
+            return;
+        }
+
+        fecharModalAdicionais();
+        mostrarAlerta(
+            'Erro',
+            erro?.message || 'Não foi possível carregar os adicionais.',
+            'erro'
+        );
+    } finally {
+        if (modalAdicionaisAbortController === controllerAtual) {
+            modalAdicionaisAbortController = null;
+        }
+    }
 }
 
-function fecharModal() {
+function fecharModalAdicionais() {
     modalAdicionaisAberto = false;
     produtoAdicionalAtual = null;
+    confirmandoAdicional = false;
+
+    // Invalida callbacks antigos antes de limpar a interface.
+    modalAdicionaisRequestId += 1;
+
+    if (modalAdicionaisAbortController) {
+        modalAdicionaisAbortController.abort();
+        modalAdicionaisAbortController = null;
+    }
 
     const modal = document.getElementById('modalAdicionais');
     const lista = document.getElementById('listaAdicionais');
     const btn = document.getElementById('btnConfirmarAdicional');
 
-    modal.classList.add('hidden');
-    lista.innerHTML = '';
-    btn.onclick = null;
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.setAttribute('aria-hidden', 'true');
+    }
+
+    if (lista) lista.innerHTML = '';
+
+    if (btn) {
+        btn.onclick = null;
+        btn.disabled = false;
+        btn.innerText = 'Adicionar ao Carrinho';
+    }
+
+    document.body.classList.remove('overflow-hidden');
 }
 
 document.addEventListener('keydown', function (event) {
     if (event.key === 'Escape' && modalAdicionaisAberto) {
-        fecharModal();
+        event.preventDefault();
+        fecharModalAdicionais();
     }
 });
 
@@ -2191,30 +2280,27 @@ async function finalizarVenda() {
         const taxaMotoca = tipoEntrega ? taxaMotocaDigitada : 0;
 
         if (!nomeCliente) {
-            mostrarAlerta(
-                'Nome obrigatório',
-                'Preencha o nome do cliente.',
-                'aviso'
-            );
+            mostrarAlerta('Nome obrigatório', 'Preencha o nome do cliente.', 'aviso');
             document.getElementById('nomeCliente').focus();
             return;
         }
 
-        if (!Array.isArray(carrinho) || carrinho.length === 0) {
+        if (nomeCliente.length > 90) {
             mostrarAlerta(
-                'Carrinho vazio',
-                'Adicione itens ao pedido.',
+                'Nome muito longo',
+                'O nome do cliente deve ter no máximo 90 caracteres.',
                 'aviso'
             );
             return;
         }
 
+        if (!Array.isArray(carrinho) || carrinho.length === 0) {
+            mostrarAlerta('Carrinho vazio', 'Adicione itens ao pedido.', 'aviso');
+            return;
+        }
+
         if (!metodoPagamento) {
-            mostrarAlerta(
-                'Pagamento',
-                'Selecione um método de pagamento.',
-                'aviso'
-            );
+            mostrarAlerta('Pagamento', 'Selecione um método de pagamento.', 'aviso');
             return;
         }
 
@@ -2232,18 +2318,13 @@ async function finalizarVenda() {
             }
         }
 
-        /*
-         * O snapshot é criado antes do POST e nunca é alterado pelo reset do
-         * formulário. Ele é o fallback caso a resposta do servidor seja
-         * incompleta, embora o view corrigido já devolva os itens do banco.
-         */
         const carrinhoSnapshot = clonarSeguro(carrinho);
         const itensSnapshot = normalizarItensImpressao(carrinhoSnapshot);
 
         if (itensSnapshot.length !== carrinhoSnapshot.length) {
             mostrarAlerta(
                 'Itens inválidos',
-                'Um ou mais itens do carrinho estão incompletos. Remova e adicione novamente.',
+                'Um ou mais itens estão incompletos. Remova e adicione novamente.',
                 'erro'
             );
             return;
@@ -2251,22 +2332,19 @@ async function finalizarVenda() {
 
         const valores = atualizarTotais();
         const desconto = Number(valores.desconto || 0);
-        const totalPedido = Number(valores.total || 0);
-        const totalComMotoca = totalPedido + taxaMotoca;
+        const totalPedidoLocal = Number(valores.total || 0);
 
         const endereco = {
-            cep: tipoEntrega ? document.getElementById('cep').value : '',
-            rua: tipoEntrega ? document.getElementById('rua').value : '',
-            numero: tipoEntrega ? document.getElementById('numero').value : ''
+            cep: tipoEntrega ? document.getElementById('cep').value.trim() : '',
+            rua: tipoEntrega ? document.getElementById('rua').value.trim() : '',
+            numero: tipoEntrega ? document.getElementById('numero').value.trim() : ''
         };
 
         const dadosVenda = {
             carrinho: carrinhoSnapshot,
-            subtotal: valores.subtotal,
             desconto,
-            total: totalPedido,
+            total: totalPedidoLocal,
             taxa_motoca: taxaMotoca,
-            total_final: totalComMotoca,
             descricao: descricaoPedido,
             metodo_pagamento: metodoPagamento,
             nome_cliente: nomeCliente,
@@ -2274,54 +2352,75 @@ async function finalizarVenda() {
             endereco
         };
 
-        const response = await fetch(window.location.href, {
+        // Usa somente o caminho da tela, evitando POST em URL com query-string/hash.
+        const response = await fetch(window.location.pathname, {
             method: 'POST',
             credentials: 'same-origin',
             headers: {
                 'Content-Type': 'application/json',
-                'X-CSRFToken': getCookie('csrftoken'),
+                'Accept': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken') || '',
                 'X-Requested-With': 'XMLHttpRequest'
             },
             body: JSON.stringify(dadosVenda)
         });
 
-        let resultado;
+        const contentType = response.headers.get('content-type') || '';
+        const textoResposta = await response.text();
 
-        try {
-            resultado = await response.json();
-        } catch (_) {
+        if (response.redirected || !contentType.includes('application/json')) {
             throw new Error(
-                'O servidor respondeu, mas não retornou JSON válido.'
+                'A sessão pode ter expirado. Atualize a página, entre novamente e tente finalizar.'
             );
         }
 
-        if (!response.ok || !resultado.success) {
-            throw new Error(resultado.message || 'Erro ao salvar pedido.');
+        let resultado;
+
+        try {
+            resultado = JSON.parse(textoResposta);
+        } catch (_) {
+            throw new Error('O servidor retornou uma resposta inválida ao salvar o pedido.');
+        }
+
+        if (!response.ok || resultado.success !== true) {
+            throw new Error(resultado.message || 'Não foi possível salvar o pedido.');
         }
 
         const pedidoServidor = resultado.pedido_impressao || {};
-
-        const itensParaImprimir = itensServidorEstaoCompletos(
+        const itensServidorValidos = itensServidorEstaoCompletos(
             pedidoServidor.itens,
             carrinhoSnapshot
-        )
+        );
+
+        const itensParaImprimir = itensServidorValidos
             ? pedidoServidor.itens
             : carrinhoSnapshot;
+
+        const totalPedidoServidor = Number(
+            pedidoServidor.totalPedido ?? totalPedidoLocal
+        );
+        const taxaMotocaServidor = Number(
+            pedidoServidor.taxaMotoca ?? taxaMotoca
+        );
+        const totalFinalServidor = Number(
+            pedidoServidor.totalFinal ??
+            (totalPedidoServidor + taxaMotocaServidor)
+        );
 
         const pedidoParaImprimir = {
             id: resultado.pedido_id,
             nomeCliente,
             descricao: descricaoPedido,
-            itens: clonarSeguro(itensParaImprimir),
-            totalPedido,
-            taxaMotoca,
-            totalFinal: totalComMotoca,
-            desconto,
             metodo: metodoPagamento,
             entrega: tipoEntrega,
             endereco: clonarSeguro(endereco),
             criadoEm: new Date().toLocaleString('pt-BR'),
+            totalPedido: totalPedidoServidor,
+            taxaMotoca: taxaMotocaServidor,
+            totalFinal: totalFinalServidor,
+            desconto,
             ...pedidoServidor,
+            id: pedidoServidor.id || resultado.pedido_id,
             desconto,
             itens: clonarSeguro(itensParaImprimir)
         };
@@ -2333,7 +2432,7 @@ async function finalizarVenda() {
         } catch (erroImpressao) {
             mostrarSucesso(
                 resultado.pedido_id,
-                formatar(totalComMotoca),
+                formatar(totalFinalServidor),
                 metodoPagamento.toUpperCase()
             );
 
@@ -2347,9 +2446,10 @@ async function finalizarVenda() {
         ultimoPedidoImpresso = clonarSeguro(pedidoValidado);
         salvarBackupPedido(pedidoValidado);
 
+        // A venda já está concluída neste ponto. A impressão roda separadamente.
         mostrarSucesso(
             resultado.pedido_id,
-            formatar(totalComMotoca),
+            formatar(totalFinalServidor),
             metodoPagamento.toUpperCase()
         );
 
@@ -2358,11 +2458,11 @@ async function finalizarVenda() {
             onErro: erro => setSucessoStatusErro(erro?.message)
         });
     } catch (erro) {
-        console.error(erro);
+        console.error('Erro ao finalizar pedido:', erro);
 
         mostrarAlerta(
             'Erro ao finalizar',
-            erro.message || 'Não foi possível lançar o pedido.',
+            erro?.message || 'Não foi possível lançar o pedido.',
             'erro'
         );
     } finally {
@@ -2383,11 +2483,14 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('retiradaInfo').classList.add('hidden');
 
     const modalAdicionais = document.getElementById('modalAdicionais');
-    modalAdicionais.addEventListener('click', function (event) {
-        if (event.target.id === 'modalAdicionais') {
-            fecharModal();
-        }
-    });
+    if (modalAdicionais) {
+        modalAdicionais.setAttribute('aria-hidden', 'true');
+        modalAdicionais.addEventListener('click', function (event) {
+            if (event.target === modalAdicionais) {
+                fecharModalAdicionais();
+            }
+        });
+    }
 
     const backup = recuperarBackupPedido();
     if (backup) {

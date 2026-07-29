@@ -3,7 +3,8 @@ from django.shortcuts import render, get_object_or_404, redirect
 from .models import Produtos, EstoqueProdutos, CategoriaProdutos, Pedidos, ItensPedido, PratoDoDia
 from django.views.generic import View
 import json
-from django.db import transaction
+import logging
+from django.db import transaction, DatabaseError
 from django.http import JsonResponse
 from django.utils import timezone
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -54,7 +55,10 @@ class CardapioClienteView(View):
         })
 
 
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+
+logger = logging.getLogger(__name__)
+
 
 class CaixaView(LoginRequiredMixin, View):
     login_url = "login"
@@ -95,178 +99,267 @@ class CaixaView(LoginRequiredMixin, View):
         })
 
     def post(self, request):
+        centavos = Decimal("0.01")
+
+        def resposta_erro(mensagem, status=400):
+            return JsonResponse(
+                {"success": False, "message": mensagem},
+                status=status
+            )
+
+        def decimal_seguro(valor, campo):
+            try:
+                numero = Decimal(str(valor if valor not in (None, "") else 0))
+            except (InvalidOperation, TypeError, ValueError):
+                raise ValueError(f"{campo} inválido.")
+
+            if not numero.is_finite():
+                raise ValueError(f"{campo} inválido.")
+
+            return numero.quantize(centavos, rounding=ROUND_HALF_UP)
+
         try:
             try:
                 data = json.loads(request.body or b"{}")
-            except json.JSONDecodeError:
-                return JsonResponse(
-                    {"success": False, "message": "JSON inválido."},
-                    status=400
-                )
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                return resposta_erro("JSON inválido.")
 
-            carrinho = data.get("carrinho", [])
-            metodo_pagamento = (data.get("metodo_pagamento") or "").strip()
-            tipo_entrega = data.get("tipo_entrega")
-            nome_cliente = (data.get("nome_cliente") or "").strip()
-            descricao = (data.get("descricao") or "").strip()
+            if not isinstance(data, dict):
+                return resposta_erro("Dados do pedido inválidos.")
 
-            endereco = data.get("endereco", {}) or {}
-            cep = (endereco.get("cep") or "").strip()
-            rua = (endereco.get("rua") or "").strip()
-            numero = (endereco.get("numero") or "").strip()
-
-            try:
-                total = Decimal(str(data.get("total", 0)))
-                taxa_motoca = Decimal(str(data.get("taxa_motoca", 0)))
-            except (InvalidOperation, TypeError, ValueError):
-                return JsonResponse(
-                    {"success": False, "message": "Valores monetários inválidos."},
-                    status=400
-                )
+            carrinho = data.get("carrinho") or []
+            nome_cliente = str(data.get("nome_cliente") or "").strip()
+            descricao = str(data.get("descricao") or "").strip()
+            metodo_pagamento = str(data.get("metodo_pagamento") or "").strip().upper()
+            tipo_entrega = str(data.get("tipo_entrega") or "").strip().lower()
+            endereco = data.get("endereco") or {}
 
             if not isinstance(carrinho, list) or not carrinho:
-                return JsonResponse(
-                    {"success": False, "message": "Carrinho vazio"},
-                    status=400
-                )
+                return resposta_erro("Carrinho vazio.")
 
             if not nome_cliente:
-                return JsonResponse(
-                    {"success": False, "message": "Nome do cliente é obrigatório"},
-                    status=400
+                return resposta_erro("Nome do cliente é obrigatório.")
+
+            if len(nome_cliente) > 90:
+                return resposta_erro("O nome do cliente deve ter no máximo 90 caracteres.")
+
+            pagamentos_validos = {
+                valor for valor, _ in Pedidos.FormaPagamento.choices
+            }
+            if metodo_pagamento not in pagamentos_validos:
+                return resposta_erro("Método de pagamento inválido.")
+
+            if tipo_entrega not in {"entrega", "retirada"}:
+                return resposta_erro("Tipo de entrega inválido.")
+
+            entrega = tipo_entrega == "entrega"
+
+            if not isinstance(endereco, dict):
+                return resposta_erro("Endereço inválido.")
+
+            cep = str(endereco.get("cep") or "").strip()
+            rua = str(endereco.get("rua") or "").strip()
+            numero = str(endereco.get("numero") or "").strip()
+
+            if entrega and (not rua or not numero):
+                return resposta_erro(
+                    "Rua e número são obrigatórios para entrega."
                 )
 
-            if not metodo_pagamento:
-                return JsonResponse(
-                    {"success": False, "message": "Método de pagamento é obrigatório"},
-                    status=400
+            if len(cep) > 9 or len(rua) > 120 or len(numero) > 50:
+                return resposta_erro("O endereço ultrapassa o tamanho permitido.")
+
+            desconto = decimal_seguro(data.get("desconto", 0), "Desconto")
+            taxa_motoca = decimal_seguro(
+                data.get("taxa_motoca", 0),
+                "Taxa de entrega"
+            ) if entrega else Decimal("0.00")
+
+            if desconto < 0 or taxa_motoca < 0:
+                return resposta_erro("Desconto e taxa não podem ser negativos.")
+
+            itens_preparados = []
+            total_bruto = Decimal("0.00")
+
+            # Primeiro valida tudo. Somente depois o pedido é gravado.
+            for posicao, item in enumerate(carrinho, start=1):
+                if not isinstance(item, dict):
+                    raise ValueError(f"Item {posicao} do carrinho é inválido.")
+
+                produto_id = item.get("id")
+                if produto_id in (None, ""):
+                    raise ValueError(f"Produto ausente no item {posicao}.")
+
+                try:
+                    quantidade = int(item.get("qtd", 0))
+                except (TypeError, ValueError):
+                    raise ValueError(f"Quantidade inválida no item {posicao}.")
+
+                if quantidade <= 0:
+                    raise ValueError(
+                        f"Quantidade deve ser maior que zero no item {posicao}."
+                    )
+
+                produto = (
+                    Produtos.objects
+                    .prefetch_related("adicionais_disponiveis")
+                    .filter(id=produto_id, ativo=True)
+                    .first()
                 )
 
-            if tipo_entrega == "entrega" and (not rua or not numero):
-                return JsonResponse(
-                    {"success": False, "message": "Rua e número são obrigatórios para entrega."},
-                    status=400
+                if not produto:
+                    raise Produtos.DoesNotExist
+
+                adicionais_recebidos = item.get("adicionais") or []
+                if not isinstance(adicionais_recebidos, list):
+                    raise ValueError(
+                        f"Adicionais inválidos no produto {produto.nome_produto}."
+                    )
+
+                adicionais_disponiveis = {
+                    adicional.nome.strip().casefold(): adicional
+                    for adicional in produto.adicionais_disponiveis.all()
+                    if adicional.ativo
+                }
+
+                adicionais_normalizados = []
+                soma_adicionais = Decimal("0.00")
+
+                for adicional_recebido in adicionais_recebidos:
+                    if not isinstance(adicional_recebido, dict):
+                        raise ValueError(
+                            f"Adicional inválido no produto {produto.nome_produto}."
+                        )
+
+                    nome_recebido = str(
+                        adicional_recebido.get("nome") or ""
+                    ).strip()
+
+                    if not nome_recebido:
+                        continue
+
+                    adicional_banco = adicionais_disponiveis.get(
+                        nome_recebido.casefold()
+                    )
+
+                    if not adicional_banco:
+                        raise ValueError(
+                            f'O adicional "{nome_recebido}" não está disponível '
+                            f'para {produto.nome_produto}.'
+                        )
+
+                    try:
+                        qtd_adicional = int(
+                            adicional_recebido.get("qtd", 1)
+                        )
+                    except (TypeError, ValueError):
+                        raise ValueError(
+                            f"Quantidade de adicional inválida em "
+                            f"{produto.nome_produto}."
+                        )
+
+                    if qtd_adicional <= 0:
+                        continue
+
+                    preco_adicional = Decimal(
+                        str(adicional_banco.preco)
+                    ).quantize(centavos, rounding=ROUND_HALF_UP)
+
+                    soma_adicionais += preco_adicional * qtd_adicional
+                    adicionais_normalizados.append({
+                        "nome": adicional_banco.nome,
+                        "qtd": qtd_adicional,
+                        "preco": str(preco_adicional)
+                    })
+
+                preco_base = Decimal(str(produto.preco)).quantize(
+                    centavos,
+                    rounding=ROUND_HALF_UP
                 )
+                preco_unitario = (preco_base + soma_adicionais).quantize(
+                    centavos,
+                    rounding=ROUND_HALF_UP
+                )
+                subtotal_item = (preco_unitario * quantidade).quantize(
+                    centavos,
+                    rounding=ROUND_HALF_UP
+                )
+
+                total_bruto += subtotal_item
+                itens_preparados.append({
+                    "produto": produto,
+                    "quantidade": quantidade,
+                    "preco_base": preco_base,
+                    "preco_unitario": preco_unitario,
+                    "subtotal": subtotal_item,
+                    "adicionais": adicionais_normalizados,
+                })
+
+            if not itens_preparados:
+                return resposta_erro("O pedido não possui itens válidos.")
+
+            desconto = min(desconto, total_bruto)
+            total_pedido = (total_bruto - desconto).quantize(
+                centavos,
+                rounding=ROUND_HALF_UP
+            )
 
             with transaction.atomic():
                 pedido = Pedidos.objects.create(
                     nome_cliente=nome_cliente,
                     descricao=descricao or None,
-                    total=total,
+                    total=total_pedido,
                     taxa_motoca=taxa_motoca,
-                    forma_pagamento=metodo_pagamento.upper(),
-                    entrega=(tipo_entrega == "entrega"),
+                    forma_pagamento=metodo_pagamento,
+                    entrega=entrega,
                     cep=cep or None,
                     rua=rua or None,
                     numero=numero or None,
                     impresso=False
                 )
 
-                itens_salvos = []
                 itens_impressao = []
 
-                for posicao, item in enumerate(carrinho, start=1):
-                    if not isinstance(item, dict):
-                        raise ValueError(f"Item {posicao} do carrinho é inválido.")
-
-                    produto_id = item.get("id")
-                    if not produto_id:
-                        raise ValueError(f"Produto ausente no item {posicao}.")
-
-                    try:
-                        qtd = int(item.get("qtd", 0))
-                    except (TypeError, ValueError):
-                        raise ValueError(f"Quantidade inválida no item {posicao}.")
-
-                    if qtd <= 0:
-                        raise ValueError(f"Quantidade deve ser maior que zero no item {posicao}.")
-
-                    produto = Produtos.objects.get(id=produto_id)
-
-                    adicionais_recebidos = item.get("adicionais", []) or []
-                    if not isinstance(adicionais_recebidos, list):
-                        raise ValueError(
-                            f"Adicionais inválidos no produto {produto.nome_produto}."
-                        )
-
-                    adicionais_normalizados = []
-                    soma_adicionais = Decimal("0.00")
-
-                    for adicional in adicionais_recebidos:
-                        if not isinstance(adicional, dict):
-                            continue
-
-                        nome_adicional = (adicional.get("nome") or "").strip()
-
-                        try:
-                            qtd_adicional = int(adicional.get("qtd", 1))
-                            preco_adicional = Decimal(str(adicional.get("preco", 0)))
-                        except (InvalidOperation, TypeError, ValueError):
-                            raise ValueError(
-                                f"Adicional inválido no produto {produto.nome_produto}."
-                            )
-
-                        if qtd_adicional <= 0:
-                            continue
-
-                        soma_adicionais += preco_adicional * qtd_adicional
-                        adicionais_normalizados.append({
-                            "nome": nome_adicional,
-                            "qtd": qtd_adicional,
-                            "preco": str(preco_adicional)
-                        })
-
-                    # Usa o preço atual do produto no banco como fonte de verdade.
-                    preco_base = Decimal(str(produto.preco))
-                    preco_unitario = preco_base + soma_adicionais
-                    subtotal_item = preco_unitario * qtd
-
+                for item in itens_preparados:
                     item_pedido = ItensPedido.objects.create(
-                        produto=produto,
-                        quantidade=qtd,
-                        preco_unitario=preco_unitario,
-                        subtotal=subtotal_item,
-                        adicionais=adicionais_normalizados
+                        produto=item["produto"],
+                        quantidade=item["quantidade"],
+                        preco_unitario=item["preco_unitario"],
+                        subtotal=item["subtotal"],
+                        adicionais=item["adicionais"]
                     )
 
-                    itens_salvos.append(item_pedido)
+                    # Associa imediatamente; evita itens órfãos e mantém o fluxo claro.
+                    pedido.itens.add(item_pedido)
+
                     itens_impressao.append({
                         "id": item_pedido.id,
-                        "produtoId": produto.id,
-                        "nome": produto.nome_produto,
-                        "qtd": qtd,
-                        "precoBase": float(preco_base),
-                        "precoUnitario": float(preco_unitario),
-                        "subtotal": float(subtotal_item),
+                        "produtoId": item["produto"].id,
+                        "nome": item["produto"].nome_produto,
+                        "qtd": item["quantidade"],
+                        "precoBase": float(item["preco_base"]),
+                        "precoUnitario": float(item["preco_unitario"]),
+                        "subtotal": float(item["subtotal"]),
                         "adicionais": [
                             {
                                 "nome": adicional["nome"],
                                 "qtd": adicional["qtd"],
                                 "preco": float(Decimal(adicional["preco"]))
                             }
-                            for adicional in adicionais_normalizados
+                            for adicional in item["adicionais"]
                         ]
                     })
 
-                if not itens_salvos:
-                    raise ValueError("O pedido não possui itens válidos.")
-
-                pedido.itens.set(itens_salvos)
-
-                # Validação obrigatória: se a relação não foi gravada completa,
-                # a transaction.atomic faz rollback do pedido inteiro.
-                total_itens_relacionados = pedido.itens.count()
-                if total_itens_relacionados != len(itens_salvos):
+                if pedido.itens.count() != len(itens_impressao):
                     raise RuntimeError(
-                        "Falha ao relacionar todos os itens ao pedido. "
-                        "O pedido não foi concluído."
+                        "Falha ao relacionar os itens ao pedido."
                     )
 
                 pedido_impressao = {
                     "id": pedido.id,
-                    "criadoEm": timezone.localtime(pedido.criado_em).strftime(
-                        "%d/%m/%Y %H:%M"
-                    ),
+                    "criadoEm": timezone.localtime(
+                        pedido.criado_em
+                    ).strftime("%d/%m/%Y %H:%M"),
                     "nomeCliente": pedido.nome_cliente,
                     "metodo": pedido.forma_pagamento,
                     "entrega": pedido.entrega,
@@ -277,9 +370,12 @@ class CaixaView(LoginRequiredMixin, View):
                         "numero": pedido.numero or ""
                     },
                     "itens": itens_impressao,
+                    "desconto": float(desconto),
                     "totalPedido": float(pedido.total),
                     "taxaMotoca": float(pedido.taxa_motoca),
-                    "totalFinal": float(pedido.total + pedido.taxa_motoca)
+                    "totalFinal": float(
+                        pedido.total + pedido.taxa_motoca
+                    )
                 }
 
             return JsonResponse({
@@ -289,22 +385,28 @@ class CaixaView(LoginRequiredMixin, View):
             })
 
         except Produtos.DoesNotExist:
-            return JsonResponse({
-                "success": False,
-                "message": "Produto não encontrado"
-            }, status=404)
+            return resposta_erro(
+                "Um dos produtos não existe ou está inativo.",
+                status=404
+            )
 
-        except (KeyError, ValueError, InvalidOperation) as e:
-            return JsonResponse({
-                "success": False,
-                "message": str(e)
-            }, status=400)
+        except (KeyError, ValueError, InvalidOperation) as erro:
+            return resposta_erro(str(erro), status=400)
 
-        except Exception as e:
-            return JsonResponse({
-                "success": False,
-                "message": str(e)
-            }, status=500)
+        except DatabaseError:
+            logger.exception("Erro de banco ao finalizar pedido no PDV")
+            return resposta_erro(
+                "Falha ao gravar o pedido no banco. "
+                "Confirme se todas as migrations foram aplicadas.",
+                status=500
+            )
+
+        except Exception:
+            logger.exception("Erro inesperado ao finalizar pedido no PDV")
+            return resposta_erro(
+                "Erro interno ao finalizar o pedido. Consulte os logs do servidor.",
+                status=500
+            )
 
 
 # Novo endpoint de confirmação
@@ -1327,4 +1429,3 @@ class DashboardAnalyticsView(LoginRequiredMixin, TemplateView):
             return JsonResponse(self._get_dashboard_data(), safe=False)
 
         return super().get(request, *args, **kwargs)
-
