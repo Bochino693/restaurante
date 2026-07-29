@@ -130,8 +130,12 @@ class CaixaView(LoginRequiredMixin, View):
             carrinho = data.get("carrinho") or []
             nome_cliente = str(data.get("nome_cliente") or "").strip()
             descricao = str(data.get("descricao") or "").strip()
-            metodo_pagamento = str(data.get("metodo_pagamento") or "").strip().upper()
-            tipo_entrega = str(data.get("tipo_entrega") or "").strip().lower()
+            metodo_pagamento = str(
+                data.get("metodo_pagamento") or ""
+            ).strip().upper()
+            tipo_entrega = str(
+                data.get("tipo_entrega") or ""
+            ).strip().lower()
             endereco = data.get("endereco") or {}
 
             if not isinstance(carrinho, list) or not carrinho:
@@ -141,7 +145,9 @@ class CaixaView(LoginRequiredMixin, View):
                 return resposta_erro("Nome do cliente é obrigatório.")
 
             if len(nome_cliente) > 90:
-                return resposta_erro("O nome do cliente deve ter no máximo 90 caracteres.")
+                return resposta_erro(
+                    "O nome do cliente deve ter no máximo 90 caracteres."
+                )
 
             pagamentos_validos = {
                 valor for valor, _ in Pedidos.FormaPagamento.choices
@@ -167,37 +173,55 @@ class CaixaView(LoginRequiredMixin, View):
                 )
 
             if len(cep) > 9 or len(rua) > 120 or len(numero) > 50:
-                return resposta_erro("O endereço ultrapassa o tamanho permitido.")
+                return resposta_erro(
+                    "O endereço ultrapassa o tamanho permitido."
+                )
 
-            desconto = decimal_seguro(data.get("desconto", 0), "Desconto")
-            taxa_motoca = decimal_seguro(
-                data.get("taxa_motoca", 0),
-                "Taxa de entrega"
-            ) if entrega else Decimal("0.00")
+            desconto = decimal_seguro(
+                data.get("desconto", 0),
+                "Desconto"
+            )
+            taxa_motoca = (
+                decimal_seguro(
+                    data.get("taxa_motoca", 0),
+                    "Taxa de entrega"
+                )
+                if entrega
+                else Decimal("0.00")
+            )
 
             if desconto < 0 or taxa_motoca < 0:
-                return resposta_erro("Desconto e taxa não podem ser negativos.")
+                return resposta_erro(
+                    "Desconto e taxa não podem ser negativos."
+                )
 
             itens_preparados = []
             total_bruto = Decimal("0.00")
 
-            # Primeiro valida tudo. Somente depois o pedido é gravado.
+            # Valida todos os itens antes de iniciar a transação.
             for posicao, item in enumerate(carrinho, start=1):
                 if not isinstance(item, dict):
-                    raise ValueError(f"Item {posicao} do carrinho é inválido.")
+                    raise ValueError(
+                        f"Item {posicao} do carrinho é inválido."
+                    )
 
                 produto_id = item.get("id")
                 if produto_id in (None, ""):
-                    raise ValueError(f"Produto ausente no item {posicao}.")
+                    raise ValueError(
+                        f"Produto ausente no item {posicao}."
+                    )
 
                 try:
                     quantidade = int(item.get("qtd", 0))
                 except (TypeError, ValueError):
-                    raise ValueError(f"Quantidade inválida no item {posicao}.")
+                    raise ValueError(
+                        f"Quantidade inválida no item {posicao}."
+                    )
 
                 if quantidade <= 0:
                     raise ValueError(
-                        f"Quantidade deve ser maior que zero no item {posicao}."
+                        f"Quantidade deve ser maior que zero "
+                        f"no item {posicao}."
                     )
 
                 produto = (
@@ -213,12 +237,14 @@ class CaixaView(LoginRequiredMixin, View):
                 adicionais_recebidos = item.get("adicionais") or []
                 if not isinstance(adicionais_recebidos, list):
                     raise ValueError(
-                        f"Adicionais inválidos no produto {produto.nome_produto}."
+                        f"Adicionais inválidos no produto "
+                        f"{produto.nome_produto}."
                     )
 
                 adicionais_disponiveis = {
                     adicional.nome.strip().casefold(): adicional
-                    for adicional in produto.adicionais_disponiveis.all()
+                    for adicional
+                    in produto.adicionais_disponiveis.all()
                     if adicional.ativo
                 }
 
@@ -228,7 +254,8 @@ class CaixaView(LoginRequiredMixin, View):
                 for adicional_recebido in adicionais_recebidos:
                     if not isinstance(adicional_recebido, dict):
                         raise ValueError(
-                            f"Adicional inválido no produto {produto.nome_produto}."
+                            f"Adicional inválido no produto "
+                            f"{produto.nome_produto}."
                         )
 
                     nome_recebido = str(
@@ -244,8 +271,8 @@ class CaixaView(LoginRequiredMixin, View):
 
                     if not adicional_banco:
                         raise ValueError(
-                            f'O adicional "{nome_recebido}" não está disponível '
-                            f'para {produto.nome_produto}.'
+                            f'O adicional "{nome_recebido}" não está '
+                            f'disponível para {produto.nome_produto}.'
                         )
 
                     try:
@@ -263,29 +290,44 @@ class CaixaView(LoginRequiredMixin, View):
 
                     preco_adicional = Decimal(
                         str(adicional_banco.preco)
-                    ).quantize(centavos, rounding=ROUND_HALF_UP)
+                    ).quantize(
+                        centavos,
+                        rounding=ROUND_HALF_UP
+                    )
 
-                    soma_adicionais += preco_adicional * qtd_adicional
+                    soma_adicionais += (
+                        preco_adicional * qtd_adicional
+                    )
+
                     adicionais_normalizados.append({
                         "nome": adicional_banco.nome,
                         "qtd": qtd_adicional,
                         "preco": str(preco_adicional)
                     })
 
-                preco_base = Decimal(str(produto.preco)).quantize(
+                preco_base = Decimal(
+                    str(produto.preco)
+                ).quantize(
                     centavos,
                     rounding=ROUND_HALF_UP
                 )
-                preco_unitario = (preco_base + soma_adicionais).quantize(
+
+                preco_unitario = (
+                    preco_base + soma_adicionais
+                ).quantize(
                     centavos,
                     rounding=ROUND_HALF_UP
                 )
-                subtotal_item = (preco_unitario * quantidade).quantize(
+
+                subtotal_item = (
+                    preco_unitario * quantidade
+                ).quantize(
                     centavos,
                     rounding=ROUND_HALF_UP
                 )
 
                 total_bruto += subtotal_item
+
                 itens_preparados.append({
                     "produto": produto,
                     "quantidade": quantidade,
@@ -296,10 +338,14 @@ class CaixaView(LoginRequiredMixin, View):
                 })
 
             if not itens_preparados:
-                return resposta_erro("O pedido não possui itens válidos.")
+                return resposta_erro(
+                    "O pedido não possui itens válidos."
+                )
 
             desconto = min(desconto, total_bruto)
-            total_pedido = (total_bruto - desconto).quantize(
+            total_pedido = (
+                total_bruto - desconto
+            ).quantize(
                 centavos,
                 rounding=ROUND_HALF_UP
             )
@@ -318,6 +364,7 @@ class CaixaView(LoginRequiredMixin, View):
                     impresso=False
                 )
 
+                itens_salvos = []
                 itens_impressao = []
 
                 for item in itens_preparados:
@@ -328,9 +375,7 @@ class CaixaView(LoginRequiredMixin, View):
                         subtotal=item["subtotal"],
                         adicionais=item["adicionais"]
                     )
-
-                    # Associa imediatamente; evita itens órfãos e mantém o fluxo claro.
-                    pedido.itens.add(item_pedido)
+                    itens_salvos.append(item_pedido)
 
                     itens_impressao.append({
                         "id": item_pedido.id,
@@ -338,22 +383,103 @@ class CaixaView(LoginRequiredMixin, View):
                         "nome": item["produto"].nome_produto,
                         "qtd": item["quantidade"],
                         "precoBase": float(item["preco_base"]),
-                        "precoUnitario": float(item["preco_unitario"]),
+                        "precoUnitario": float(
+                            item["preco_unitario"]
+                        ),
                         "subtotal": float(item["subtotal"]),
                         "adicionais": [
                             {
                                 "nome": adicional["nome"],
                                 "qtd": adicional["qtd"],
-                                "preco": float(Decimal(adicional["preco"]))
+                                "preco": float(
+                                    Decimal(adicional["preco"])
+                                )
                             }
                             for adicional in item["adicionais"]
                         ]
                     })
 
-                if pedido.itens.count() != len(itens_impressao):
-                    raise RuntimeError(
-                        "Falha ao relacionar os itens ao pedido."
+                # Grava diretamente na tabela intermediária.
+                # Diferente de pedido.itens.add(), bulk_create não ignora
+                # silenciosamente uma restrição incorreta no banco.
+                campo_itens = Pedidos._meta.get_field("itens")
+                modelo_relacao = campo_itens.remote_field.through
+
+                campos_fk = [
+                    campo
+                    for campo in modelo_relacao._meta.fields
+                    if getattr(campo, "remote_field", None)
+                ]
+
+                campo_pedido = next(
+                    (
+                        campo
+                        for campo in campos_fk
+                        if (
+                            campo.remote_field.model._meta.label_lower
+                            == Pedidos._meta.label_lower
+                        )
+                    ),
+                    None
+                )
+                campo_item = next(
+                    (
+                        campo
+                        for campo in campos_fk
+                        if (
+                            campo.remote_field.model._meta.label_lower
+                            == ItensPedido._meta.label_lower
+                        )
+                    ),
+                    None
+                )
+
+                if not campo_pedido or not campo_item:
+                    raise DatabaseError(
+                        "Não foi possível identificar a relação "
+                        "entre pedido e itens."
                     )
+
+                relacoes = [
+                    modelo_relacao(**{
+                        campo_pedido.name: pedido,
+                        campo_item.name: item_pedido
+                    })
+                    for item_pedido in itens_salvos
+                ]
+
+                modelo_relacao._default_manager.bulk_create(
+                    relacoes,
+                    batch_size=100
+                )
+
+                ids_esperados = {
+                    item_pedido.pk for item_pedido in itens_salvos
+                }
+                ids_relacionados = set(
+                    modelo_relacao._default_manager
+                    .filter(**{campo_pedido.name: pedido})
+                    .values_list(campo_item.attname, flat=True)
+                )
+
+                if ids_relacionados != ids_esperados:
+                    logger.error(
+                        "Relação incompleta no pedido %s. "
+                        "Esperados=%s; relacionados=%s",
+                        pedido.pk,
+                        sorted(ids_esperados),
+                        sorted(ids_relacionados)
+                    )
+                    raise DatabaseError(
+                        "A tabela de relação entre pedidos e itens "
+                        "está com uma restrição incorreta. Aplique a "
+                        "migration 0011_reparar_relacao_pedidos_itens."
+                    )
+
+                quantidade_unidades = sum(
+                    item["quantidade"]
+                    for item in itens_preparados
+                )
 
                 pedido_impressao = {
                     "id": pedido.id,
@@ -370,7 +496,10 @@ class CaixaView(LoginRequiredMixin, View):
                         "numero": pedido.numero or ""
                     },
                     "itens": itens_impressao,
+                    "quantidadeLinhas": len(itens_impressao),
+                    "quantidadeUnidades": quantidade_unidades,
                     "desconto": float(desconto),
+                    "totalBruto": float(total_bruto),
                     "totalPedido": float(pedido.total),
                     "taxaMotoca": float(pedido.taxa_motoca),
                     "totalFinal": float(
@@ -393,18 +522,28 @@ class CaixaView(LoginRequiredMixin, View):
         except (KeyError, ValueError, InvalidOperation) as erro:
             return resposta_erro(str(erro), status=400)
 
-        except DatabaseError:
-            logger.exception("Erro de banco ao finalizar pedido no PDV")
+        except DatabaseError as erro:
+            logger.exception(
+                "Erro de banco ao finalizar pedido no PDV"
+            )
+            mensagem = str(erro)
+
+            if "0011_reparar_relacao_pedidos_itens" in mensagem:
+                return resposta_erro(mensagem, status=500)
+
             return resposta_erro(
                 "Falha ao gravar o pedido no banco. "
-                "Confirme se todas as migrations foram aplicadas.",
+                "Aplique todas as migrations e tente novamente.",
                 status=500
             )
 
         except Exception:
-            logger.exception("Erro inesperado ao finalizar pedido no PDV")
+            logger.exception(
+                "Erro inesperado ao finalizar pedido no PDV"
+            )
             return resposta_erro(
-                "Erro interno ao finalizar o pedido. Consulte os logs do servidor.",
+                "Erro interno ao finalizar o pedido. "
+                "Consulte os logs do servidor.",
                 status=500
             )
 
@@ -858,9 +997,8 @@ class PedidoReimprimirView(LoginRequiredMixin, View):
                 "adicionais": adicionais_normalizados
             })
 
-        pedido.impresso = True
-        pedido.save(update_fields=["impresso"])
-
+        # A reimpressão só monta os dados. O navegador/QZ Tray é quem
+        # efetivamente imprime; portanto não marcamos como impresso aqui.
         data = {
             "id": pedido.id,
             "criadoEm": timezone.localtime(pedido.criado_em).strftime(
@@ -1429,3 +1567,4 @@ class DashboardAnalyticsView(LoginRequiredMixin, TemplateView):
             return JsonResponse(self._get_dashboard_data(), safe=False)
 
         return super().get(request, *args, **kwargs)
+

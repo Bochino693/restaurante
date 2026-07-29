@@ -2098,6 +2098,26 @@ function gerarTextoCozinha(pedido) {
 
 async function imprimirPedidoCompleto(pedido) {
     const pedidoOK = validarPedidoParaImpressao(pedido);
+    const itensAgrupados = agruparItens(pedidoOK.itens);
+
+    const unidadesOriginais = pedidoOK.itens.reduce(
+        (total, item) => total + Number(item.qtd || 0),
+        0
+    );
+    const unidadesAgrupadas = itensAgrupados.reduce(
+        (total, item) => total + Number(item.qtd || 0),
+        0
+    );
+
+    if (
+        itensAgrupados.length === 0 ||
+        unidadesOriginais <= 0 ||
+        unidadesAgrupadas !== unidadesOriginais
+    ) {
+        throw new Error(
+            'A conferência da impressão detectou itens ou quantidades ausentes.'
+        );
+    }
 
     const textoBalcao = gerarTextoBalcao(pedidoOK);
     const textoCozinha = gerarTextoCozinha(pedidoOK);
@@ -2387,14 +2407,54 @@ async function finalizarVenda() {
         }
 
         const pedidoServidor = resultado.pedido_impressao || {};
-        const itensServidorValidos = itensServidorEstaoCompletos(
-            pedidoServidor.itens,
-            carrinhoSnapshot
+        const itensServidorNormalizados = normalizarItensImpressao(
+            pedidoServidor.itens
+        );
+        const unidadesServidor = itensServidorNormalizados.reduce(
+            (total, item) => total + Number(item.qtd || 0),
+            0
+        );
+        const unidadesCarrinho = itensSnapshot.reduce(
+            (total, item) => total + Number(item.qtd || 0),
+            0
         );
 
+        const linhasEsperadas = Number(
+            pedidoServidor.quantidadeLinhas ?? carrinhoSnapshot.length
+        );
+        const unidadesEsperadas = Number(
+            pedidoServidor.quantidadeUnidades ?? unidadesCarrinho
+        );
+
+        const itensServidorValidos =
+            itensServidorEstaoCompletos(
+                pedidoServidor.itens,
+                carrinhoSnapshot
+            ) &&
+            itensServidorNormalizados.length === linhasEsperadas &&
+            unidadesServidor === unidadesEsperadas &&
+            unidadesServidor === unidadesCarrinho;
+
+        if (!itensServidorValidos) {
+            console.warn(
+                'A resposta do servidor não passou na conferência de itens. ' +
+                'A impressão usará o snapshot integral do carrinho.',
+                {
+                    pedidoId: resultado.pedido_id,
+                    linhasServidor: itensServidorNormalizados.length,
+                    linhasEsperadas,
+                    unidadesServidor,
+                    unidadesEsperadas,
+                    unidadesCarrinho
+                }
+            );
+        }
+
+        // O servidor é a fonte principal. O snapshot local é uma proteção
+        // adicional para nunca gerar uma via vazia ou incompleta.
         const itensParaImprimir = itensServidorValidos
-            ? pedidoServidor.itens
-            : carrinhoSnapshot;
+            ? itensServidorNormalizados
+            : itensSnapshot;
 
         const totalPedidoServidor = Number(
             pedidoServidor.totalPedido ?? totalPedidoLocal
@@ -2429,6 +2489,20 @@ async function finalizarVenda() {
 
         try {
             pedidoValidado = validarPedidoParaImpressao(pedidoParaImprimir);
+
+            const unidadesValidadas = pedidoValidado.itens.reduce(
+                (total, item) => total + Number(item.qtd || 0),
+                0
+            );
+
+            if (
+                pedidoValidado.itens.length !== itensSnapshot.length ||
+                unidadesValidadas !== unidadesCarrinho
+            ) {
+                throw new Error(
+                    'A conferência final detectou itens ausentes antes da impressão.'
+                );
+            }
         } catch (erroImpressao) {
             mostrarSucesso(
                 resultado.pedido_id,
