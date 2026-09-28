@@ -1,259 +1,200 @@
-<!DOCTYPE html>
-<html lang="pt-br">
+{% load static %}<!DOCTYPE html>
+<html lang="pt-br" data-tema="sol">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cardápio Digital</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Cardápio · Cantinho Família</title>
+    <meta name="description" content="Cardápio do Cantinho Família: comida caseira, pedidos pelo WhatsApp de {{ loja.horario }}.">
+    {% include "_tema_head.html" %}
     <style>
-        .category-scroll::-webkit-scrollbar { display: none; }
-        .product-card:active { transform: scale(0.98); }
-        /* Estilo da animação do Toast */
-        #toast-container div { animation: slideIn 0.3s ease-out forwards; }
-        @keyframes slideIn {
-            from { transform: translateX(100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-        }
+        .categoria-scroll::-webkit-scrollbar { display: none; }
+        .categoria-btn { background: var(--cf-superficie); color: var(--cf-texto-2); border: 1px solid var(--cf-borda); }
+        .categoria-btn.ativo { background: var(--cf-marca); color: #fff; border-color: var(--cf-marca); box-shadow: 0 8px 18px rgba(227, 53, 61, .28); }
+        .cf-card { background: var(--cf-superficie); border: 1px solid var(--cf-borda); box-shadow: var(--cf-sombra); }
+        .cf-preco { color: var(--cf-marca); }
+        .cf-botao-marca { background: linear-gradient(135deg, var(--cf-marca), var(--cf-marca-forte)); color: #fff; }
+        .cf-botao-marca:disabled { background: var(--cf-superficie-3); color: var(--cf-texto-suave); box-shadow: none; }
+        .cf-escolha { border: 1.5px solid var(--cf-borda); background: var(--cf-superficie); color: var(--cf-texto-2); }
+        .cf-escolha.ativo { border-color: var(--cf-marca); background: var(--cf-marca-suave); color: var(--cf-marca); }
+        #toast { transition: opacity .25s ease, transform .25s ease; }
+        #toast.escondido { opacity: 0; transform: translate(-50%, 12px); pointer-events: none; }
+        .cf-adicionar { transition: transform .15s ease; }
+        .cf-adicionar:active { transform: scale(.88); }
+        .cf-pulo { animation: cf-pulo .45s ease; }
+        @keyframes cf-pulo { 30% { transform: scale(1.25); } 60% { transform: scale(.95); } }
+        #cart-drawer { max-height: 92vh; }
+        .pb-safe { padding-bottom: max(16px, env(safe-area-inset-bottom)); }
     </style>
 </head>
-<body class="bg-gray-50 font-sans" hx-boost="true">
+<body class="font-sans min-h-screen"
+      data-loja-aberta="{{ loja.aberta|yesno:'1,0' }}"
+      data-loja-detalhe="{{ loja.detalhe }}"
+      data-loja-horario="{{ loja.horario }}"
+      data-whatsapp="{{ whatsapp_loja }}">
+{% include "_ceu.html" %}
 
-    <div id="toast-container" class="fixed top-4 right-4 z-[100] space-y-2 pointer-events-none"></div>
-
-    <header class="bg-white shadow-sm sticky top-0 z-50">
-        <div class="max-w-2xl mx-auto px-4 py-4 flex justify-between items-center">
-            <div class="flex flex-col">
-                <h1 class="text-xl font-black text-gray-800 tracking-tighter italic">DELIVERY<span class="text-orange-500">PRO</span></h1>
-                <p id="status-loja" class="text-[10px] font-bold uppercase tracking-widest"></p>
-            </div>
-            <button onclick="toggleCart()" class="relative p-2 bg-orange-100 text-orange-600 rounded-2xl">
-                <i class="fas fa-shopping-basket text-xl"></i>
-                <span id="cart-count" class="absolute -top-1 -right-1 bg-orange-600 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full border-2 border-white">0</span>
+<header class="sticky top-0 z-40" style="background: color-mix(in srgb, var(--cf-superficie) 90%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-bottom: 1px solid var(--cf-borda)">
+    <div class="max-w-3xl mx-auto px-4 pt-3 pb-2 flex justify-between items-center gap-3">
+        <div class="min-w-0">
+            <div class="h-10">{% include "_logo.html" %}</div>
+            <p class="mt-1 text-[11px] font-black uppercase tracking-widest flex items-center gap-1.5 {% if loja.aberta %}text-green-600{% else %}text-red-600{% endif %}">
+                <i class="fas {% if loja.aberta %}fa-circle text-[7px] animate-pulse{% else %}fa-clock text-[10px]{% endif %}"></i>
+                {% if loja.aberta %}Aberto{% else %}Fechado{% endif %}
+                <span class="normal-case tracking-normal font-bold text-gray-400">· {{ loja.detalhe }}</span>
+            </p>
+        </div>
+        <div class="flex items-center gap-2">
+            <div class="relative"><button type="button" class="cf-tema-botao" data-cf-tema-botao aria-label="Escolher tema"></button></div>
+            <button type="button" onclick="Cardapio.abrirCarrinho()" class="relative cf-tema-botao" aria-label="Abrir carrinho" style="color: var(--cf-marca)">
+                <i class="fas fa-basket-shopping"></i>
+                <span id="cart-count" class="hidden absolute -top-1.5 -right-1.5 min-w-[20px] h-5 px-1 text-white text-[10px] font-black rounded-full items-center justify-center" style="background: var(--cf-marca)">0</span>
             </button>
         </div>
+    </div>
 
-        <div class="max-w-2xl mx-auto px-4 pb-3 overflow-x-auto category-scroll flex gap-4">
-            <button onclick="filtrarCategoria('all', this)" class="categoria-btn whitespace-nowrap bg-orange-500 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-md shadow-orange-200">
-                Início
-            </button>
-
+    <div class="max-w-3xl mx-auto px-4 pb-3">
+        <div class="relative mb-2.5">
+            <i class="fas fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+            <input id="busca" type="search" placeholder="Buscar no cardápio..." autocomplete="off"
+                   class="w-full pl-11 pr-4 py-2.5 rounded-2xl text-sm font-semibold outline-none bg-gray-50 border border-gray-100 focus:ring-2 focus:ring-red-200">
+        </div>
+        <div class="overflow-x-auto categoria-scroll flex gap-2">
+            <button type="button" data-categoria="all" class="categoria-btn ativo whitespace-nowrap px-4 py-2 rounded-xl text-sm font-bold">Tudo</button>
+            {% if pratos_do_dia %}
+            <button type="button" data-categoria="pratos" class="categoria-btn whitespace-nowrap px-4 py-2 rounded-xl text-sm font-bold">🍽️ Prato do dia</button>
+            {% endif %}
             {% for categoria in categorias %}
-            <button onclick="filtrarCategoria('{{ categoria.id }}', this)" class="categoria-btn whitespace-nowrap bg-white text-gray-500 border border-gray-100 px-4 py-2 rounded-xl text-sm font-bold hover:bg-orange-50 transition-all">
-                {{ categoria.nome_categoria }}
-            </button>
+            <button type="button" data-categoria="{{ categoria.id }}" class="categoria-btn whitespace-nowrap px-4 py-2 rounded-xl text-sm font-bold">{{ categoria.nome }}</button>
             {% endfor %}
         </div>
-    </header>
+    </div>
+</header>
 
-    <main class="max-w-2xl mx-auto px-4 py-6 pb-24">
-        {% block content %}{% endblock %}
-    </main>
+{% if not loja.aberta %}
+<div class="max-w-3xl mx-auto px-4 pt-4">
+    <div class="rounded-2xl px-4 py-3 flex items-center gap-3 text-sm font-semibold bg-red-50 text-red-600 border border-red-100">
+        <i class="fas fa-store-slash"></i>
+        <span>Estamos fechados agora — funcionamos de {{ loja.horario }}. Você pode montar o pedido e enviar quando abrirmos ({{ loja.detalhe }}).</span>
+    </div>
+</div>
+{% endif %}
 
-    <div id="cart-drawer" class="fixed inset-x-0 bottom-0 bg-white border-t rounded-t-[2.5rem] shadow-2xl z-[60] transform translate-y-full transition-transform duration-300 max-w-2xl mx-auto">
-        <div class="p-8">
-            <div class="flex justify-between items-center mb-6">
-                <h2 class="text-xl font-black text-gray-800 uppercase tracking-tighter">Meu Pedido</h2>
-                <button onclick="toggleCart()" class="text-gray-400 text-2xl"><i class="fas fa-times"></i></button>
+<main class="max-w-3xl mx-auto px-4 py-6 pb-36">
+    {% block content %}{% endblock %}
+</main>
+
+<!-- BARRA DO CARRINHO -->
+<button type="button" id="barra-carrinho" onclick="Cardapio.abrirCarrinho()"
+        class="hidden fixed left-1/2 -translate-x-1/2 bottom-4 z-40 w-[calc(100%-2rem)] max-w-xl cf-botao-marca rounded-2xl px-5 py-4 shadow-2xl items-center justify-between font-black">
+    <span class="flex items-center gap-3">
+        <span id="barra-qtd" class="bg-white/25 rounded-lg px-2 py-0.5 text-sm">0</span>
+        Ver carrinho
+    </span>
+    <span id="barra-total">R$ 0,00</span>
+</button>
+
+<!-- CARRINHO -->
+<div id="cart-fundo" onclick="Cardapio.fecharCarrinho()" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-50"></div>
+<section id="cart-drawer" aria-label="Carrinho"
+         class="fixed inset-x-0 bottom-0 z-[60] mx-auto max-w-2xl rounded-t-[2rem] shadow-2xl transform translate-y-full transition-transform duration-300 flex flex-col"
+         style="background: var(--cf-superficie)">
+    <div class="px-6 pt-5 pb-3 flex justify-between items-center border-b border-gray-100">
+        <h2 class="text-lg font-black text-gray-800 flex items-center gap-2">
+            <i class="fas fa-basket-shopping" style="color: var(--cf-marca)"></i> Meu pedido
+        </h2>
+        <button type="button" onclick="Cardapio.fecharCarrinho()" class="w-9 h-9 rounded-full bg-gray-100 text-gray-500" aria-label="Fechar carrinho">
+            <i class="fas fa-times"></i>
+        </button>
+    </div>
+
+    <div class="flex-1 overflow-y-auto px-6 py-4 space-y-5">
+        <div id="cart-items" class="space-y-3"></div>
+
+        <div id="cart-form" class="space-y-4">
+            <div>
+                <label for="cf-obs" class="block text-[11px] font-black uppercase tracking-wide text-gray-500 mb-1.5">Observações</label>
+                <textarea id="cf-obs" rows="2" maxlength="300" placeholder="Ex.: sem cebola, feijão à parte..."
+                          class="w-full rounded-xl px-3 py-2.5 text-sm font-semibold outline-none bg-gray-50 border border-gray-100 resize-none"></textarea>
             </div>
-
-            <div id="cart-items" class="space-y-4 mb-8 max-h-60 overflow-y-auto">
-                <p class="text-center text-gray-400 italic py-4">Seu carrinho está vazio...</p>
+            <div>
+                <label for="cf-nome" class="block text-[11px] font-black uppercase tracking-wide text-gray-500 mb-1.5">Seu nome *</label>
+                <input id="cf-nome" type="text" maxlength="60" autocomplete="name" placeholder="Como devemos te chamar?"
+                       class="w-full rounded-xl px-3 py-2.5 text-sm font-semibold outline-none bg-gray-50 border border-gray-100">
             </div>
-
-            <div class="border-t pt-4">
-                <div class="flex justify-between items-center mb-6">
-                    <span class="text-gray-500 font-bold uppercase text-xs">Total do Pedido</span>
-                    <span id="cart-total" class="text-2xl font-black text-gray-800">R$ 0,00</span>
+            <div>
+                <span class="block text-[11px] font-black uppercase tracking-wide text-gray-500 mb-1.5">Como quer receber?</span>
+                <div class="grid grid-cols-2 gap-2" data-grupo="tipo">
+                    <button type="button" data-valor="entrega" class="cf-escolha ativo rounded-xl py-2.5 text-sm font-black">🛵 Entrega</button>
+                    <button type="button" data-valor="retirada" class="cf-escolha rounded-xl py-2.5 text-sm font-black">🏪 Retirar</button>
                 </div>
-
-                <div id="container-finalizar" class="space-y-3"></div>
+            </div>
+            <div id="cf-endereco" class="grid grid-cols-3 gap-2">
+                <input id="cf-rua" type="text" maxlength="120" autocomplete="address-line1" placeholder="Rua *"
+                       class="col-span-2 rounded-xl px-3 py-2.5 text-sm font-semibold outline-none bg-gray-50 border border-gray-100">
+                <input id="cf-numero" type="text" maxlength="20" placeholder="Nº *"
+                       class="rounded-xl px-3 py-2.5 text-sm font-semibold outline-none bg-gray-50 border border-gray-100">
+                <input id="cf-complemento" type="text" maxlength="80" placeholder="Bairro / complemento / referência"
+                       class="col-span-3 rounded-xl px-3 py-2.5 text-sm font-semibold outline-none bg-gray-50 border border-gray-100">
+                <p class="col-span-3 text-[11px] text-gray-400 font-semibold"><i class="fas fa-motorcycle mr-1"></i> A taxa de entrega é confirmada pelo WhatsApp.</p>
+            </div>
+            <div>
+                <span class="block text-[11px] font-black uppercase tracking-wide text-gray-500 mb-1.5">Pagamento</span>
+                <div class="grid grid-cols-3 gap-2" data-grupo="pagamento">
+                    <button type="button" data-valor="Pix" class="cf-escolha ativo rounded-xl py-2.5 text-sm font-black">Pix</button>
+                    <button type="button" data-valor="Cartão" class="cf-escolha rounded-xl py-2.5 text-sm font-black">Cartão</button>
+                    <button type="button" data-valor="Dinheiro" class="cf-escolha rounded-xl py-2.5 text-sm font-black">Dinheiro</button>
+                </div>
+                <input id="cf-troco" type="text" inputmode="decimal" maxlength="12" placeholder="Troco para quanto? (opcional)"
+                       class="hidden mt-2 w-full rounded-xl px-3 py-2.5 text-sm font-semibold outline-none bg-gray-50 border border-gray-100">
             </div>
         </div>
     </div>
 
-<script>
-    // Variáveis Globais unificadas
-    // Prioriza o que vem do servidor Django, se não existir, assume fechado
-    let lojaAberta = {{ loja_aberta_server|yesno:"true,false" }};
-    let carrinho = JSON.parse(localStorage.getItem('carrinho_delivery')) || [];
-
-    // 1. Controle do Carrinho (UI)
-    function atualizarCarrinhoUI() {
-        const container = document.getElementById('cart-items');
-        const totalEl = document.getElementById('cart-total');
-        const countEl = document.getElementById('cart-count');
-
-        if(countEl) countEl.innerText = carrinho.length;
-
-        if (carrinho.length === 0) {
-            if(container) container.innerHTML = '<p class="text-center text-gray-400 italic py-4">Seu carrinho está vazio...</p>';
-            if(totalEl) totalEl.innerText = 'R$ 0,00';
-            return;
-        }
-
-        if(container) {
-            container.innerHTML = carrinho.map((item, index) => `
-                <div class="flex justify-between items-center bg-gray-50 p-4 rounded-2xl">
-                    <div>
-                        <p class="font-bold text-gray-800 text-sm">${item.nome}</p>
-                        <p class="text-orange-500 font-black text-xs">R$ ${parseFloat(item.preco_unitario).toFixed(2)}</p>
-                    </div>
-                    <button onclick="removerItem(${index})" class="text-red-400 p-2"><i class="fas fa-trash"></i></button>
-                </div>
-            `).join('');
-        }
-
-        const total = carrinho.reduce((sum, item) => sum + (parseFloat(item.preco_unitario) * item.quantidade), 0);
-        if(totalEl) totalEl.innerText = `R$ ${total.toFixed(2)}`;
-    }
-
-    function removerItem(index) {
-        carrinho.splice(index, 1);
-        localStorage.setItem('carrinho_delivery', JSON.stringify(carrinho));
-        atualizarCarrinhoUI();
-    }
-
-    function toggleCart() {
-        const drawer = document.getElementById('cart-drawer');
-        drawer.classList.toggle('translate-y-full');
-    }
-
-    // 2. Controle de Horário e Interface
-    function atualizarInterfaceHorario() {
-        const statusEl = document.getElementById("status-loja");
-        const containerBtn = document.getElementById("container-finalizar");
-        const botoesAdd = document.querySelectorAll(".btn-add");
-
-        if (lojaAberta) {
-            if(statusEl) {
-                statusEl.className = "text-[11px] text-green-500 font-bold uppercase tracking-widest flex items-center gap-1 mt-1";
-                statusEl.innerHTML = '<i class="fas fa-circle text-[8px] animate-pulse"></i> Aberto <span class="text-gray-400 normal-case tracking-normal ml-1">(até 16h)</span>';
-            }
-            if(containerBtn) {
-                containerBtn.innerHTML = `
-                    <button onclick="finalizarPedido('PIX')" class="w-full bg-blue-600 text-white py-4 rounded-[1.5rem] font-black uppercase shadow-lg shadow-blue-200 active:scale-95 transition-all">Pagar com PIX</button>
-                    <button onclick="finalizarPedido('WHATSAPP')" class="w-full bg-green-500 text-white py-4 mt-3 rounded-[1.5rem] font-black uppercase shadow-lg shadow-green-200 active:scale-95 transition-all">Enviar WhatsApp</button>
-                `;
-            }
-        } else {
-            if(statusEl) {
-                statusEl.className = "text-[11px] text-red-500 font-bold uppercase tracking-widest flex items-center gap-1 mt-1";
-                statusEl.innerHTML = '<i class="fas fa-times-circle text-[10px]"></i> Fechado <span class="text-gray-400 normal-case tracking-normal ml-1">(Abre Seg às 11h)</span>';
-            }
-            if(containerBtn) {
-                containerBtn.innerHTML = `<button onclick="mostrarModalLojaFechada()" class="w-full bg-gray-200 text-gray-400 py-4 rounded-[1.5rem] font-black uppercase cursor-not-allowed">Loja fechada</button>`;
-            }
-            botoesAdd.forEach(btn => {
-                btn.classList.replace("bg-orange-500", "bg-gray-400");
-                btn.classList.add("cursor-not-allowed");
-            });
-        }
-    }
-
-    function finalizarPedido(metodo) {
-        if (!lojaAberta) return mostrarModalLojaFechada();
-        if (carrinho.length === 0) return alert("Seu carrinho está vazio!");
-
-        let msg = `*Novo Pedido (${metodo})*\n\n`;
-        carrinho.forEach(item => {
-            msg += `• ${item.nome} (R$ ${parseFloat(item.preco_unitario).toFixed(2)})\n`;
-            if(item.adicionais && item.adicionais.length > 0) {
-                item.adicionais.forEach(a => msg += `  + ${a.nome}\n`);
-            }
-        });
-
-        const total = document.getElementById('cart-total').innerText;
-        msg += `\n*Total: ${total}*`;
-        const fone = "5511999999999"; // Ajuste seu número
-        window.open(`https://wa.me/${fone}?text=${encodeURIComponent(msg)}`);
-    }
-
-    function mostrarModalLojaFechada() {
-        document.getElementById("modal-loja-fechada").classList.remove("hidden");
-    }
-
-    function fecharModalLoja() {
-        document.getElementById("modal-loja-fechada").classList.add("hidden");
-    }
-
-    // Inicialização
-    document.addEventListener("DOMContentLoaded", () => {
-        atualizarInterfaceHorario();
-        atualizarCarrinhoUI();
-    });
-
-    // Filtro por Categoria
-function filtrarCategoria(id, btn) {
-    // 1. Estética dos botões
-    document.querySelectorAll('.categoria-btn').forEach(b => {
-        b.classList.replace('bg-orange-500', 'bg-white');
-        b.classList.replace('text-white', 'text-gray-500');
-        b.classList.remove('shadow-md', 'shadow-orange-200');
-    });
-    btn.classList.replace('bg-white', 'bg-orange-500');
-    btn.classList.replace('text-gray-500', 'text-white');
-    btn.classList.add('shadow-md', 'shadow-orange-200');
-
-    // 2. Lógica de visibilidade das SEÇÕES
-    const secoes = document.querySelectorAll('.categoria-section');
-    secoes.forEach(secao => {
-        if (id === 'all' || secao.id === `cat-${id}`) {
-            secao.style.display = 'block';
-        } else {
-            secao.style.display = 'none';
-        }
-    });
-
-    // Se quiser que o scroll volte para o topo ao filtrar
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-
-// Filtro por Busca (Input)
-function filtrar() {
-    const termo = document.getElementById('searchUnificado').value.toLowerCase();
-    const cards = document.querySelectorAll('.produto-card');
-
-    cards.forEach(card => {
-        const nome = card.getAttribute('data-name');
-        const codigo = card.getAttribute('data-code');
-
-        if (nome.includes(termo) || codigo.includes(termo)) {
-            card.style.display = 'block';
-        } else {
-            card.style.display = 'none';
-        }
-    });
-}
-
-
-</script>
-<div id="modal-loja-fechada"
-class="hidden fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-
-    <div class="bg-white rounded-2xl p-6 w-[320px] text-center">
-
-        <h2 class="text-lg font-black text-red-500 mb-2">
-            Loja Fechada
-        </h2>
-
-        <p class="text-gray-500 text-sm mb-4">
-
-            Funcionamos de segunda a sábado<br>
-            das 11h às 16h.
-
-        </p>
-
-        <button onclick="fecharModalLoja()"
-        class="bg-orange-500 text-white px-6 py-2 rounded-xl">
-
-            Ok
-
+    <div class="px-6 pt-3 pb-safe border-t border-gray-100">
+        <div class="flex justify-between items-end mb-3">
+            <span class="text-gray-500 font-black uppercase text-[11px]">Total dos itens</span>
+            <span id="cart-total" class="text-2xl font-black text-gray-800">R$ 0,00</span>
+        </div>
+        <button type="button" id="btn-enviar" onclick="Cardapio.enviar()"
+                class="w-full rounded-2xl py-4 font-black uppercase tracking-wide text-white shadow-lg active:scale-[.98] transition-all flex items-center justify-center gap-2"
+                style="background: #16a34a; box-shadow: 0 12px 26px rgba(22, 163, 74, .3)">
+            <i class="fab fa-whatsapp text-xl"></i> <span id="btn-enviar-texto">Enviar pedido pelo WhatsApp</span>
         </button>
-
     </div>
+</section>
 
+<!-- ADICIONAIS -->
+<div id="modal-adicionais" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-[70] items-end sm:items-center justify-center" role="dialog" aria-modal="true">
+    <div class="w-full sm:max-w-md rounded-t-[2rem] sm:rounded-[2rem] shadow-2xl overflow-hidden" style="background: var(--cf-superficie)">
+        <div class="px-6 pt-6 pb-3 flex justify-between items-start gap-4">
+            <div>
+                <h2 id="modal-produto-nome" class="font-black text-xl text-gray-800 leading-tight"></h2>
+                <p class="text-xs text-gray-400 font-semibold mt-1">Escolha os adicionais (opcional)</p>
+            </div>
+            <button type="button" onclick="Cardapio.fecharAdicionais()" class="w-9 h-9 shrink-0 rounded-full bg-gray-100 text-gray-500" aria-label="Fechar">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div id="lista-adicionais" class="px-6 space-y-2 max-h-[45vh] overflow-y-auto"></div>
+        <div class="p-6 flex items-center gap-3">
+            <div class="flex items-center gap-2 rounded-xl px-2 py-1.5 bg-gray-100">
+                <button type="button" onclick="Cardapio.qtdModal(-1)" class="w-8 h-8 rounded-lg font-black text-gray-600" aria-label="Menos">−</button>
+                <span id="modal-qtd" class="w-6 text-center font-black text-gray-800">1</span>
+                <button type="button" onclick="Cardapio.qtdModal(1)" class="w-8 h-8 rounded-lg font-black text-gray-600" aria-label="Mais">+</button>
+            </div>
+            <button type="button" onclick="Cardapio.confirmarAdicionais()"
+                    class="flex-1 cf-botao-marca rounded-xl py-3.5 font-black shadow-lg flex items-center justify-between px-5">
+                <span>Adicionar</span><span id="modal-total">R$ 0,00</span>
+            </button>
+        </div>
+    </div>
 </div>
+
+<div id="toast" class="escondido fixed left-1/2 -translate-x-1/2 bottom-28 z-[80] px-5 py-3 rounded-2xl text-white font-bold text-sm shadow-2xl flex items-center gap-2" style="background: #16a34a">
+    <i class="fas fa-check-circle"></i> <span id="toast-texto"></span>
+</div>
+
+{{ catalogo|json_script:"catalogo-json" }}
+<script src="{% static 'core/js/cardapio.js' %}?v={{ versao_estaticos }}" defer></script>
 </body>
 </html>

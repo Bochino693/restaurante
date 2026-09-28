@@ -117,7 +117,7 @@ class ItensPedido(Prime):
     adicionais = models.JSONField(default=list, blank=True)
 
     def __str__(self):
-        return self.produto.nome_produto
+        return self.produto.nome_produto if self.produto else "Produto removido"
 
     class Meta:
         verbose_name = "Item de Pedido"
@@ -204,6 +204,13 @@ class Pedidos(Prime):
     class Meta:
         verbose_name = "Pedido"
         verbose_name_plural = "Pedidos"
+        # Dashboard, lista de pedidos e o agente de impressão filtram por
+        # estas colunas o tempo todo.
+        indexes = [
+            models.Index(fields=["criado_em"], name="pedido_criado_idx"),
+            models.Index(fields=["status", "criado_em"], name="pedido_status_criado_idx"),
+            models.Index(fields=["impresso"], name="pedido_impresso_idx"),
+        ]
 
     def __str__(self):
         return f"Pedido #{self.id} - {self.status}"

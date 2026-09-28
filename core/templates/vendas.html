@@ -10,11 +10,11 @@
     <div class="flex items-center justify-between">
         <div>
             <h2 class="text-2xl font-black text-gray-800">
-                <i class="fas fa-receipt text-blue-600"></i>
+                <i class="fas fa-receipt" style="color: var(--cf-marca)"></i>
                 Histórico de Vendas
             </h2>
             <p class="text-sm text-gray-500">
-                Pedidos finalizados e cancelados
+                Pedidos finalizados e cancelados · a lista mostra os {{ limite }} mais recentes de cada
             </p>
         </div>
     </div>
@@ -32,7 +32,7 @@
             </h3>
 
             <p class="text-xs text-gray-400 mt-1">
-                {{ pedidos_finalizados|length }} pedidos
+                {{ qtd_finalizados }} pedido{{ qtd_finalizados|pluralize }}
             </p>
         </div>
 
@@ -46,7 +46,7 @@
             </h3>
 
             <p class="text-xs text-gray-400 mt-1">
-                {{ pedidos_cancelados|length }} pedidos
+                {{ qtd_cancelados }} pedido{{ qtd_cancelados|pluralize }}
             </p>
         </div>
 
@@ -79,7 +79,7 @@
                         </span>
 
                         <p class="text-xs text-gray-400">
-                            {{ pedido.criado_em }}
+                            {{ pedido.criado_em|date:"d/m/Y \à\s H:i" }}
                         </p>
                     </div>
 
@@ -155,7 +155,7 @@
                         </span>
 
                         <p class="text-xs text-gray-400">
-                            {{ pedido.criado_em }}
+                            {{ pedido.criado_em|date:"d/m/Y \à\s H:i" }}
                         </p>
 
                     </div>

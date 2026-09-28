@@ -82,10 +82,18 @@ if os.environ.get("DATABASE_URL"):
     DATABASES = {
         "default": dj_database_url.config(
             default=os.environ.get("DATABASE_URL"),
-            conn_max_age=600,
+            # Na Vercel cada função quente reaproveita a conexão (menos
+            # latência por requisição); o health check descarta a conexão
+            # que o pooler do Supabase fechou enquanto a função dormia.
+            conn_max_age=int(os.environ.get("DB_CONN_MAX_AGE", "60")),
+            conn_health_checks=True,
             ssl_require=True,   # Supabase exige SSL — estava False
         )
     }
+    # Pooler do Supabase em modo transação (porta 6543) não suporta cursores
+    # do lado do servidor.
+    if ":6543" in os.environ.get("DATABASE_URL", ""):
+        DATABASES["default"]["DISABLE_SERVER_SIDE_CURSORS"] = True
 else:
     DATABASES = {
         "default": {
@@ -100,9 +108,17 @@ CLOUDINARY_STORAGE = {
     "API_SECRET": os.environ.get("CLOUDINARY_API_SECRET"),
 }
 
+# Sem as chaves da Cloudinary (máquina de desenvolvimento), as imagens ficam
+# no disco em vez de derrubar a página com "Must supply cloud_name".
+USAR_CLOUDINARY = bool(CLOUDINARY_STORAGE["CLOUD_NAME"])
+
 STORAGES = {
     "default": {
-        "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage",
+        "BACKEND": (
+            "cloudinary_storage.storage.MediaCloudinaryStorage"
+            if USAR_CLOUDINARY
+            else "django.core.files.storage.FileSystemStorage"
+        ),
     },
     "staticfiles": {
         "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
@@ -125,5 +141,43 @@ STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
+# Arquivos estáticos com cache longo: os links levam "?v=<versão>" (ver
+# core.context_processors), então um arquivo novo muda de endereço. O
+# s-maxage deixa a borda da Vercel guardar a resposta e poupa a função.
+WHITENOISE_MAX_AGE = 60 * 60 * 24 * 30
+
+
+def _cabecalhos_estaticos(headers, path, url):
+    headers["Cache-Control"] = "public, max-age=2592000, s-maxage=2592000, immutable"
+
+
+WHITENOISE_ADD_HEADERS_FUNCTION = _cabecalhos_estaticos
+
+# Proxy da Vercel/Render: o Django enxerga o HTTPS original.
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+if not DEBUG:
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+
+# Horário de funcionamento: segunda a sexta, das 11h às 16h.
+LOJA_DIAS = (0, 1, 2, 3, 4)
+LOJA_ABRE = int(os.environ.get("LOJA_ABRE", "11"))
+LOJA_FECHA = int(os.environ.get("LOJA_FECHA", "16"))
+
+# WhatsApp que recebe os pedidos do cardápio (só dígitos, com DDI e DDD).
+WHATSAPP_LOJA = os.environ.get("WHATSAPP_LOJA", "5511999999999")
+
+# Chave do agente de impressão externo (mantém o valor antigo como padrão
+# para não derrubar o agente que já está instalado).
+IMPRESSAO_API_KEY = os.environ.get("IMPRESSAO_API_KEY", "chave-secreta-restaurante-2026")
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {"console": {"class": "logging.StreamHandler"}},
+    "root": {"handlers": ["console"], "level": "WARNING"},
+}
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
