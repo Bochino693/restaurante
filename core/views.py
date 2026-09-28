@@ -1,63 +1,148 @@
-from django.db.models import Sum, Count, Prefetch
-from django.shortcuts import render, get_object_or_404, redirect
-from .models import Produtos, EstoqueProdutos, CategoriaProdutos, Pedidos, ItensPedido, PratoDoDia
-from django.views.generic import View
+import hmac
 import json
 import logging
-from django.db import transaction, DatabaseError
-from django.http import JsonResponse
-from django.utils import timezone
-from django.contrib.auth.mixins import LoginRequiredMixin
-from django.contrib.auth import authenticate, login, logout
-from django.contrib.auth.models import User
-from django.contrib import messages
-
-
-from decimal import Decimal
 from datetime import datetime, time, timedelta
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
+from django.conf import settings
+from django.contrib import messages
+from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth.mixins import LoginRequiredMixin
+from django.contrib.auth.models import User
+from django.core.cache import cache
 from django.core.paginator import Paginator
-from django.db.models import Q, Sum
-from django.shortcuts import render
+from django.db import DatabaseError, transaction
+from django.db.models import (
+    Count, DecimalField, F, IntegerField, Max, Min, Prefetch, Q, Sum, Value,
+)
+from django.db.models.functions import Coalesce, ExtractHour, ExtractWeekDay, TruncDate
+from django.http import JsonResponse
+from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views import View
-from django.contrib.auth.mixins import LoginRequiredMixin
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
+from django.views.generic import TemplateView
+
+from .horario import status_da_loja
+from .models import (
+    CategoriaProdutos, EstoqueProdutos, ItensPedido, Pedidos, PratoDoDia,
+    Produtos, ProdutosMaisClick,
+)
+
+logger = logging.getLogger(__name__)
+
+DINHEIRO_14 = DecimalField(max_digits=14, decimal_places=2)
+ZERO_REAIS = Value(Decimal("0.00"))
+
+def _url_imagem(campo):
+    """URL da imagem, ou "" quando o produto não tem foto (antes o cardápio
+    inteiro dava erro 500 por causa de um único produto sem imagem)."""
+    try:
+        return campo.url if campo else ""
+    except (ValueError, AttributeError):
+        return ""
+
+
+def _produto_para_cardapio(produto):
+    return {
+        "id": produto.id,
+        "nome": produto.nome_produto,
+        "preco": f"{produto.preco:.2f}",
+        "codigo": produto.codigo,
+        "imagem": _url_imagem(produto.image_produto),
+        "tem_adicionais": any(a.ativo for a in produto.adicionais_disponiveis.all()),
+    }
+
+
+# O catálogo muda pouco durante o dia: fica 60 s na memória da função. Na
+# Vercel isso poupa o banco a cada visita de cliente (a função quente
+# reaproveita a memória entre requisições).
+CARDAPIO_CACHE_SEGUNDOS = 60
+
+
+def _dados_do_cardapio():
+    dia_hoje = timezone.localdate().weekday()
+    chave = f"cardapio:v2:{dia_hoje}"
+    dados = cache.get(chave)
+    if dados is not None:
+        return dados
+
+    produtos_ativos = (
+        Produtos.objects
+        .filter(ativo=True)
+        .order_by("nome_produto")
+        .prefetch_related("adicionais_disponiveis")
+    )
+    categorias = (
+        CategoriaProdutos.objects
+        .filter(ativo=True, produtos__ativo=True)
+        .distinct()
+        .order_by("nome_categoria")
+        .prefetch_related(Prefetch("produtos", queryset=produtos_ativos))
+    )
+    pratos = (
+        PratoDoDia.objects
+        .filter(dia_semana=dia_hoje, ativo=True, produto__ativo=True)
+        .select_related("produto")
+        .prefetch_related("produto__adicionais_disponiveis")
+    )
+    dados = {
+        "categorias": [
+            {
+                "id": categoria.id,
+                "nome": categoria.nome_categoria,
+                "produtos": [_produto_para_cardapio(p) for p in categoria.produtos.all()],
+            }
+            for categoria in categorias
+        ],
+        "pratos_do_dia": [_produto_para_cardapio(prato.produto) for prato in pratos],
+    }
+    dados["categorias"] = [c for c in dados["categorias"] if c["produtos"]]
+    cache.set(chave, dados, CARDAPIO_CACHE_SEGUNDOS)
+    return dados
+
+
+def _limpar_cache_cardapio():
+    cache.delete_many([f"cardapio:v2:{d}" for d in range(7)])
+
 
 class CardapioClienteView(View):
     def get(self, request):
-        produtos_ativos = Produtos.objects.filter(ativo=True).prefetch_related("adicionais_disponiveis")
-
-        categorias = CategoriaProdutos.objects.filter(
-            ativo=True,
-            produtos__ativo=True
-        ).annotate(
-            total_produtos=Count('produtos')
-        ).filter(
-            total_produtos__gt=0
-        ).prefetch_related(
-            Prefetch("produtos", queryset=produtos_ativos)
-        ).distinct()
-
-        dia_hoje = timezone.localdate().weekday()
-        pratos_do_dia = PratoDoDia.objects.filter(
-            dia_semana=dia_hoje,
-            ativo=True,
-            produto__ativo=True
-        ).select_related("produto")
-
-        agora = timezone.localtime()
-        loja_aberta = 0 <= agora.weekday() <= 5 and 11 <= agora.hour < 16
-
+        dados = _dados_do_cardapio()
+        loja = status_da_loja()
+        catalogo = {
+            str(p["id"]): p
+            for p in dados["pratos_do_dia"] + [p for c in dados["categorias"] for p in c["produtos"]]
+        }
         return render(request, "index.html", {
-            "categorias": categorias,
-            "pratos_do_dia": pratos_do_dia,
-            "loja_aberta_server": loja_aberta
+            **dados,
+            "catalogo": catalogo,
+            "loja": loja,
+            "loja_aberta_server": loja["aberta"],
+            "whatsapp_loja": settings.WHATSAPP_LOJA,
         })
 
 
-from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+@csrf_exempt
+@require_POST
+def registrar_clique(request, produto_id):
+    """Conta o interesse do cliente num produto (o gráfico "mais clicados"
+    do dashboard nunca recebia dado nenhum: não havia quem gravasse).
 
-logger = logging.getLogger(__name__)
+    Um registro por produto por dia; o incremento é feito no banco (F()),
+    então dois cliques simultâneos não se perdem.
+    """
+    if not Produtos.objects.filter(id=produto_id, ativo=True).exists():
+        return JsonResponse({"ok": False}, status=404)
+    hoje = timezone.localtime().replace(hour=0, minute=0, second=0, microsecond=0)
+    atualizados = ProdutosMaisClick.objects.filter(
+        produto_id=produto_id, criacao__gte=hoje
+    ).update(quantidade=F("quantidade") + 1)
+    if not atualizados:
+        ProdutosMaisClick.objects.create(produto_id=produto_id, quantidade=1)
+    return JsonResponse({"ok": True})
 
 
 class CaixaView(LoginRequiredMixin, View):
@@ -548,9 +633,11 @@ class CaixaView(LoginRequiredMixin, View):
             )
 
 
-# Novo endpoint de confirmação
-from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_POST
+
+
+def _chave_da_impressora_ok(request):
+    chave = request.headers.get("X-API-Key") or ""
+    return bool(chave) and hmac.compare_digest(chave, settings.IMPRESSAO_API_KEY)
 
 
 @csrf_exempt
@@ -566,8 +653,7 @@ def confirmar_impressao(request, pedido_id):
         getattr(request, "user", None)
         and request.user.is_authenticated
     )
-    chave = request.headers.get("X-API-Key")
-    autorizado_por_chave = chave == "chave-secreta-restaurante-2026"
+    autorizado_por_chave = _chave_da_impressora_ok(request)
 
     if not (autorizado_por_sessao or autorizado_por_chave):
         return JsonResponse({"ok": False, "erro": "Não autorizado"}, status=401)
@@ -589,7 +675,7 @@ def confirmar_impressao(request, pedido_id):
 
 def pedidos_pendentes_impressao(request):
     """Retorna pedidos com impresso=False — NÃO marca como impresso aqui"""
-    if request.headers.get('X-API-Key') != 'chave-secreta-restaurante-2026':
+    if not _chave_da_impressora_ok(request):
         return JsonResponse({'erro': 'Não autorizado'}, status=401)
 
     if request.method != 'GET':
@@ -624,7 +710,8 @@ def pedidos_pendentes_impressao(request):
             'cep': pedido.cep or '',
             'total': str(pedido.total),
             'taxa_motoca': str(pedido.taxa_motoca),
-            'criado_em': pedido.criado_em.strftime('%d/%m/%Y %H:%M'),
+            'criado_em': timezone.localtime(pedido.criado_em).strftime('%d/%m/%Y %H:%M'),
+            'descricao': pedido.descricao or '',
             'itens': itens
         })
 
@@ -664,16 +751,6 @@ class EstoqueView(LoginRequiredMixin, View):
 
 
 
-from datetime import datetime, time, timedelta
-from decimal import Decimal
-from django.contrib.auth.mixins import LoginRequiredMixin
-from django.db.models import Sum, Q
-from django.http import JsonResponse
-from django.shortcuts import render
-from django.utils import timezone
-from django.views import View
-
-from .models import Pedidos
 
 
 def _range_periodo(periodo):
@@ -717,9 +794,6 @@ def _range_periodo(periodo):
     return None, None, label
 
 
-from datetime import timedelta
-from django.db.models import Q, Sum
-from django.utils import timezone
 
 
 def _filtrar_pedidos(request):
@@ -791,16 +865,6 @@ def _montar_range_paginacao(page_obj, janela=2):
 
 
 
-from decimal import Decimal
-
-from django.contrib.auth.mixins import LoginRequiredMixin
-from django.core.paginator import Paginator
-from django.db.models import Q, Sum
-from django.http import JsonResponse
-from django.shortcuts import render
-from django.views import View
-
-# Mantenha os outros imports que já existem no seu views.py.
 
 
 def _agregar_totais_pedidos(pedidos):
@@ -955,6 +1019,8 @@ class ResumoPedidosView(LoginRequiredMixin, View):
 
 
 class PedidoReimprimirView(LoginRequiredMixin, View):
+    login_url = "login"
+
     def post(self, request, pedido_id):
         pedido = get_object_or_404(
             Pedidos.objects.prefetch_related("itens__produto"),
@@ -1042,102 +1108,104 @@ class PedidoReimprimirView(LoginRequiredMixin, View):
 
         return JsonResponse(data)
 
+def _reais(valor):
+    """1234.5 → "1.234,50" (antes saía "53140,3000000000")."""
+    valor = Decimal(str(valor or 0)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    return f"{valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
 class VendasView(LoginRequiredMixin, View):
     template_name = "vendas.html"
-    login_url = "login"  # ajuste se sua url de login tiver outro nome
+    login_url = "login"
+    # A página listava TODOS os pedidos já feitos, com os itens de cada um:
+    # crescia todo dia e ficava cada vez mais lenta. Mostra os mais recentes;
+    # os totais continuam sendo de tudo.
+    LIMITE = 60
 
     def get(self, request, *args, **kwargs):
-        pedidos_finalizados = Pedidos.objects.filter(
-            status=Pedidos.StatusPedido.FINALIZADO
-        ).prefetch_related('itens__produto')
+        totais = Pedidos.objects.aggregate(
+            total_finalizados=Coalesce(
+                Sum("total", filter=Q(status=Pedidos.StatusPedido.FINALIZADO)), ZERO_REAIS, output_field=DINHEIRO_14
+            ),
+            total_cancelados=Coalesce(
+                Sum("total", filter=Q(status=Pedidos.StatusPedido.CANCELADO)), ZERO_REAIS, output_field=DINHEIRO_14
+            ),
+            qtd_finalizados=Count("id", filter=Q(status=Pedidos.StatusPedido.FINALIZADO)),
+            qtd_cancelados=Count("id", filter=Q(status=Pedidos.StatusPedido.CANCELADO)),
+        )
 
-        pedidos_cancelados = Pedidos.objects.filter(
-            status=Pedidos.StatusPedido.CANCELADO
-        ).prefetch_related('itens__produto')
-
-        total_finalizados = pedidos_finalizados.aggregate(
-            total=Sum('total')
-        )['total'] or 0
-
-        total_cancelados = pedidos_cancelados.aggregate(
-            total=Sum('total')
-        )['total'] or 0
+        def recentes(status):
+            return (
+                Pedidos.objects
+                .filter(status=status)
+                .prefetch_related("itens__produto")
+                .order_by("-criado_em")[:self.LIMITE]
+            )
 
         context = {
-
-            "pedidos_finalizados": pedidos_finalizados,
-            "pedidos_cancelados": pedidos_cancelados,
-            "total_finalizados": total_finalizados,
-            "total_cancelados": total_cancelados,
-
+            "pedidos_finalizados": recentes(Pedidos.StatusPedido.FINALIZADO),
+            "pedidos_cancelados": recentes(Pedidos.StatusPedido.CANCELADO),
+            "total_finalizados": _reais(totais["total_finalizados"]),
+            "total_cancelados": _reais(totais["total_cancelados"]),
+            "qtd_finalizados": totais["qtd_finalizados"],
+            "qtd_cancelados": totais["qtd_cancelados"],
+            "limite": self.LIMITE,
         }
-
         return render(request, self.template_name, context)
 
 
+@login_required
+@require_POST
 def avancar_status(request, pedido_id):
+    """Leva o pedido para a próxima etapa (Pago → Preparo → Entrega → Finalizado).
+
+    Antes: aceitava qualquer visitante sem login e, fora do AJAX, redirecionava
+    para "historico_pedidos" — uma rota que não existe (erro 500).
+    """
     pedido = get_object_or_404(Pedidos, id=pedido_id)
+    ajax = request.headers.get("x-requested-with") == "XMLHttpRequest"
+    proximo = pedido.proximo_status()
 
-    if request.method == "POST":
-        proximo = pedido.proximo_status()
+    confirmacao = request.POST.get("confirmacao", "").strip().upper()
+    if (
+        proximo == Pedidos.StatusPedido.FINALIZADO
+        and pedido.forma_pagamento == Pedidos.FormaPagamento.DINHEIRO
+        and confirmacao != "CONFIRMAR"
+    ):
+        if ajax:
+            return JsonResponse({"status": "erro", "mensagem": "Confirmação inválida."}, status=400)
+        return redirect("pedidos")
 
-        # Verificação extra de segurança no backend
-        confirmacao = request.POST.get('confirmacao', '').strip().upper()
-        if proximo == Pedidos.StatusPedido.FINALIZADO and pedido.forma_pagamento == Pedidos.FormaPagamento.DINHEIRO:
-            if confirmacao != 'CONFIRMAR':
-                # Retorna erro caso tentem burlar a segurança
-                if request.headers.get('x-requested-with') == 'XMLHttpRequest':
-                    return JsonResponse({'status': 'erro', 'mensagem': 'Confirmação inválida.'}, status=400)
-                return redirect('historico_pedidos')
+    if proximo:
+        Pedidos.objects.filter(pk=pedido.pk).update(status=proximo, atualizado=timezone.now())
+        if ajax:
+            return JsonResponse({"status": "sucesso", "mensagem": "Status avançado!", "novo_status": proximo})
+    elif ajax:
+        return JsonResponse({"status": "erro", "mensagem": "Este pedido não tem próxima etapa."}, status=400)
 
-        if proximo:
-            pedido.status = proximo
-            pedido.save()
-
-            # Resposta de Sucesso para o JavaScript
-            if request.headers.get('x-requested-with') == 'XMLHttpRequest':
-                return JsonResponse({'status': 'sucesso', 'mensagem': 'Status avançado!'})
-
-    return redirect('historico_pedidos')
-
-
-from .models import (
-    ProdutosMaisClick,
-    PratoDiaMaisClick,
-)
-from django.views.generic import TemplateView
-from django.utils.timezone import now
-from django.db.models.functions import Coalesce
-from django.db.models import Sum, Count, F, FloatField, ExpressionWrapper
-
-from decimal import Decimal
-
-from django.contrib.auth.mixins import LoginRequiredMixin
-from django.views.generic import TemplateView
-from django.db.models import Sum, Count, Value, DecimalField, IntegerField, FloatField
-from django.db.models.functions import Coalesce
-from django.utils.timezone import now
-
-
+    return redirect("pedidos")
 
 
 class GerenciarPratosDiaView(LoginRequiredMixin, View):
     login_url = "login"
 
     def get(self, request):
-        dias_semana = PratoDoDia.DIAS_SEMANA
-        # Traz apenas produtos ativos. Se quiser filtrar só pela categoria "Pratos",
-        # mude para: Produtos.objects.filter(ativo=True, categoria__nome_categoria="Pratos")
+        # Só os dias em que a loja abre (segunda a sexta). Uma consulta só,
+        # agrupada aqui — antes era uma consulta por dia da semana.
+        dias_abertos = set(settings.LOJA_DIAS)
         produtos = Produtos.objects.filter(ativo=True).order_by('nome_produto')
-        pratos_cadastrados = PratoDoDia.objects.filter(ativo=True).select_related('produto')
+        pratos_cadastrados = list(
+            PratoDoDia.objects.filter(ativo=True).select_related('produto').order_by('produto__nome_produto')
+        )
 
         agenda = []
-        for num_dia, nome_dia in dias_semana:
-            pratos_do_dia = pratos_cadastrados.filter(dia_semana=num_dia)
+        for num_dia, nome_dia in PratoDoDia.DIAS_SEMANA:
+            if num_dia not in dias_abertos:
+                continue
             agenda.append({
                 'num_dia': num_dia,
                 'nome_dia': nome_dia,
-                'pratos': pratos_do_dia
+                'pratos': [p for p in pratos_cadastrados if p.dia_semana == num_dia],
             })
 
         return render(request, 'gerenciar_pratos_dia.html', {
@@ -1156,6 +1224,7 @@ class GerenciarPratosDiaView(LoginRequiredMixin, View):
                 # Verifica se o prato já não está cadastrado neste dia para evitar duplicação
                 if not PratoDoDia.objects.filter(dia_semana=dia_semana, produto=produto, ativo=True).exists():
                     PratoDoDia.objects.create(dia_semana=dia_semana, produto=produto, ativo=True)
+                    _limpar_cache_cardapio()
                     messages.success(request, 'Prato adicionado com sucesso!')
                 else:
                     messages.warning(request, 'Este prato já está no cardápio deste dia.')
@@ -1170,7 +1239,8 @@ class RemoverPratoDiaView(LoginRequiredMixin, View):
 
     def post(self, request, pk):
         prato_dia = get_object_or_404(PratoDoDia, pk=pk)
-        prato_dia.delete()  # ou prato_dia.ativo = False e depois prato_dia.save() se preferir soft delete
+        prato_dia.delete()
+        _limpar_cache_cardapio()
         messages.success(request, 'Prato removido do dia com sucesso.')
         return redirect('gerenciar_pratos_dia')
 
@@ -1219,12 +1289,19 @@ class LogoutView(View):
 
 
 
-from django.db.models.functions import Coalesce, TruncDate, ExtractHour
-from django.db.models import (
-    Sum, Count, Value, DecimalField, IntegerField,
-    ExpressionWrapper, F
-)
-from django.utils.timezone import now
+
+
+# ExtractWeekDay: 1 = domingo ... 7 = sábado (igual em SQLite e PostgreSQL).
+DIAS_SEMANA_CURTO = {2: "Seg", 3: "Ter", 4: "Qua", 5: "Qui", 6: "Sex", 7: "Sáb", 1: "Dom"}
+
+
+def _variacao(atual, anterior):
+    """Variação percentual contra o período anterior (None = sem base)."""
+    atual = float(atual or 0)
+    anterior = float(anterior or 0)
+    if anterior <= 0:
+        return None
+    return round((atual - anterior) / anterior * 100, 1)
 
 
 class DashboardAnalyticsView(LoginRequiredMixin, TemplateView):
@@ -1233,6 +1310,14 @@ class DashboardAnalyticsView(LoginRequiredMixin, TemplateView):
 
     STATUS_LABELS = dict(Pedidos.StatusPedido.choices)
     PAGAMENTO_LABELS = dict(Pedidos.FormaPagamento.choices)
+    ATALHOS = [
+        ("hoje", "Hoje"),
+        ("7d", "7 dias"),
+        ("30d", "30 dias"),
+        ("mes", "Este mês"),
+        ("mes_passado", "Mês passado"),
+        ("tudo", "Tudo"),
+    ]
 
     def _format_money(self, valor):
         valor = valor or Decimal("0.00")
@@ -1249,47 +1334,58 @@ class DashboardAnalyticsView(LoginRequiredMixin, TemplateView):
         except (TypeError, ValueError):
             return None
 
-    def _get_datas_com_registro(self):
-        return list(
-            Pedidos.objects
-            .exclude(criado_em__isnull=True)
-            .annotate(data_registro=TruncDate("criado_em"))
-            .values_list("data_registro", flat=True)
-            .distinct()
-            .order_by("data_registro")
-        )
+    def _periodo_do_atalho(self, atalho, primeira, ultima):
+        hoje = timezone.localdate()
+        if atalho == "hoje":
+            return hoje, hoje
+        if atalho == "7d":
+            return hoje - timedelta(days=6), hoje
+        if atalho == "mes":
+            return hoje.replace(day=1), hoje
+        if atalho == "mes_passado":
+            fim = hoje.replace(day=1) - timedelta(days=1)
+            return fim.replace(day=1), fim
+        if atalho == "tudo":
+            return primeira, ultima
+        return hoje - timedelta(days=29), hoje   # "30d", o padrão
 
     def _get_datas(self):
-        datas = [data for data in self._get_datas_com_registro() if data]
-
-        if not datas:
-            hoje = now().date()
+        # Primeira e última data com pedido: um MIN/MAX, e não a lista de
+        # todas as datas (que crescia com o histórico).
+        limites = Pedidos.objects.aggregate(primeira=Min("criado_em"), ultima=Max("criado_em"))
+        hoje = timezone.localdate()
+        if not limites["primeira"]:
             return {
                 "data_inicio": hoje,
                 "data_fim": hoje,
                 "primeira_data_registro": None,
                 "ultima_data_registro": None,
                 "datas_com_registro": [],
+                "atalho": "",
             }
 
-        primeira = datas[0]
-        ultima = datas[-1]
+        primeira = timezone.localtime(limites["primeira"]).date()
+        ultima = max(timezone.localtime(limites["ultima"]).date(), hoje)
 
-        inicio = self._parse_data(self.request.GET.get("data_inicio")) or primeira
-        fim = self._parse_data(self.request.GET.get("data_fim")) or ultima
-
-        inicio = max(primeira, min(inicio, ultima))
-        fim = max(primeira, min(fim, ultima))
+        inicio = self._parse_data(self.request.GET.get("data_inicio"))
+        fim = self._parse_data(self.request.GET.get("data_fim"))
+        atalho = self.request.GET.get("atalho", "")
+        if not (inicio and fim):
+            atalho = atalho or "30d"
+            inicio, fim = self._periodo_do_atalho(atalho, primeira, ultima)
+        else:
+            atalho = ""
 
         if inicio > fim:
-            inicio, fim = primeira, ultima
+            inicio, fim = fim, inicio
 
         return {
             "data_inicio": inicio,
             "data_fim": fim,
             "primeira_data_registro": primeira,
             "ultima_data_registro": ultima,
-            "datas_com_registro": [data.strftime("%Y-%m-%d") for data in datas],
+            "datas_com_registro": [primeira.strftime("%Y-%m-%d"), ultima.strftime("%Y-%m-%d")],
+            "atalho": atalho,
         }
 
     def _serie_datas_completa(self, data_inicio, data_fim, vendas_por_data):
@@ -1301,23 +1397,39 @@ class DashboardAnalyticsView(LoginRequiredMixin, TemplateView):
             for item in vendas_por_data
         }
 
-        labels = []
-        pedidos = []
-        receita = []
-
+        labels, pedidos, receita, ticket, acumulado = [], [], [], [], []
+        soma = 0.0
         dia = data_inicio
         while dia <= data_fim:
-            labels.append(dia.strftime("%d/%m"))
             valores = mapa.get(dia, {"pedidos": 0, "receita": 0})
+            # Fim de semana sem venda não entra (a loja não abre): a linha
+            # não despenca a zero todo sábado e domingo.
+            if dia.weekday() > 4 and not valores["pedidos"]:
+                dia += timedelta(days=1)
+                continue
+            labels.append(dia.strftime("%d/%m"))
             pedidos.append(valores["pedidos"])
-            receita.append(valores["receita"])
+            receita.append(round(valores["receita"], 2))
+            ticket.append(round(valores["receita"] / valores["pedidos"], 2) if valores["pedidos"] else 0)
+            soma += valores["receita"]
+            acumulado.append(round(soma, 2))
             dia += timedelta(days=1)
 
         return {
             "labels": labels,
             "pedidos": pedidos,
             "receita": receita,
+            "ticket": ticket,
+            "acumulado": acumulado,
         }
+
+    def _resumo(self, pedidos_validos):
+        return pedidos_validos.aggregate(
+            receita=Coalesce(Sum("total"), ZERO_REAIS, output_field=DINHEIRO_14),
+            taxas=Coalesce(Sum("taxa_motoca"), ZERO_REAIS, output_field=DINHEIRO_14),
+            pedidos=Count("id"),
+            entregas=Count("id", filter=Q(entrega=True)),
+        )
 
     def _get_dashboard_data(self):
         datas = self._get_datas()
@@ -1331,88 +1443,60 @@ class DashboardAnalyticsView(LoginRequiredMixin, TemplateView):
         else:
             pedidos_periodo = Pedidos.objects.none()
 
-        pedidos_validos = pedidos_periodo.exclude(
-            status=Pedidos.StatusPedido.CANCELADO
+        pedidos_validos = pedidos_periodo.exclude(status=Pedidos.StatusPedido.CANCELADO)
+
+        # Tudo o que é soma/contagem dos pedidos sai de UMA consulta.
+        resumo = self._resumo(pedidos_validos)
+        receita_total = resumo["receita"]
+        taxas_entrega = resumo["taxas"]
+        total_pedidos = resumo["pedidos"]
+        entregas = resumo["entregas"]
+        retiradas = total_pedidos - entregas
+        pedidos_cancelados = pedidos_periodo.filter(status=Pedidos.StatusPedido.CANCELADO).count()
+        ticket_medio = receita_total / total_pedidos if total_pedidos else Decimal("0.00")
+
+        # O PERÍODO ANTERIOR, do mesmo tamanho: é o que diz se o negócio
+        # está crescendo ou caindo.
+        dias = (data_fim - data_inicio).days + 1
+        anterior_fim = data_inicio - timedelta(days=1)
+        anterior_inicio = anterior_fim - timedelta(days=dias - 1)
+        resumo_anterior = self._resumo(
+            Pedidos.objects
+            .filter(criado_em__date__range=(anterior_inicio, anterior_fim))
+            .exclude(status=Pedidos.StatusPedido.CANCELADO)
+        )
+        ticket_anterior = (
+            resumo_anterior["receita"] / resumo_anterior["pedidos"]
+            if resumo_anterior["pedidos"] else Decimal("0.00")
         )
 
-        itens_validos = (
-            ItensPedido.objects
-            .filter(pedidos__in=pedidos_validos)
-            .select_related("produto")
-            .distinct()
-        )
+        itens_validos = ItensPedido.objects.filter(pedidos__in=pedidos_validos)
 
-        receita_total = pedidos_validos.aggregate(
-            valor=Coalesce(
-                Sum("total"),
-                Value(Decimal("0.00")),
-                output_field=DecimalField(max_digits=14, decimal_places=2),
-            )
-        )["valor"]
-
-        taxas_entrega = pedidos_validos.aggregate(
-            valor=Coalesce(
-                Sum("taxa_motoca"),
-                Value(Decimal("0.00")),
-                output_field=DecimalField(max_digits=14, decimal_places=2),
-            )
-        )["valor"]
-
-        total_pedidos = pedidos_validos.count()
-        pedidos_cancelados = pedidos_periodo.filter(
-            status=Pedidos.StatusPedido.CANCELADO
-        ).count()
-
-        ticket_medio = (
-            receita_total / total_pedidos
-            if total_pedidos
-            else Decimal("0.00")
-        )
-
-        unidades_vendidas = itens_validos.aggregate(
-            valor=Coalesce(
-                Sum("quantidade"),
-                Value(0),
-                output_field=IntegerField(),
-            )
-        )["valor"]
-
-        produtos_distintos = (
-            itens_validos
-            .exclude(produto__isnull=True)
-            .values("produto_id")
-            .distinct()
-            .count()
+        itens_resumo = itens_validos.aggregate(
+            unidades=Coalesce(Sum("quantidade"), Value(0), output_field=IntegerField()),
+            produtos=Count("produto_id", distinct=True),
         )
 
         ranking_produtos = list(
             itens_validos
             .values("produto__nome_produto")
             .annotate(
-                total_quantidade=Coalesce(
-                    Sum("quantidade"),
-                    Value(0),
-                    output_field=IntegerField(),
-                ),
-                total_receita=Coalesce(
-                    Sum("subtotal"),
-                    Value(Decimal("0.00")),
-                    output_field=DecimalField(max_digits=14, decimal_places=2),
-                ),
+                total_quantidade=Coalesce(Sum("quantidade"), Value(0), output_field=IntegerField()),
+                total_receita=Coalesce(Sum("subtotal"), ZERO_REAIS, output_field=DINHEIRO_14),
             )
             .order_by("-total_quantidade", "-total_receita", "produto__nome_produto")
         )
-
         for item in ranking_produtos:
             item["total_receita_formatada"] = self._format_money(item["total_receita"])
 
-        produto_lider = (
-            ranking_produtos[0]["produto__nome_produto"]
-            if ranking_produtos else "Sem vendas"
-        )
-        produto_lider_quantidade = (
-            ranking_produtos[0]["total_quantidade"]
-            if ranking_produtos else 0
+        produto_lider = ranking_produtos[0]["produto__nome_produto"] if ranking_produtos else "Sem vendas"
+        produto_lider_quantidade = ranking_produtos[0]["total_quantidade"] if ranking_produtos else 0
+
+        categorias_qs = list(
+            itens_validos
+            .values("produto__categoria__nome_categoria")
+            .annotate(receita=Coalesce(Sum("subtotal"), ZERO_REAIS, output_field=DINHEIRO_14))
+            .order_by("-receita")
         )
 
         vendas_diarias_qs = list(
@@ -1421,31 +1505,24 @@ class DashboardAnalyticsView(LoginRequiredMixin, TemplateView):
             .values("data")
             .annotate(
                 pedidos=Count("id"),
-                receita=Coalesce(
-                    Sum("total"),
-                    Value(Decimal("0.00")),
-                    output_field=DecimalField(max_digits=14, decimal_places=2),
-                ),
+                receita=Coalesce(Sum("total"), ZERO_REAIS, output_field=DINHEIRO_14),
             )
             .order_by("data")
         )
 
         status_qs = list(
-            pedidos_periodo
-            .values("status")
-            .annotate(total=Count("id"))
-            .order_by("status")
+            pedidos_periodo.values("status").annotate(total=Count("id")).order_by("status")
         )
 
         pagamentos_qs = list(
             pedidos_validos
             .values("forma_pagamento")
-            .annotate(total=Count("id"))
-            .order_by("forma_pagamento")
+            .annotate(
+                qtd_pedidos=Count("id"),
+                receita=Coalesce(Sum("total"), ZERO_REAIS, output_field=DINHEIRO_14),
+            )
+            .order_by("-receita")
         )
-
-        entregas = pedidos_validos.filter(entrega=True).count()
-        retiradas = pedidos_validos.filter(entrega=False).count()
 
         horarios_qs = list(
             pedidos_validos
@@ -1455,7 +1532,6 @@ class DashboardAnalyticsView(LoginRequiredMixin, TemplateView):
             .order_by("hora")
         )
         horarios_map = {int(item["hora"]): item["total"] for item in horarios_qs}
-
         if horarios_qs:
             pico = max(horarios_qs, key=lambda item: item["total"])
             horario_pico = f'{int(pico["hora"]):02d}:00'
@@ -1463,118 +1539,130 @@ class DashboardAnalyticsView(LoginRequiredMixin, TemplateView):
         else:
             horario_pico = "--:--"
             horario_pico_pedidos = 0
+        # A janela do gráfico é o expediente (com uma hora de folga de cada
+        # lado), e não as 24 horas do dia com 18 colunas vazias.
+        hora_ini = min([settings.LOJA_ABRE - 1] + list(horarios_map))
+        hora_fim = max([settings.LOJA_FECHA] + list(horarios_map))
+
+        # Média de receita por dia da semana: qual dia vende mais.
+        semana_qs = list(
+            pedidos_validos
+            .annotate(dia=ExtractWeekDay("criado_em"), data=TruncDate("criado_em"))
+            .values("dia", "data")
+            .annotate(receita=Coalesce(Sum("total"), ZERO_REAIS, output_field=DINHEIRO_14))
+        )
+        por_dia = {}
+        for item in semana_qs:
+            por_dia.setdefault(item["dia"], []).append(float(item["receita"]))
+        dias_semana = [d for d in (2, 3, 4, 5, 6, 7, 1) if d in por_dia or d in (2, 3, 4, 5, 6)]
+        media_dia_semana = [
+            round(sum(por_dia.get(d, [])) / len(por_dia[d]), 2) if por_dia.get(d) else 0
+            for d in dias_semana
+        ]
+        melhor_dia = (
+            DIAS_SEMANA_CURTO[dias_semana[media_dia_semana.index(max(media_dia_semana))]]
+            if any(media_dia_semana) else "--"
+        )
 
         clicks_qs = ProdutosMaisClick.objects.select_related("produto")
         if datas["primeira_data_registro"]:
-            clicks_qs = clicks_qs.filter(
-                criacao__date__range=(data_inicio, data_fim)
-            )
-
+            clicks_qs = clicks_qs.filter(criacao__date__range=(data_inicio, data_fim))
+        clicks_agrupados = list(
+            clicks_qs
+            .values("produto__nome_produto")
+            .annotate(quantidade=Sum("quantidade"))
+            .order_by("-quantidade", "produto__nome_produto")
+        )
         produtos_click_todos = [
             {
-                "produto": {
-                    "nome_produto": (
-                        item.produto.nome_produto
-                        if item.produto else "Produto removido"
-                    )
-                },
-                "quantidade": item.quantidade,
+                "produto": {"nome_produto": item["produto__nome_produto"] or "Produto removido"},
+                "quantidade": item["quantidade"],
             }
-            for item in clicks_qs.order_by("-quantidade", "produto__nome_produto")
+            for item in clicks_agrupados
         ]
 
         top_quantidade = ranking_produtos[:10]
-        top_receita = sorted(
-            ranking_produtos,
-            key=lambda item: item["total_receita"],
-            reverse=True,
-        )[:10]
+        top_receita = sorted(ranking_produtos, key=lambda item: item["total_receita"], reverse=True)[:10]
         top_clicks = produtos_click_todos[:10]
+        taxa_cancelamento = (
+            round(pedidos_cancelados / (total_pedidos + pedidos_cancelados) * 100, 1)
+            if (total_pedidos + pedidos_cancelados) else 0
+        )
 
         return {
             **datas,
+            "atalhos": self.ATALHOS,
+            "dias_periodo": dias,
+            "periodo_anterior_inicio": anterior_inicio,
+            "periodo_anterior_fim": anterior_fim,
 
             "receita_total": self._format_money(receita_total),
             "taxas_entrega": self._format_money(taxas_entrega),
             "total_pedidos": total_pedidos,
             "pedidos_cancelados": pedidos_cancelados,
+            "taxa_cancelamento": taxa_cancelamento,
             "ticket_medio": self._format_money(ticket_medio),
-            "unidades_vendidas": unidades_vendidas,
-            "produtos_distintos": produtos_distintos,
+            "unidades_vendidas": itens_resumo["unidades"],
+            "produtos_distintos": itens_resumo["produtos"],
             "total_entregas": entregas,
             "total_retiradas": retiradas,
             "produto_lider": produto_lider,
             "produto_lider_quantidade": produto_lider_quantidade,
             "horario_pico": horario_pico,
             "horario_pico_pedidos": horario_pico_pedidos,
+            "melhor_dia": melhor_dia,
+            "variacao_receita": _variacao(receita_total, resumo_anterior["receita"]),
+            "variacao_pedidos": _variacao(total_pedidos, resumo_anterior["pedidos"]),
+            "variacao_ticket": _variacao(ticket_medio, ticket_anterior),
 
             "mais_vendidos": ranking_produtos[:5],
             "mais_vendidos_todos": ranking_produtos,
             "produtos_click": produtos_click_todos[:5],
             "produtos_click_todos": produtos_click_todos,
 
-            "grafico_vendas_diarias": self._serie_datas_completa(
-                data_inicio,
-                data_fim,
-                vendas_diarias_qs,
-            ),
+            "grafico_vendas_diarias": self._serie_datas_completa(data_inicio, data_fim, vendas_diarias_qs),
             "grafico_status": {
-                "labels": [
-                    self.STATUS_LABELS.get(item["status"], item["status"])
-                    for item in status_qs
-                ],
+                "labels": [self.STATUS_LABELS.get(item["status"], item["status"]) for item in status_qs],
                 "valores": [item["total"] for item in status_qs],
             },
             "grafico_pagamentos": {
                 "labels": [
-                    self.PAGAMENTO_LABELS.get(
-                        item["forma_pagamento"],
-                        item["forma_pagamento"],
-                    )
+                    self.PAGAMENTO_LABELS.get(item["forma_pagamento"], item["forma_pagamento"])
                     for item in pagamentos_qs
                 ],
-                "valores": [item["total"] for item in pagamentos_qs],
+                "valores": [float(item["receita"]) for item in pagamentos_qs],
+                "pedidos": [item["qtd_pedidos"] for item in pagamentos_qs],
             },
             "grafico_entrega": {
                 "labels": ["Entrega", "Retirada"],
                 "valores": [entregas, retiradas],
             },
             "grafico_horarios": {
-                "labels": [f"{hora:02d}h" for hora in range(24)],
-                "valores": [horarios_map.get(hora, 0) for hora in range(24)],
+                "labels": [f"{hora:02d}h" for hora in range(hora_ini, hora_fim + 1)],
+                "valores": [horarios_map.get(hora, 0) for hora in range(hora_ini, hora_fim + 1)],
+            },
+            "grafico_dia_semana": {
+                "labels": [DIAS_SEMANA_CURTO[d] for d in dias_semana],
+                "valores": media_dia_semana,
+            },
+            "grafico_categorias": {
+                "labels": [item["produto__categoria__nome_categoria"] or "Sem categoria" for item in categorias_qs],
+                "valores": [float(item["receita"]) for item in categorias_qs],
             },
             "grafico_top_produtos": {
                 "titulo": "Unidades",
-                "labels": [
-                    item["produto__nome_produto"] or "Produto removido"
-                    for item in reversed(top_quantidade)
-                ],
-                "valores": [
-                    item["total_quantidade"]
-                    for item in reversed(top_quantidade)
-                ],
+                "labels": [item["produto__nome_produto"] or "Produto removido" for item in reversed(top_quantidade)],
+                "valores": [item["total_quantidade"] for item in reversed(top_quantidade)],
             },
             "grafico_top_receita": {
                 "titulo": "Receita",
-                "labels": [
-                    item["produto__nome_produto"] or "Produto removido"
-                    for item in reversed(top_receita)
-                ],
-                "valores": [
-                    float(item["total_receita"])
-                    for item in reversed(top_receita)
-                ],
+                "labels": [item["produto__nome_produto"] or "Produto removido" for item in reversed(top_receita)],
+                "valores": [float(item["total_receita"]) for item in reversed(top_receita)],
             },
             "grafico_cliques": {
                 "titulo": "Cliques",
-                "labels": [
-                    item["produto"]["nome_produto"]
-                    for item in reversed(top_clicks)
-                ],
-                "valores": [
-                    item["quantidade"]
-                    for item in reversed(top_clicks)
-                ],
+                "labels": [item["produto"]["nome_produto"] for item in reversed(top_clicks)],
+                "valores": [item["quantidade"] for item in reversed(top_clicks)],
             },
         }
 
@@ -1585,6 +1673,7 @@ class DashboardAnalyticsView(LoginRequiredMixin, TemplateView):
 
     def get(self, request, *args, **kwargs):
         if request.GET.get("ajax") == "1":
-            return JsonResponse(self._get_dashboard_data(), safe=False)
+            dados = self._get_dashboard_data()
+            return JsonResponse(dados, safe=False)
 
         return super().get(request, *args, **kwargs)

@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Analytics PDV{% endblock %}
+{% block title %}Estatísticas{% endblock %}
 
 {% block content %}
 
@@ -14,87 +14,80 @@
 {{ grafico_top_receita|json_script:"graficoTopReceitaJson" }}
 {{ grafico_cliques|json_script:"graficoCliquesJson" }}
 {{ grafico_horarios|json_script:"graficoHorariosJson" }}
+{{ grafico_dia_semana|json_script:"graficoDiaSemanaJson" }}
+{{ grafico_categorias|json_script:"graficoCategoriasJson" }}
+
+<!-- TELA DE CARREGAMENTO: fica até o último gráfico ser desenhado. -->
+<div id="telaCarregando" class="cf-carregando" role="status" aria-live="polite">
+    <div class="cf-carregando-coracao">
+        <img src="{% static 'core/img/coracao-escuro.webp' %}?v={{ versao_estaticos }}" alt="" width="96" height="96" class="cf-coracao-escuro">
+        <img src="{% static 'core/img/coracao.webp' %}?v={{ versao_estaticos }}" alt="" width="96" height="96" class="cf-coracao-claro">
+    </div>
+    <div class="cf-carregando-barra"><span></span></div>
+    <div id="telaCarregandoTexto" class="cf-carregando-texto">Preparando as estatísticas…</div>
+</div>
 
 <main id="analyticsPage" class="analytics-page">
     <section class="analytics-shell">
 
         <header class="analytics-header">
             <div>
-                <div class="analytics-eyebrow">Visão gerencial</div>
+                <div class="analytics-eyebrow">Visão gerencial · Cantinho Família</div>
                 <h1>
                     <i class="fas fa-chart-line"></i>
-                    Analytics PDV
+                    Estatísticas
                 </h1>
                 <p>
-                    Dados reais de pedidos, produtos, pagamentos, entregas e comportamento dos clientes.
+                    {{ data_inicio|date:"d/m/Y" }} a {{ data_fim|date:"d/m/Y" }} · {{ dias_periodo }} dia{{ dias_periodo|pluralize }}
+                    <span class="comparacao">comparado com {{ periodo_anterior_inicio|date:"d/m" }}–{{ periodo_anterior_fim|date:"d/m" }}</span>
                 </p>
             </div>
 
-            <form method="GET" class="filters-container" id="formFiltros">
-                <div class="filter-group">
-                    <label for="dataInicio">Data inicial</label>
-                    <input
-                        type="date"
-                        id="dataInicio"
-                        name="data_inicio"
-                        value="{{ data_inicio|date:'Y-m-d' }}"
-                        {% if primeira_data_registro %}
-                            min="{{ primeira_data_registro|date:'Y-m-d' }}"
-                            max="{{ ultima_data_registro|date:'Y-m-d' }}"
-                        {% endif %}
-                    >
+            <div class="filters-wrap">
+                <div class="atalhos">
+                    {% for chave, nome in atalhos %}
+                    <a href="?atalho={{ chave }}" class="atalho {% if atalho == chave %}ativo{% endif %}" data-carregar>{{ nome }}</a>
+                    {% endfor %}
                 </div>
 
-                <div class="filter-group">
-                    <label for="dataFim">Data final</label>
-                    <input
-                        type="date"
-                        id="dataFim"
-                        name="data_fim"
-                        value="{{ data_fim|date:'Y-m-d' }}"
-                        {% if primeira_data_registro %}
-                            min="{{ primeira_data_registro|date:'Y-m-d' }}"
-                            max="{{ ultima_data_registro|date:'Y-m-d' }}"
-                        {% endif %}
-                    >
-                </div>
-
-                <button type="submit" class="btn-filter" id="btnAplicarFiltro">
-                    <i class="fas fa-filter"></i>
-                    Aplicar período
-                </button>
-
-                {% if primeira_data_registro and ultima_data_registro %}
-                    <div class="period-info">
-                        Registros disponíveis de
-                        <strong>{{ primeira_data_registro|date:"d/m/Y" }}</strong>
-                        até
-                        <strong>{{ ultima_data_registro|date:"d/m/Y" }}</strong>
+                <form method="GET" class="filters-container" id="formFiltros">
+                    <div class="filter-group">
+                        <label for="dataInicio">Data inicial</label>
+                        <input type="date" id="dataInicio" name="data_inicio" value="{{ data_inicio|date:'Y-m-d' }}"
+                            {% if primeira_data_registro %}min="{{ primeira_data_registro|date:'Y-m-d' }}" max="{{ ultima_data_registro|date:'Y-m-d' }}"{% endif %}>
                     </div>
-                {% else %}
-                    <div class="period-info period-empty">
-                        Nenhum pedido registrado.
+                    <div class="filter-group">
+                        <label for="dataFim">Data final</label>
+                        <input type="date" id="dataFim" name="data_fim" value="{{ data_fim|date:'Y-m-d' }}"
+                            {% if primeira_data_registro %}min="{{ primeira_data_registro|date:'Y-m-d' }}" max="{{ ultima_data_registro|date:'Y-m-d' }}"{% endif %}>
                     </div>
+                    <button type="submit" class="btn-filter" id="btnAplicarFiltro">
+                        <i class="fas fa-filter"></i>
+                        Aplicar
+                    </button>
+                </form>
+                {% if not primeira_data_registro %}
+                <div class="period-info period-empty">Nenhum pedido registrado ainda.</div>
                 {% endif %}
-            </form>
+            </div>
         </header>
 
         <section class="kpi-grid">
-            <article class="kpi-card">
+            <article class="kpi-card kpi-destaque">
                 <div class="kpi-icon"><i class="fas fa-sack-dollar"></i></div>
                 <div>
-                    <span>Receita líquida de pedidos</span>
+                    <span>Faturamento</span>
                     <strong>R$ {{ receita_total }}</strong>
-                    <small>Não inclui pedidos cancelados</small>
+                    {% include "_variacao.html" with valor=variacao_receita %}
                 </div>
             </article>
 
             <article class="kpi-card">
                 <div class="kpi-icon"><i class="fas fa-receipt"></i></div>
                 <div>
-                    <span>Pedidos válidos</span>
+                    <span>Pedidos</span>
                     <strong>{{ total_pedidos }}</strong>
-                    <small>{{ pedidos_cancelados }} cancelado{{ pedidos_cancelados|pluralize }}</small>
+                    {% include "_variacao.html" with valor=variacao_pedidos %}
                 </div>
             </article>
 
@@ -103,41 +96,23 @@
                 <div>
                     <span>Ticket médio</span>
                     <strong>R$ {{ ticket_medio }}</strong>
-                    <small>Receita ÷ pedidos válidos</small>
+                    {% include "_variacao.html" with valor=variacao_ticket %}
                 </div>
             </article>
 
             <article class="kpi-card">
-                <div class="kpi-icon"><i class="fas fa-boxes-stacked"></i></div>
+                <div class="kpi-icon"><i class="fas fa-calendar-check"></i></div>
                 <div>
-                    <span>Unidades vendidas</span>
-                    <strong>{{ unidades_vendidas }}</strong>
-                    <small>{{ produtos_distintos }} produto{{ produtos_distintos|pluralize }} diferente{{ produtos_distintos|pluralize }}</small>
-                </div>
-            </article>
-
-            <article class="kpi-card">
-                <div class="kpi-icon"><i class="fas fa-motorcycle"></i></div>
-                <div>
-                    <span>Taxas de entrega</span>
-                    <strong>R$ {{ taxas_entrega }}</strong>
-                    <small>{{ total_entregas }} pedido{{ total_entregas|pluralize }} para entrega</small>
-                </div>
-            </article>
-
-            <article class="kpi-card">
-                <div class="kpi-icon"><i class="fas fa-store"></i></div>
-                <div>
-                    <span>Retiradas</span>
-                    <strong>{{ total_retiradas }}</strong>
-                    <small>Pedidos retirados no balcão</small>
+                    <span>Melhor dia da semana</span>
+                    <strong>{{ melhor_dia }}</strong>
+                    <small>maior faturamento médio</small>
                 </div>
             </article>
 
             <article class="kpi-card">
                 <div class="kpi-icon"><i class="fas fa-crown"></i></div>
                 <div>
-                    <span>Produto líder</span>
+                    <span>Mais vendido</span>
                     <strong class="kpi-text">{{ produto_lider }}</strong>
                     <small>{{ produto_lider_quantidade }} unidade{{ produto_lider_quantidade|pluralize }}</small>
                 </div>
@@ -148,7 +123,25 @@
                 <div>
                     <span>Horário de pico</span>
                     <strong>{{ horario_pico }}</strong>
-                    <small>{{ horario_pico_pedidos }} pedido{{ horario_pico_pedidos|pluralize }} no intervalo</small>
+                    <small>{{ horario_pico_pedidos }} pedido{{ horario_pico_pedidos|pluralize }} nessa hora</small>
+                </div>
+            </article>
+
+            <article class="kpi-card">
+                <div class="kpi-icon"><i class="fas fa-motorcycle"></i></div>
+                <div>
+                    <span>Entregas · taxas</span>
+                    <strong>{{ total_entregas }} <em>· R$ {{ taxas_entrega }}</em></strong>
+                    <small>{{ total_retiradas }} retirada{{ total_retiradas|pluralize }} no balcão</small>
+                </div>
+            </article>
+
+            <article class="kpi-card">
+                <div class="kpi-icon"><i class="fas fa-ban"></i></div>
+                <div>
+                    <span>Cancelamentos</span>
+                    <strong>{{ taxa_cancelamento }}%</strong>
+                    <small>{{ pedidos_cancelados }} pedido{{ pedidos_cancelados|pluralize }} · {{ unidades_vendidas }} itens vendidos</small>
                 </div>
             </article>
         </section>
@@ -158,48 +151,40 @@
                 <div class="card-heading">
                     <div>
                         <span>Evolução diária</span>
-                        <h2>Receita e quantidade de pedidos</h2>
+                        <h2>Faturamento e pedidos por dia</h2>
                     </div>
                 </div>
-                <div class="chart-box chart-large">
-                    <canvas id="chartVendasDiarias"></canvas>
-                </div>
+                <div class="chart-box chart-large"><canvas id="chartVendasDiarias"></canvas></div>
             </article>
 
             <article class="chart-card">
                 <div class="card-heading">
                     <div>
-                        <span>Fluxo operacional</span>
-                        <h2>Status dos pedidos</h2>
+                        <span>Crescimento</span>
+                        <h2>Faturamento acumulado no período</h2>
                     </div>
                 </div>
-                <div class="chart-box">
-                    <canvas id="chartStatus"></canvas>
-                </div>
+                <div class="chart-box"><canvas id="chartAcumulado"></canvas></div>
             </article>
 
             <article class="chart-card">
                 <div class="card-heading">
                     <div>
-                        <span>Financeiro</span>
-                        <h2>Formas de pagamento</h2>
+                        <span>Rentabilidade</span>
+                        <h2>Ticket médio por dia</h2>
                     </div>
                 </div>
-                <div class="chart-box">
-                    <canvas id="chartPagamentos"></canvas>
-                </div>
+                <div class="chart-box"><canvas id="chartTicket"></canvas></div>
             </article>
 
             <article class="chart-card">
                 <div class="card-heading">
                     <div>
-                        <span>Operação</span>
-                        <h2>Entrega x retirada</h2>
+                        <span>Planejamento</span>
+                        <h2>Faturamento médio por dia da semana</h2>
                     </div>
                 </div>
-                <div class="chart-box">
-                    <canvas id="chartEntrega"></canvas>
-                </div>
+                <div class="chart-box"><canvas id="chartDiaSemana"></canvas></div>
             </article>
 
             <article class="chart-card">
@@ -209,45 +194,77 @@
                         <h2>Pedidos por horário</h2>
                     </div>
                 </div>
-                <div class="chart-box">
-                    <canvas id="chartHorarios"></canvas>
+                <div class="chart-box"><canvas id="chartHorarios"></canvas></div>
+            </article>
+
+            <article class="chart-card">
+                <div class="card-heading">
+                    <div>
+                        <span>Financeiro</span>
+                        <h2>Faturamento por forma de pagamento</h2>
+                    </div>
                 </div>
+                <div class="chart-box"><canvas id="chartPagamentos"></canvas></div>
+            </article>
+
+            <article class="chart-card">
+                <div class="card-heading">
+                    <div>
+                        <span>Mix de vendas</span>
+                        <h2>Faturamento por categoria</h2>
+                    </div>
+                </div>
+                <div class="chart-box"><canvas id="chartCategorias"></canvas></div>
+            </article>
+
+            <article class="chart-card">
+                <div class="card-heading">
+                    <div>
+                        <span>Operação</span>
+                        <h2>Entrega x retirada</h2>
+                    </div>
+                </div>
+                <div class="chart-box"><canvas id="chartEntrega"></canvas></div>
+            </article>
+
+            <article class="chart-card">
+                <div class="card-heading">
+                    <div>
+                        <span>Fluxo operacional</span>
+                        <h2>Status dos pedidos</h2>
+                    </div>
+                </div>
+                <div class="chart-box"><canvas id="chartStatus"></canvas></div>
             </article>
 
             <article class="chart-card chart-wide">
                 <div class="card-heading">
                     <div>
-                        <span>Mix de vendas</span>
+                        <span>Campeões de venda</span>
                         <h2>Produtos por unidades vendidas</h2>
                     </div>
                 </div>
-                <div class="chart-box chart-tall">
-                    <canvas id="chartTopProdutos"></canvas>
-                </div>
+                <div class="chart-box chart-tall"><canvas id="chartTopProdutos"></canvas></div>
             </article>
 
             <article class="chart-card chart-wide">
                 <div class="card-heading">
                     <div>
                         <span>Resultado por produto</span>
-                        <h2>Produtos com maior receita</h2>
+                        <h2>Produtos que mais faturam</h2>
                     </div>
                 </div>
-                <div class="chart-box chart-tall">
-                    <canvas id="chartTopReceita"></canvas>
-                </div>
+                <div class="chart-box chart-tall"><canvas id="chartTopReceita"></canvas></div>
             </article>
 
             <article class="chart-card chart-wide">
                 <div class="card-heading">
                     <div>
                         <span>Interesse do cliente</span>
-                        <h2>Produtos mais clicados</h2>
+                        <h2>Produtos mais escolhidos no cardápio online</h2>
                     </div>
                 </div>
-                <div class="chart-box chart-tall">
-                    <canvas id="chartCliques"></canvas>
-                </div>
+                <div class="chart-box chart-tall"><canvas id="chartCliques"></canvas></div>
             </article>
         </section>
 
@@ -260,15 +277,10 @@
                     </div>
                     <div class="counter-pill">{{ mais_vendidos_todos|length }} produtos</div>
                 </div>
-
                 <div class="ranking-table">
                     <div class="ranking-head">
-                        <span>#</span>
-                        <span>Produto</span>
-                        <span>Unidades</span>
-                        <span>Receita</span>
+                        <span>#</span><span>Produto</span><span>Unidades</span><span>Faturamento</span>
                     </div>
-
                     {% for item in mais_vendidos_todos %}
                         <div class="ranking-row">
                             <span class="position">{{ forloop.counter }}</span>
@@ -286,18 +298,14 @@
                 <div class="card-heading">
                     <div>
                         <span>Ranking completo</span>
-                        <h2>Produtos mais clicados</h2>
+                        <h2>Mais escolhidos no cardápio</h2>
                     </div>
                     <div class="counter-pill">{{ produtos_click_todos|length }} produtos</div>
                 </div>
-
                 <div class="ranking-table ranking-clicks">
                     <div class="ranking-head">
-                        <span>#</span>
-                        <span>Produto</span>
-                        <span>Cliques</span>
+                        <span>#</span><span>Produto</span><span>Escolhas</span>
                     </div>
-
                     {% for item in produtos_click_todos %}
                         <div class="ranking-row">
                             <span class="position">{{ forloop.counter }}</span>
@@ -305,7 +313,7 @@
                             <span class="value-pill">{{ item.quantidade }}</span>
                         </div>
                     {% empty %}
-                        <div class="empty-state">Nenhum clique encontrado no período.</div>
+                        <div class="empty-state">Ainda sem escolhas no cardápio online neste período.</div>
                     {% endfor %}
                 </div>
             </article>
@@ -314,43 +322,19 @@
 </main>
 
 <style>
-    html, body {
-        min-height: 100%;
-        overflow-x: hidden;
-    }
-
-    body {
-        background: #f8fafc;
-    }
-
-    /* A página não cria uma segunda barra de rolagem. O scroll é do documento. */
-    #analyticsPage {
-        min-height: calc(100vh - 80px);
-        overflow: visible;
-    }
-
-    .analytics-page {
-        padding: 0 0 40px;
-    }
-
+    .analytics-page { padding: 0 0 40px; }
     .analytics-shell {
         width: min(100%, 1680px);
         margin: 0 auto;
-        padding: 22px;
         display: flex;
         flex-direction: column;
-        gap: 22px;
+        gap: 20px;
     }
-
-    .analytics-header,
-    .chart-card,
-    .ranking-card,
-    .kpi-card {
-        background: #fff;
-        border: 1px solid #e2e8f0;
-        box-shadow: 0 12px 34px rgba(15, 23, 42, .055);
+    .analytics-header, .chart-card, .ranking-card, .kpi-card {
+        background: var(--cf-superficie);
+        border: 1px solid var(--cf-borda);
+        box-shadow: var(--cf-sombra);
     }
-
     .analytics-header {
         border-radius: 28px;
         padding: 24px;
@@ -360,19 +344,16 @@
         gap: 24px;
         flex-wrap: wrap;
     }
-
-    .analytics-eyebrow,
-    .card-heading span {
-        color: #6366f1;
+    .analytics-eyebrow, .card-heading span {
+        color: var(--cf-marca);
         font-size: 10px;
         font-weight: 900;
         letter-spacing: .12em;
         text-transform: uppercase;
     }
-
     .analytics-header h1 {
         margin: 5px 0 4px;
-        color: #0f172a;
+        color: var(--cf-texto);
         font-size: clamp(24px, 3vw, 38px);
         font-weight: 950;
         line-height: 1;
@@ -380,89 +361,65 @@
         align-items: center;
         gap: 12px;
     }
+    .analytics-header h1 i { color: var(--cf-marca); }
+    .analytics-header p { color: var(--cf-texto-suave); font-size: 13px; font-weight: 700; }
+    .comparacao { display: block; font-size: 11px; font-weight: 600; opacity: .8; }
 
-    .analytics-header h1 i {
-        color: #4f46e5;
+    .filters-wrap { display: flex; flex-direction: column; gap: 10px; align-items: flex-end; }
+    .atalhos { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+    .atalho {
+        padding: 7px 12px;
+        border-radius: 10px;
+        font-size: 11px;
+        font-weight: 900;
+        color: var(--cf-texto-2);
+        background: var(--cf-superficie-2);
+        border: 1px solid var(--cf-borda);
+        transition: all .15s ease;
     }
+    .atalho:hover { color: var(--cf-marca); }
+    .atalho.ativo { background: var(--cf-marca); border-color: var(--cf-marca); color: #fff; }
 
-    .analytics-header p {
-        color: #64748b;
-        font-size: 13px;
-        font-weight: 600;
-    }
-
-    .filters-container {
-        display: flex;
-        align-items: flex-end;
-        gap: 10px;
-        flex-wrap: wrap;
-        max-width: 720px;
-    }
-
-    .filter-group {
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-    }
-
+    .filters-container { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+    .filter-group { display: flex; flex-direction: column; gap: 6px; }
     .filter-group label {
-        color: #64748b;
+        color: var(--cf-texto-suave);
         font-size: 9px;
         font-weight: 900;
         text-transform: uppercase;
         letter-spacing: .1em;
     }
-
     .filter-group input {
-        height: 44px;
-        min-width: 155px;
-        border: 1px solid #cbd5e1;
+        height: 42px;
+        min-width: 150px;
+        border: 1px solid var(--cf-borda);
         border-radius: 13px;
         padding: 0 12px;
-        background: #fff;
-        color: #0f172a;
+        background: var(--cf-superficie-2);
+        color: var(--cf-texto);
         font-size: 12px;
         font-weight: 800;
         outline: none;
     }
-
-    .filter-group input:focus {
-        border-color: #4f46e5;
-        box-shadow: 0 0 0 4px rgba(79, 70, 229, .1);
-    }
-
+    .filter-group input:focus { border-color: var(--cf-marca); box-shadow: 0 0 0 4px var(--cf-marca-suave); }
     .btn-filter {
-        height: 44px;
+        height: 42px;
         padding: 0 18px;
         border: 0;
         border-radius: 13px;
-        background: linear-gradient(135deg, #4f46e5, #6366f1);
+        background: linear-gradient(135deg, var(--cf-marca), var(--cf-marca-forte));
         color: #fff;
         font-size: 10px;
         font-weight: 900;
         letter-spacing: .08em;
         text-transform: uppercase;
         cursor: pointer;
-        box-shadow: 0 10px 20px rgba(79, 70, 229, .2);
+        box-shadow: 0 10px 20px rgba(227, 53, 61, .25);
     }
+    .period-info { color: var(--cf-texto-suave); font-size: 10px; font-weight: 700; }
+    .period-empty { color: #ef4444; }
 
-    .period-info {
-        width: 100%;
-        color: #64748b;
-        font-size: 10px;
-        font-weight: 700;
-    }
-
-    .period-empty {
-        color: #ef4444;
-    }
-
-    .kpi-grid {
-        display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 14px;
-    }
-
+    .kpi-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
     .kpi-card {
         min-width: 0;
         border-radius: 22px;
@@ -470,545 +427,129 @@
         display: flex;
         align-items: center;
         gap: 14px;
+        transition: transform .2s ease;
     }
-
+    .kpi-card:hover { transform: translateY(-2px); }
+    .kpi-destaque { background: linear-gradient(135deg, var(--cf-marca), var(--cf-marca-forte)); border-color: transparent; }
+    .kpi-destaque span, .kpi-destaque strong, .kpi-destaque small { color: #fff !important; }
+    .kpi-destaque .kpi-icon { background: rgba(255, 255, 255, .18); color: #fff; }
     .kpi-icon {
-        width: 43px;
-        height: 43px;
-        flex: 0 0 43px;
+        width: 44px;
+        height: 44px;
+        flex: 0 0 44px;
         border-radius: 15px;
-        background: #eef2ff;
-        color: #4f46e5;
+        background: var(--cf-marca-suave);
+        color: var(--cf-marca);
         display: grid;
         place-items: center;
         font-size: 17px;
     }
-
-    .kpi-card > div:last-child {
-        min-width: 0;
-    }
-
+    .kpi-card > div:last-child { min-width: 0; }
     .kpi-card span {
         display: block;
-        color: #64748b;
+        color: var(--cf-texto-suave);
         font-size: 9px;
         font-weight: 900;
         letter-spacing: .08em;
         text-transform: uppercase;
     }
-
     .kpi-card strong {
         display: block;
         margin-top: 3px;
-        color: #0f172a;
-        font-size: clamp(20px, 2vw, 29px);
+        color: var(--cf-texto);
+        font-size: clamp(20px, 2vw, 28px);
         font-weight: 950;
         line-height: 1.08;
         overflow-wrap: anywhere;
     }
+    .kpi-card strong em { font-style: normal; font-size: .6em; font-weight: 800; opacity: .75; }
+    .kpi-card strong.kpi-text { font-size: 17px; }
+    .kpi-card small { display: block; margin-top: 5px; color: var(--cf-texto-suave); font-size: 10px; font-weight: 700; }
+    .kpi-card small.variacao, .variacao { display: inline-flex; align-items: center; gap: 4px; margin-top: 6px; padding: 3px 8px; border-radius: 999px; font-size: 10px; font-weight: 900; }
+    .variacao.sobe { background: rgba(16, 185, 129, .14); color: #059669; }
+    .variacao.desce { background: rgba(239, 68, 68, .14); color: #dc2626; }
+    .variacao.neutra { background: var(--cf-superficie-2); color: var(--cf-texto-suave); }
+    html.cf-escuro .variacao.sobe { color: #6ee7b7; }
+    html.cf-escuro .variacao.desce { color: #fca5a5; }
+    .kpi-destaque .variacao { background: rgba(255, 255, 255, .2) !important; color: #fff !important; }
 
-    .kpi-card strong.kpi-text {
-        font-size: 17px;
+    .dashboard-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; align-items: stretch; }
+    .chart-card, .ranking-card { min-width: 0; border-radius: 26px; padding: 22px; }
+    .chart-wide { grid-column: span 2; }
+    .card-heading { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 15px; }
+    .card-heading h2 { margin-top: 3px; color: var(--cf-texto); font-size: 16px; font-weight: 950; line-height: 1.2; }
+    .chart-box { position: relative; width: 100%; height: 300px; }
+    .chart-large { height: 380px; }
+    .chart-tall { height: 400px; }
+    .chart-box canvas { display: block; width: 100% !important; height: 100% !important; }
+    .chart-vazio {
+        position: absolute; inset: 0; display: grid; place-items: center;
+        color: var(--cf-texto-suave); font-size: 12px; font-weight: 800; text-align: center;
     }
 
-    .kpi-card small {
-        display: block;
-        margin-top: 5px;
-        color: #94a3b8;
-        font-size: 9px;
-        font-weight: 700;
-    }
-
-    .dashboard-grid {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 18px;
-        align-items: stretch;
-    }
-
-    .chart-card,
-    .ranking-card {
-        min-width: 0;
-        border-radius: 26px;
-        padding: 22px;
-    }
-
-    .chart-wide {
-        grid-column: span 2;
-    }
-
-    .card-heading {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 14px;
-        margin-bottom: 15px;
-    }
-
-    .card-heading h2 {
-        margin-top: 3px;
-        color: #0f172a;
-        font-size: 16px;
-        font-weight: 950;
-        line-height: 1.2;
-    }
-
-    .chart-box {
-        position: relative;
-        width: 100%;
-        height: 320px;
-    }
-
-    .chart-large {
-        height: 390px;
-    }
-
-    .chart-tall {
-        height: 420px;
-    }
-
-    .chart-box canvas {
-        display: block;
-        width: 100% !important;
-        height: 100% !important;
-    }
-
-    .lists-grid {
-        display: grid;
-        grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr);
-        gap: 18px;
-        align-items: start;
-    }
-
-    .counter-pill,
-    .value-pill {
+    .lists-grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr); gap: 18px; align-items: start; }
+    .counter-pill, .value-pill {
         border-radius: 999px;
-        background: #eef2ff;
-        color: #4338ca;
+        background: var(--cf-marca-suave);
+        color: var(--cf-marca);
         font-size: 10px;
         font-weight: 900;
         white-space: nowrap;
     }
-
-    .counter-pill {
-        padding: 8px 12px;
-    }
-
-    .ranking-table {
-        width: 100%;
-    }
-
-    .ranking-head,
-    .ranking-row {
+    .counter-pill { padding: 8px 12px; }
+    .ranking-table { width: 100%; }
+    .ranking-head, .ranking-row {
         display: grid;
         grid-template-columns: 42px minmax(0, 1fr) 95px 120px;
         gap: 10px;
         align-items: center;
     }
-
-    .ranking-clicks .ranking-head,
-    .ranking-clicks .ranking-row {
-        grid-template-columns: 42px minmax(0, 1fr) 95px;
-    }
-
+    .ranking-clicks .ranking-head, .ranking-clicks .ranking-row { grid-template-columns: 42px minmax(0, 1fr) 95px; }
     .ranking-head {
         padding: 9px 12px;
-        color: #94a3b8;
+        color: var(--cf-texto-suave);
         font-size: 9px;
         font-weight: 900;
         letter-spacing: .08em;
         text-transform: uppercase;
     }
-
-    .ranking-row {
-        min-height: 54px;
-        padding: 9px 12px;
-        border-top: 1px solid #f1f5f9;
-    }
-
+    .ranking-row { min-height: 54px; padding: 9px 12px; border-top: 1px solid var(--cf-borda); }
     .position {
-        width: 30px;
-        height: 30px;
-        border-radius: 10px;
-        background: #f1f5f9;
-        color: #475569;
-        display: grid;
-        place-items: center;
-        font-size: 10px;
-        font-weight: 900;
+        width: 30px; height: 30px; border-radius: 10px;
+        background: var(--cf-superficie-2); color: var(--cf-texto-2);
+        display: grid; place-items: center; font-size: 10px; font-weight: 900;
     }
-
-    .ranking-row:nth-child(2) .position {
-        background: #fef3c7;
-        color: #92400e;
-    }
-
-    .ranking-row:nth-child(3) .position {
-        background: #e2e8f0;
-        color: #334155;
-    }
-
-    .ranking-row:nth-child(4) .position {
-        background: #ffedd5;
-        color: #9a3412;
-    }
-
-    .product-name {
-        min-width: 0;
-        color: #334155;
-        font-size: 12px;
-        font-weight: 850;
-        overflow-wrap: anywhere;
-    }
-
-    .value-pill {
-        justify-self: start;
-        padding: 6px 10px;
-    }
-
-    .money-value {
-        color: #059669;
-        font-size: 11px;
-        font-weight: 900;
-        text-align: right;
-    }
-
-    .empty-state {
-        padding: 36px 12px;
-        color: #94a3b8;
-        text-align: center;
-        font-size: 12px;
-        font-weight: 700;
-    }
+    .ranking-row:nth-child(2) .position { background: #fef3c7; color: #92400e; }
+    .ranking-row:nth-child(3) .position { background: #e2e8f0; color: #334155; }
+    .ranking-row:nth-child(4) .position { background: #ffedd5; color: #9a3412; }
+    .product-name { min-width: 0; color: var(--cf-texto); font-size: 12px; font-weight: 850; overflow-wrap: anywhere; }
+    .value-pill { justify-self: start; padding: 6px 10px; }
+    .money-value { color: #059669; font-size: 11px; font-weight: 900; text-align: right; }
+    html.cf-escuro .money-value { color: #6ee7b7; }
+    .empty-state { padding: 36px 12px; color: var(--cf-texto-suave); text-align: center; font-size: 12px; font-weight: 700; }
 
     @media (max-width: 1180px) {
-        .kpi-grid {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-        }
-
-        .lists-grid {
-            grid-template-columns: 1fr;
-        }
+        .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .lists-grid { grid-template-columns: 1fr; }
     }
-
     @media (max-width: 820px) {
-        .analytics-shell {
-            padding: 12px;
-        }
-
-        .analytics-header {
-            align-items: stretch;
-        }
-
-        .filters-container,
-        .filter-group,
-        .filter-group input,
-        .btn-filter {
-            width: 100%;
-        }
-
-        .dashboard-grid {
-            grid-template-columns: 1fr;
-        }
-
-        .chart-wide {
-            grid-column: span 1;
-        }
-
-        .chart-box,
-        .chart-large,
-        .chart-tall {
-            height: 320px;
-        }
+        .analytics-header { align-items: stretch; }
+        .filters-wrap, .atalhos { align-items: stretch; justify-content: flex-start; }
+        .filters-container, .filter-group, .filter-group input, .btn-filter { width: 100%; }
+        .dashboard-grid { grid-template-columns: 1fr; }
+        .chart-wide { grid-column: span 1; }
+        .chart-box, .chart-large, .chart-tall { height: 300px; }
     }
-
     @media (max-width: 560px) {
-        .kpi-grid {
-            grid-template-columns: 1fr;
-        }
-
-        .ranking-head,
-        .ranking-row {
-            grid-template-columns: 34px minmax(0, 1fr) 70px;
-        }
-
-        .ranking-head span:last-child,
-        .ranking-row .money-value {
-            display: none;
-        }
-
-        .ranking-clicks .ranking-head,
-        .ranking-clicks .ranking-row {
-            grid-template-columns: 34px minmax(0, 1fr) 70px;
-        }
-
-        .chart-card,
-        .ranking-card {
-            padding: 16px;
-        }
+        .kpi-grid { grid-template-columns: 1fr; }
+        .ranking-head, .ranking-row { grid-template-columns: 34px minmax(0, 1fr) 70px; }
+        .ranking-head span:last-child, .ranking-row .money-value { display: none; }
+        .ranking-clicks .ranking-head, .ranking-clicks .ranking-row { grid-template-columns: 34px minmax(0, 1fr) 70px; }
+        .chart-card, .ranking-card { padding: 16px; }
     }
 </style>
+{% endblock %}
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
-<script>
-(function () {
-    "use strict";
-
-    const readJson = (id, fallback = []) => {
-        const el = document.getElementById(id);
-        if (!el) return fallback;
-        try {
-            return JSON.parse(el.textContent || "[]");
-        } catch (error) {
-            console.error("JSON inválido em", id, error);
-            return fallback;
-        }
-    };
-
-    const brl = new Intl.NumberFormat("pt-BR", {
-        style: "currency",
-        currency: "BRL"
-    });
-
-    Chart.defaults.font.family = "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
-    Chart.defaults.color = "#64748b";
-    Chart.defaults.borderColor = "rgba(148, 163, 184, .18)";
-
-    const commonOptions = {
-        responsive: true,
-        maintainAspectRatio: false,
-        animation: { duration: 450 },
-        interaction: { mode: "index", intersect: false },
-        plugins: {
-            legend: {
-                position: "bottom",
-                labels: {
-                    usePointStyle: true,
-                    boxWidth: 8,
-                    padding: 18,
-                    font: { size: 10, weight: "700" }
-                }
-            },
-            tooltip: {
-                backgroundColor: "#0f172a",
-                padding: 12,
-                titleFont: { weight: "800" },
-                bodyFont: { weight: "700" }
-            }
-        },
-        scales: {
-            x: {
-                grid: { display: false },
-                ticks: { maxRotation: 0, autoSkip: true, font: { size: 10 } }
-            },
-            y: {
-                beginAtZero: true,
-                ticks: { precision: 0, font: { size: 10 } }
-            }
-        }
-    };
-
-    const vendas = readJson("graficoVendasDiariasJson", {});
-    new Chart(document.getElementById("chartVendasDiarias"), {
-        type: "bar",
-        data: {
-            labels: vendas.labels || [],
-            datasets: [
-                {
-                    type: "line",
-                    label: "Receita",
-                    data: vendas.receita || [],
-                    borderColor: "#4f46e5",
-                    backgroundColor: "rgba(79, 70, 229, .12)",
-                    pointBackgroundColor: "#4f46e5",
-                    pointRadius: 3,
-                    pointHoverRadius: 5,
-                    tension: .3,
-                    yAxisID: "yReceita"
-                },
-                {
-                    label: "Pedidos",
-                    data: vendas.pedidos || [],
-                    backgroundColor: "rgba(14, 165, 233, .65)",
-                    borderRadius: 8,
-                    yAxisID: "yPedidos"
-                }
-            ]
-        },
-        options: {
-            ...commonOptions,
-            scales: {
-                x: commonOptions.scales.x,
-                yReceita: {
-                    beginAtZero: true,
-                    position: "left",
-                    ticks: {
-                        callback: value => brl.format(value),
-                        font: { size: 10 }
-                    }
-                },
-                yPedidos: {
-                    beginAtZero: true,
-                    position: "right",
-                    grid: { drawOnChartArea: false },
-                    ticks: { precision: 0, font: { size: 10 } }
-                }
-            },
-            plugins: {
-                ...commonOptions.plugins,
-                tooltip: {
-                    ...commonOptions.plugins.tooltip,
-                    callbacks: {
-                        label: context => context.dataset.label === "Receita"
-                            ? ` Receita: ${brl.format(context.parsed.y)}`
-                            : ` Pedidos: ${context.parsed.y}`
-                    }
-                }
-            }
-        }
-    });
-
-    function doughnutChart(canvasId, dataId) {
-        const source = readJson(dataId, {});
-        return new Chart(document.getElementById(canvasId), {
-            type: "doughnut",
-            data: {
-                labels: source.labels || [],
-                datasets: [{
-                    data: source.valores || [],
-                    backgroundColor: [
-                        "#4f46e5", "#0ea5e9", "#10b981",
-                        "#f59e0b", "#ef4444", "#8b5cf6"
-                    ],
-                    borderWidth: 0,
-                    hoverOffset: 7
-                }]
-            },
-            options: {
-                ...commonOptions,
-                cutout: "64%",
-                scales: {},
-                plugins: {
-                    ...commonOptions.plugins,
-                    legend: {
-                        ...commonOptions.plugins.legend,
-                        labels: {
-                            ...commonOptions.plugins.legend.labels,
-                            generateLabels(chart) {
-                                const ds = chart.data.datasets[0];
-                                return chart.data.labels.map((label, index) => ({
-                                    text: `${label}: ${ds.data[index]}`,
-                                    fillStyle: ds.backgroundColor[index],
-                                    strokeStyle: ds.backgroundColor[index],
-                                    hidden: false,
-                                    index
-                                }));
-                            }
-                        }
-                    }
-                }
-            }
-        });
-    }
-
-    doughnutChart("chartStatus", "graficoStatusJson");
-    doughnutChart("chartPagamentos", "graficoPagamentosJson");
-    doughnutChart("chartEntrega", "graficoEntregaJson");
-
-    const horarios = readJson("graficoHorariosJson", {});
-    new Chart(document.getElementById("chartHorarios"), {
-        type: "line",
-        data: {
-            labels: horarios.labels || [],
-            datasets: [{
-                label: "Pedidos",
-                data: horarios.valores || [],
-                borderColor: "#0ea5e9",
-                backgroundColor: "rgba(14, 165, 233, .12)",
-                fill: true,
-                tension: .32,
-                pointRadius: 3,
-                pointBackgroundColor: "#0ea5e9"
-            }]
-        },
-        options: commonOptions
-    });
-
-    function horizontalBar(canvasId, dataId, money = false) {
-        const source = readJson(dataId, {});
-        return new Chart(document.getElementById(canvasId), {
-            type: "bar",
-            data: {
-                labels: source.labels || [],
-                datasets: [{
-                    label: source.titulo || "Total",
-                    data: source.valores || [],
-                    backgroundColor: "rgba(79, 70, 229, .75)",
-                    borderRadius: 8,
-                    borderSkipped: false
-                }]
-            },
-            options: {
-                ...commonOptions,
-                indexAxis: "y",
-                scales: {
-                    x: {
-                        beginAtZero: true,
-                        ticks: {
-                            precision: 0,
-                            callback: value => money ? brl.format(value) : value,
-                            font: { size: 10 }
-                        }
-                    },
-                    y: {
-                        grid: { display: false },
-                        ticks: { font: { size: 10, weight: "700" } }
-                    }
-                },
-                plugins: {
-                    ...commonOptions.plugins,
-                    legend: { display: false },
-                    tooltip: {
-                        ...commonOptions.plugins.tooltip,
-                        callbacks: {
-                            label: context => money
-                                ? ` ${brl.format(context.parsed.x)}`
-                                : ` ${context.parsed.x}`
-                        }
-                    }
-                }
-            }
-        });
-    }
-
-    horizontalBar("chartTopProdutos", "graficoTopProdutosJson");
-    horizontalBar("chartTopReceita", "graficoTopReceitaJson", true);
-    horizontalBar("chartCliques", "graficoCliquesJson");
-
-    const form = document.getElementById("formFiltros");
-    const inicio = document.getElementById("dataInicio");
-    const fim = document.getElementById("dataFim");
-    const datas = readJson("datasDisponiveisJson");
-
-    if (!datas.length) {
-        inicio.disabled = true;
-        fim.disabled = true;
-        document.getElementById("btnAplicarFiltro").disabled = true;
-    }
-
-    if (form) {
-        form.addEventListener("submit", function (event) {
-            if (inicio.value && fim.value && inicio.value > fim.value) {
-                event.preventDefault();
-                alert("A data inicial não pode ser maior que a data final.");
-            }
-        });
-    }
-
-    window.addEventListener("resize", function () {
-        Chart.instances.forEach(chart => chart.resize());
-    });
-})();
-</script>
-
+{% block scripts %}
+<script src="{% static 'core/js/dashboard.js' %}?v={{ versao_estaticos }}"></script>
 {% endblock %}

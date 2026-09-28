@@ -1,0 +1,15 @@
+{% load static %}
+{# Aplica o tema antes do primeiro desenho: sem piscar branco no tema escuro. #}
+<script>
+(function(){try{var t=localStorage.getItem('cf_tema')||'sol';if(t==='auto'){var h=new Date().getHours();t=(h>=6&&h<18)?'sol':'lua';}if(['sol','lua','eclipse'].indexOf(t)<0)t='sol';var d=document.documentElement;d.setAttribute('data-tema',t);if(t!=='sol')d.classList.add('cf-escuro');}catch(e){}})();
+</script>
+<meta name="theme-color" content="#f7f4ef">
+<link rel="icon" type="image/png" sizes="32x32" href="{% static 'core/img/icone-32.png' %}?v={{ versao_estaticos }}">
+<link rel="icon" type="image/png" sizes="192x192" href="{% static 'core/img/icone-192.png' %}?v={{ versao_estaticos }}">
+<link rel="apple-touch-icon" href="{% static 'core/img/icone-192.png' %}?v={{ versao_estaticos }}">
+<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+<link rel="stylesheet" href="{% static 'core/css/app.css' %}?v={{ versao_estaticos }}">
+<link rel="stylesheet" href="{% static 'core/css/tema.css' %}?v={{ versao_estaticos }}">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" media="print" onload="this.media='all'">
+<noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"></noscript>
+<script src="{% static 'core/js/tema.js' %}?v={{ versao_estaticos }}" defer></script>

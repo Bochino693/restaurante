@@ -14,7 +14,7 @@
                     <i class="fas fa-search absolute left-4 top-3.5 text-gray-400"></i>
                     <input id="searchUnificado" type="text"
                            placeholder="Pesquise por nome ou código do produto..."
-                           class="pl-12 w-full bg-gray-50 border-none rounded-2xl py-3 text-sm focus:ring-2 focus:ring-blue-500 shadow-inner"
+                           class="pl-12 w-full bg-gray-50 border-none rounded-2xl py-3 text-sm focus:ring-2 focus:ring-red-300 shadow-inner"
                            onkeyup="filtrar()">
                 </div>
 
@@ -142,7 +142,7 @@
                                         #{{ produto.codigo }}
                                     </span>
                                 </div>
-                                <span class="text-blue-600 font-black text-lg">
+                                <span class="cf-preco font-black text-lg">
                                     R$ {{ produto.preco }}
                                 </span>
                             </div>
@@ -158,7 +158,7 @@
             <div class="h-full bg-white rounded-[2rem] shadow-2xl border border-gray-100 overflow-hidden flex flex-col">
 
                 <!-- TOPO -->
-                <div class="p-4 bg-blue-600 text-white flex justify-between items-center shrink-0">
+                <div class="p-4 text-white flex justify-between items-center shrink-0" style="background: linear-gradient(135deg, var(--cf-marca), var(--cf-marca-forte))">
                     <h2 class="font-bold flex items-center gap-2 text-sm">
                         <i class="fas fa-shopping-basket"></i> CARRINHO
                     </h2>
@@ -168,7 +168,12 @@
                               title="Status da impressora">
                             <i class="fas fa-print"></i>
                         </span>
-                        <span id="cartCount" class="bg-blue-400 text-[10px] px-2 py-1 rounded-full font-bold">
+                        <button type="button" onclick="Impressora.abrirConfiguracao()"
+                                class="bg-white/15 hover:bg-white/25 text-[10px] px-2 py-1 rounded-full font-bold"
+                                title="Configurar impressora">
+                            <i class="fas fa-gear"></i>
+                        </button>
+                        <span id="cartCount" class="bg-white/20 text-[10px] px-2 py-1 rounded-full font-bold">
                             0 ITENS
                         </span>
                     </div>
@@ -220,7 +225,7 @@
                         <input id="nomeCliente"
                                type="text"
                                placeholder="Digite o nome do cliente"
-                               class="w-full border rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500">
+                               class="w-full border rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-red-300">
                     </div>
 
                     <div>
@@ -230,7 +235,7 @@
                         <textarea id="descricaoPedido"
                                   rows="2"
                                   placeholder="Ex: s/macarrão, sem omelete, pouco sal..."
-                                  class="w-full border rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"></textarea>
+                                  class="w-full border rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-red-300 resize-none"></textarea>
                     </div>
 
                     <!-- ENTREGA / RETIRADA -->
@@ -347,7 +352,7 @@
         <div class="p-6 bg-gray-50">
             <button id="btnConfirmarAdicional"
                     type="button"
-                    class="w-full bg-blue-600 text-white font-black py-4 rounded-2xl shadow-lg shadow-blue-200 uppercase tracking-tighter">
+                    class="w-full text-white font-black py-4 rounded-2xl shadow-lg uppercase tracking-tighter" style="background: var(--cf-marca)">
                 Adicionar ao Carrinho
             </button>
         </div>
@@ -441,16 +446,16 @@
     }
 
     .categoria-btn.active {
-        background: #2563eb;
+        background: var(--cf-marca);
         color: white;
-        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.30);
+        box-shadow: 0 4px 12px rgba(227, 53, 61, 0.30);
     }
 
     .metodo-btn.selected {
-        background: #2563eb;
-        border-color: #2563eb;
+        background: var(--cf-marca);
+        border-color: var(--cf-marca);
         color: white;
-        box-shadow: 0 4px 10px rgba(37, 99, 235, 0.20);
+        box-shadow: 0 4px 10px rgba(227, 53, 61, 0.20);
     }
 
     .prato-dia-card {
@@ -462,10 +467,10 @@
     }
 
     .entrega-btn.selected {
-        background: #2563eb;
-        border-color: #2563eb;
+        background: var(--cf-marca);
+        border-color: var(--cf-marca);
         color: white;
-        box-shadow: 0 4px 10px rgba(37, 99, 235, 0.18);
+        box-shadow: 0 4px 10px rgba(227, 53, 61, 0.18);
     }
 
     #carrinhoItens .cart-item-compact:last-child {
@@ -501,7 +506,7 @@
     }
 </style>
 
-<script src="https://cdn.jsdelivr.net/npm/qz-tray@2.2.4/qz-tray.js"></script>
+<script src="{% static 'core/js/impressao.js' %}?v={{ versao_estaticos }}"></script>
 
 <script>
 /* =========================================================
@@ -519,39 +524,9 @@ let modalAdicionaisAbortController = null;
 let modalAdicionaisRequestId = 0;
 let confirmandoAdicional = false;
 
-let impressoraCache = null;
-let qzConnectingPromise = null;
-let printingLock = false;
-let printQueue = [];
-let ultimoPedidoImpresso = null;
 let finalizandoVenda = false;
 
-const IMPRESSORA_PADRAO = 'MP-4200 TH';
-const ENCODING_IMPRESSAO = 'CP850';
-const DELAY_ENTRE_VIAS_MS = 700;
-const DELAY_RETRY_MS = 1000;
-const MAX_RETRIES = 3;
 const TIMEOUT_CEP_MS = 5000;
-const BACKUP_PEDIDO_KEY = 'pdv_ultimo_pedido_impressao';
-
-/* =========================================================
-   ESC/POS
-========================================================= */
-
-const ESC_POS = {
-    INIT: '\x1B\x40',
-    CUT: '\x1D\x56\x00',
-    PARTIAL_CUT: '\x1D\x56\x01',
-    FEED: '\n\n\n',
-    CENTER: '\x1B\x61\x01',
-    LEFT: '\x1B\x61\x00',
-    RIGHT: '\x1B\x61\x02',
-    BOLD_ON: '\x1B\x45\x01',
-    BOLD_OFF: '\x1B\x45\x00',
-    DOUBLE_ON: '\x1D\x21\x11',
-    DOUBLE_OFF: '\x1D\x21\x00',
-    CP850: '\x1B\x74\x02'
-};
 
 /* =========================================================
    HELPERS
@@ -578,38 +553,6 @@ function clonarSeguro(valor) {
     return JSON.parse(JSON.stringify(valor));
 }
 
-function limparTexto(txt) {
-    return String(txt || '')
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .replace(/[^\x20-\x7E]/g, '')
-        .trim();
-}
-
-function quebrarLinha(texto, tamanho = 24) {
-    texto = limparTexto(texto);
-
-    if (!texto) return [];
-
-    const palavras = texto.split(/\s+/);
-    const linhas = [];
-    let linha = '';
-
-    palavras.forEach(palavra => {
-        const teste = linha ? `${linha} ${palavra}` : palavra;
-
-        if (teste.length > tamanho && linha) {
-            linhas.push(linha);
-            linha = palavra;
-        } else {
-            linha = teste;
-        }
-    });
-
-    if (linha) linhas.push(linha);
-    return linhas;
-}
-
 function setQzStatus(estado) {
     const el = document.getElementById('qzStatus');
     if (!el) return;
@@ -627,9 +570,12 @@ function setQzStatus(estado) {
     }
 
     if (estado === 'erro') {
+        const pendentes = window.Impressora ? Impressora.pendentes() : 0;
         el.classList.add('bg-red-500', 'text-white');
-        el.title = 'Impressora com erro';
-        el.innerHTML = '<i class="fas fa-print"></i>';
+        el.title = pendentes
+            ? `${pendentes} notinha(s) esperando a impressora — saem sozinhas quando ela voltar`
+            : 'Impressora com erro';
+        el.innerHTML = '<i class="fas fa-print"></i>' + (pendentes ? ` ${pendentes}` : '');
         return;
     }
 
@@ -649,30 +595,6 @@ function setQzStatus(estado) {
             el.classList.add('hidden');
         }
     }, 2500);
-}
-
-function salvarBackupPedido(pedido) {
-    try {
-        const pedidoValidado = validarPedidoParaImpressao(pedido);
-        sessionStorage.setItem(
-            BACKUP_PEDIDO_KEY,
-            JSON.stringify(pedidoValidado)
-        );
-    } catch (erro) {
-        console.warn('Não foi possível salvar backup do pedido:', erro);
-    }
-}
-
-function recuperarBackupPedido() {
-    try {
-        const salvo = sessionStorage.getItem(BACKUP_PEDIDO_KEY);
-        if (!salvo) return null;
-        return validarPedidoParaImpressao(JSON.parse(salvo));
-    } catch (erro) {
-        console.warn('Backup de pedido inválido:', erro);
-        sessionStorage.removeItem(BACKUP_PEDIDO_KEY);
-        return null;
-    }
 }
 
 /* =========================================================
@@ -1330,8 +1252,10 @@ function setSucessoStatusErro(mensagem) {
 
     if (status) {
         status.innerHTML =
-            '<i class="fas fa-exclamation-triangle mr-1"></i> Falha na impressão: ' +
-            escaparHtml(mensagem || 'verifique a impressora e use REIMPRIMIR.');
+            '<i class="fas fa-exclamation-triangle mr-1"></i> A impressora não respondeu: ' +
+            escaparHtml(mensagem || 'verifique a impressora.') +
+            '<br><span class="text-xs font-semibold text-gray-500">O pedido está salvo e a notinha ' +
+            'ficou na fila: ela sai sozinha assim que a impressora voltar.</span>';
         status.className = 'text-red-600 text-sm mb-6 font-bold px-2';
     }
 
@@ -1452,173 +1376,24 @@ function getCookie(name) {
     return cookieValue;
 }
 
-async function confirmarImpressaoNoServidor(pedidoId) {
-    if (!pedidoId) return false;
-
-    try {
-        const response = await fetch(
-            `/api/confirmar-impressao/${encodeURIComponent(pedidoId)}/`,
-            {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: {
-                    'Accept': 'application/json',
-                    'X-CSRFToken': getCookie('csrftoken') || '',
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
-            }
-        );
-
-        if (!response.ok) {
-            const texto = await response.text();
-            throw new Error(texto || `HTTP ${response.status}`);
-        }
-
-        return true;
-    } catch (erro) {
-        console.warn(
-            `O pedido #${pedidoId} foi impresso, mas não foi possível ` +
-            'confirmar o status no servidor:',
-            erro
-        );
-        return false;
-    }
-}
-
 /* =========================================================
-   NORMALIZAÇÃO E VALIDAÇÃO DA IMPRESSÃO
+   CONFERÊNCIA DOS ITENS DEVOLVIDOS PELO SERVIDOR
+   (a impressão em si mora em core/static/core/js/impressao.js)
 ========================================================= */
 
-function normalizarItensImpressao(itens) {
-    if (!Array.isArray(itens)) return [];
-
-    return itens.map((item, index) => {
-        const adicionais = Array.isArray(item?.adicionais)
-            ? item.adicionais.map(adicional => ({
-                nome: String(adicional?.nome || '').trim(),
-                qtd: Number(adicional?.qtd ?? 1),
-                preco: Number(adicional?.preco ?? 0)
-            })).filter(adicional =>
-                adicional.nome &&
-                Number.isFinite(adicional.qtd) &&
-                adicional.qtd > 0 &&
-                Number.isFinite(adicional.preco)
-            )
-            : [];
-
-        return {
-            id: item?.id ?? item?.produtoId ?? item?.produto_id ?? index,
-            produtoId: item?.produtoId ?? item?.produto_id ?? item?.id ?? null,
-            nome: String(item?.nome || item?.nome_produto || '').trim(),
-            qtd: Number(item?.qtd ?? item?.quantidade ?? 0),
-            precoBase: Number(
-                item?.precoBase ??
-                item?.preco_base ??
-                item?.preco ??
-                item?.valor ??
-                0
-            ),
-            precoUnitario: Number(
-                item?.precoUnitario ??
-                item?.preco_unitario ??
-                0
-            ),
-            subtotal: Number(item?.subtotal ?? 0),
-            adicionais
-        };
-    }).filter(item =>
-        item.nome &&
-        Number.isFinite(item.qtd) &&
-        item.qtd > 0 &&
-        Number.isFinite(item.precoBase)
-    );
-}
-
-function normalizarPedidoImpressao(pedido = {}) {
-    const entrega =
-        pedido.entrega === true ||
-        pedido.entrega === 1 ||
-        pedido.entrega === 'true' ||
-        pedido.tipo_entrega === 'entrega';
-
-    return {
-        id: pedido.id,
-        criadoEm:
-            pedido.criadoEm ||
-            pedido.criado_em ||
-            new Date().toLocaleString('pt-BR'),
-        nomeCliente:
-            pedido.nomeCliente ||
-            pedido.nome_cliente ||
-            'SEM NOME',
-        metodo:
-            pedido.metodo ||
-            pedido.forma_pagamento ||
-            '',
-        entrega,
-        descricao: pedido.descricao || '',
-        endereco: pedido.endereco || {
-            rua: pedido.rua || '',
-            numero: pedido.numero || '',
-            cep: pedido.cep || ''
-        },
-        itens: normalizarItensImpressao(pedido.itens),
-        desconto: Number(pedido.desconto ?? 0),
-        totalPedido: Number(pedido.totalPedido ?? pedido.total ?? 0),
-        taxaMotoca: Number(pedido.taxaMotoca ?? pedido.taxa_motoca ?? 0),
-        totalFinal: Number(
-            pedido.totalFinal ??
-            pedido.total_final ??
-            pedido.total ??
-            0
-        )
-    };
-}
-
-function validarPedidoParaImpressao(pedido) {
-    const pedidoOK = normalizarPedidoImpressao(pedido);
-
-    if (!pedidoOK.id) {
-        throw new Error('Pedido sem identificação para impressão.');
-    }
-
-    if (!Array.isArray(pedidoOK.itens) || pedidoOK.itens.length === 0) {
-        throw new Error(
-            'A impressão foi bloqueada porque o pedido chegou sem itens.'
-        );
-    }
-
-    pedidoOK.itens.forEach((item, index) => {
-        if (!item.nome) {
-            throw new Error(`O item ${index + 1} está sem nome.`);
-        }
-
-        if (!Number.isFinite(item.qtd) || item.qtd <= 0) {
-            throw new Error(
-                `O item ${item.nome} está com quantidade inválida.`
-            );
-        }
-
-        if (!Number.isFinite(item.precoBase) || item.precoBase < 0) {
-            throw new Error(
-                `O item ${item.nome} está com preço inválido.`
-            );
-        }
-    });
-
-    return pedidoOK;
+function clonarSeguro(valor) {
+    return typeof structuredClone === 'function'
+        ? structuredClone(valor)
+        : JSON.parse(JSON.stringify(valor));
 }
 
 function assinaturaItensImpressao(itens) {
-    return normalizarItensImpressao(itens)
+    return Impressora.normalizarItens(itens)
         .map(item => {
             const adicionais = item.adicionais
-                .map(adicional =>
-                    `${adicional.nome.toLowerCase()}:${adicional.qtd}:${adicional.preco}`
-                )
+                .map(a => `${a.nome.toLowerCase()}:${a.qtd}:${a.preco}`)
                 .sort()
                 .join('|');
-
             return `${item.nome.toLowerCase()}:${item.qtd}:${adicionais}`;
         })
         .sort()
@@ -1626,678 +1401,27 @@ function assinaturaItensImpressao(itens) {
 }
 
 function itensServidorEstaoCompletos(itensServidor, itensCarrinho) {
-    const servidor = normalizarItensImpressao(itensServidor);
-    const carrinhoLocal = normalizarItensImpressao(itensCarrinho);
-
-    if (servidor.length === 0 || carrinhoLocal.length === 0) return false;
-    if (servidor.length !== carrinhoLocal.length) return false;
-
-    return assinaturaItensImpressao(servidor) ===
-           assinaturaItensImpressao(carrinhoLocal);
+    const servidor = Impressora.normalizarItens(itensServidor);
+    const local = Impressora.normalizarItens(itensCarrinho);
+    if (!servidor.length || servidor.length !== local.length) return false;
+    return assinaturaItensImpressao(servidor) === assinaturaItensImpressao(local);
 }
 
-/* =========================================================
-   QZ TRAY - CONEXÃO
-========================================================= */
-
-async function carregarQzScriptSeNecessario() {
-    if (window.qz) return;
-
-    await new Promise((resolve, reject) => {
-        const script = document.createElement('script');
-        script.src = 'https://cdn.jsdelivr.net/npm/qz-tray@2.2.4/qz-tray.js';
-        script.onload = resolve;
-        script.onerror = () => reject(
-            new Error('Falha ao carregar o qz-tray.js.')
-        );
-        document.head.appendChild(script);
-    });
-
-    if (!window.qz) {
-        throw new Error('QZ Tray não disponível após carregar o script.');
-    }
-}
-
-async function conectarQZ() {
-    await carregarQzScriptSeNecessario();
-
-    if (qz.websocket.isActive()) return true;
-    if (qzConnectingPromise) return qzConnectingPromise;
-
-    qzConnectingPromise = (async () => {
-        try {
-            await qz.websocket.connect({ retries: 3, delay: 1 });
-            return true;
-        } finally {
-            qzConnectingPromise = null;
-        }
-    })();
-
-    return qzConnectingPromise;
-}
-
-async function reconectarForcado() {
-    try {
-        if (window.qz && qz.websocket.isActive()) {
-            await qz.websocket.disconnect();
-        }
-    } catch (_) {
-        // ignora erro de desconexão
-    }
-
-    qzConnectingPromise = null;
-    impressoraCache = null;
-
-    await sleep(500);
-    await conectarQZ();
-}
-
-async function obterImpressora(forceRefresh = false) {
-    await conectarQZ();
-
-    if (impressoraCache && !forceRefresh) {
-        return impressoraCache;
-    }
-
-    let lista = [];
-
-    try {
-        lista = await qz.printers.find();
-    } catch (_) {
-        lista = [];
-    }
-
-    if (!Array.isArray(lista)) {
-        lista = lista ? [lista] : [];
-    }
-
-    if (lista.length === 0) {
-        impressoraCache = null;
-        throw new Error(
-            'Nenhuma impressora encontrada. Verifique se o QZ Tray está aberto ' +
-            'e se a impressora está ligada e conectada ao computador.'
-        );
-    }
-
-    const nomeExato = lista.find(impressora =>
-        String(impressora).toUpperCase() === IMPRESSORA_PADRAO.toUpperCase()
-    );
-
-    if (nomeExato) {
-        impressoraCache = nomeExato;
-        return nomeExato;
-    }
-
-    const preferidas = [
-        'MP-4200',
-        'BEMATECH',
-        'ELGIN',
-        'DARUMA',
-        'POS',
-        'THERMAL'
-    ];
-
-    for (const termo of preferidas) {
-        const encontrada = lista.find(impressora =>
-            String(impressora).toUpperCase().includes(termo)
-        );
-
-        if (encontrada) {
-            impressoraCache = encontrada;
-            return encontrada;
-        }
-    }
-
-    try {
-        const padrao = await qz.printers.getDefault();
-
-        if (padrao && lista.some(item => String(item) === String(padrao))) {
-            impressoraCache = padrao;
-            return padrao;
-        }
-    } catch (_) {
-        // continua para a primeira impressora disponível
-    }
-
-    impressoraCache = lista[0];
-    return impressoraCache;
-}
-
-function prepararTextoRaw(texto) {
-    return String(texto || '')
-        .replace(/\r\n/g, '\n')
-        .replace(/\r/g, '\n');
-}
-
-/* =========================================================
-   IMPRESSÃO RAW COM RETRY
-========================================================= */
-
-async function imprimirRaw(texto) {
-    texto = prepararTextoRaw(texto);
-
-    if (!texto.trim()) {
-        throw new Error('Texto de impressão vazio.');
-    }
-
-    let ultimoErro = null;
-
-    for (let tentativa = 1; tentativa <= MAX_RETRIES; tentativa++) {
-        try {
-            await conectarQZ();
-
-            const nomeImpressora = await obterImpressora(tentativa > 1);
-            const config = qz.configs.create(nomeImpressora, {
-                encoding: ENCODING_IMPRESSAO,
-                copies: 1,
-                jobName: 'Pedido Restaurante'
-            });
-
-            const dados = [{
-                type: 'raw',
-                format: 'plain',
-                data: texto
-            }];
-
-            await qz.print(config, dados);
-            return true;
-        } catch (erro) {
-            ultimoErro = erro;
-
-            console.warn(
-                `Tentativa ${tentativa}/${MAX_RETRIES} falhou:`,
-                erro?.message || erro
-            );
-
-            if (tentativa < MAX_RETRIES) {
-                try {
-                    await reconectarForcado();
-                } catch (_) {
-                    // a próxima tentativa mostrará o erro real
-                }
-
-                await sleep(DELAY_RETRY_MS);
-            }
-        }
-    }
-
-    throw new Error(
-        `Falha após ${MAX_RETRIES} tentativas: ` +
-        (ultimoErro?.message || ultimoErro)
-    );
-}
-
-/* =========================================================
-   GERAÇÃO DOS COMPROVANTES
-========================================================= */
-
-function agruparItens(itens) {
-    const itensNormalizados = normalizarItensImpressao(itens);
-    const mapa = {};
-
-    itensNormalizados.forEach(item => {
-        const adicionaisKey = item.adicionais
-            .map(adicional =>
-                `${adicional.nome}:${adicional.preco}:${adicional.qtd || 1}`
-            )
-            .sort()
-            .join('|');
-
-        const chave = `${item.nome}_${adicionaisKey}`;
-        const qtd = Number(item.qtd || 1);
-        const precoBase = Number(item.precoBase || 0);
-        const subtotal = Number(item.subtotal || 0);
-
-        if (!mapa[chave]) {
-            mapa[chave] = {
-                nome: item.nome,
-                qtd,
-                precoBase,
-                precoUnitarioServidor: Number(item.precoUnitario || 0),
-                subtotalServidor: subtotal,
-                adicionais: item.adicionais || []
-            };
-        } else {
-            mapa[chave].qtd += qtd;
-            mapa[chave].subtotalServidor += subtotal;
-        }
-    });
-
-    return Object.values(mapa);
-}
-
-function calcularSubtotalItensPedido(pedido) {
-    return agruparItens(pedido.itens).reduce((total, item) => {
-        if (Number(item.subtotalServidor) > 0) {
-            return total + Number(item.subtotalServidor);
-        }
-
-        const precoUnitario =
-            Number(item.precoBase || 0) +
-            calcularPrecoAdicionais(item.adicionais);
-
-        return total + (precoUnitario * Number(item.qtd || 0));
-    }, 0);
-}
-
-function gerarTextoBalcao(pedido) {
-    const pedidoOK = validarPedidoParaImpressao(pedido);
-    const itensAgrupados = agruparItens(pedidoOK.itens);
-
-    if (itensAgrupados.length === 0) {
-        throw new Error('Não há itens para gerar a via do balcão.');
-    }
-
-    let texto = '';
-
-    texto += ESC_POS.INIT;
-    texto += ESC_POS.CP850;
-    texto += ESC_POS.CENTER;
-    texto += ESC_POS.BOLD_ON;
-    texto += ESC_POS.DOUBLE_ON;
-    texto += 'VIA BALCAO\n';
-    texto += `PEDIDO #${pedidoOK.id}\n`;
-    texto += ESC_POS.DOUBLE_OFF;
-    texto += ESC_POS.BOLD_OFF;
-    texto += '--------------------------------\n';
-    texto += ESC_POS.LEFT;
-
-    texto += `Data: ${limparTexto(pedidoOK.criadoEm)}\n`;
-    texto += `Cliente: ${limparTexto(pedidoOK.nomeCliente)}\n`;
-
-    if (pedidoOK.descricao) {
-        texto += `Obs: ${limparTexto(pedidoOK.descricao)}\n`;
-    }
-
-    texto += `Pagamento: ${limparTexto(pedidoOK.metodo).toUpperCase()}\n`;
-    texto += pedidoOK.entrega ? 'Tipo: ENTREGA\n' : 'Tipo: RETIRADA BALCAO\n';
-
-    if (pedidoOK.entrega && pedidoOK.endereco) {
-        texto += `End: ${limparTexto(pedidoOK.endereco.rua)}, ` +
-                 `${limparTexto(pedidoOK.endereco.numero)}\n`;
-
-        if (pedidoOK.endereco.cep) {
-            texto += `CEP: ${limparTexto(pedidoOK.endereco.cep)}\n`;
-        }
-    }
-
-    texto += '--------------------------------\n';
-    texto += ESC_POS.BOLD_ON + 'ITENS DO PEDIDO\n' + ESC_POS.BOLD_OFF;
-    texto += '--------------------------------\n';
-
-    let subtotalGeral = 0;
-
-    itensAgrupados.forEach(item => {
-        const adicionais = item.adicionais || [];
-        const qtd = Number(item.qtd || 1);
-
-        let subtotalItem;
-
-        if (Number(item.subtotalServidor) > 0) {
-            subtotalItem = Number(item.subtotalServidor);
-        } else {
-            const precoAdicionais = calcularPrecoAdicionais(adicionais);
-            const precoUnitario = Number(item.precoBase || 0) + precoAdicionais;
-            subtotalItem = precoUnitario * qtd;
-        }
-
-        const precoUnitarioExibicao = qtd > 0 ? subtotalItem / qtd : 0;
-        subtotalGeral += subtotalItem;
-
-        const linhasNome = quebrarLinha(`${qtd}x ${item.nome}`, 22);
-
-        linhasNome.forEach((linha, index) => {
-            if (index === 0) {
-                texto += linha.padEnd(22).slice(0, 22);
-                texto += ` R$ ${moeda(subtotalItem)}\n`;
-            } else {
-                texto += `${linha}\n`;
-            }
-        });
-
-        texto += `   Unit: R$ ${moeda(precoUnitarioExibicao)}\n`;
-
-        adicionais.forEach(adicional => {
-            const qtdAdd = Number(adicional.qtd || 1);
-            const totalAdd = Number(adicional.preco || 0) * qtdAdd;
-
-            texto += `   + ${qtdAdd}x ${limparTexto(adicional.nome)}` +
-                     ` R$ ${moeda(totalAdd)}\n`;
-        });
-
-        texto += '\n';
-    });
-
-    const totalPedidoInformado = Number(pedidoOK.totalPedido);
-    const totalPedidoValido = Number.isFinite(totalPedidoInformado)
-        ? Math.max(0, totalPedidoInformado)
-        : subtotalGeral;
-
-    const descontoCalculado = Math.max(
-        0,
-        Number(pedidoOK.desconto || 0) ||
-        (subtotalGeral - totalPedidoValido)
-    );
-
-    const totalPedido = totalPedidoValido;
-
-    const taxaMotoca = pedidoOK.entrega
-        ? Number(pedidoOK.taxaMotoca || 0)
-        : 0;
-
-    const totalFinal = totalPedido + taxaMotoca;
-
-    texto += '--------------------------------\n';
-    texto += `Subtotal:     R$ ${moeda(subtotalGeral)}\n`;
-
-    if (descontoCalculado > 0.009) {
-        texto += `Desconto:     R$ ${moeda(descontoCalculado)}\n`;
-    }
-
-    if (taxaMotoca > 0) {
-        texto += `Taxa Entrega: R$ ${moeda(taxaMotoca)}\n`;
-    }
-
-    texto += ESC_POS.BOLD_ON;
-    texto += `TOTAL FINAL:  R$ ${moeda(totalFinal)}\n`;
-    texto += ESC_POS.BOLD_OFF;
-    texto += '--------------------------------\n';
-    texto += ESC_POS.BOLD_ON;
-    texto += `PAGAMENTO:    ${limparTexto(pedidoOK.metodo).toUpperCase()}\n`;
-    texto += ESC_POS.BOLD_OFF;
-    texto += '\n\n\n\n\n\n';
-    texto += ESC_POS.PARTIAL_CUT;
-
-    return texto;
-}
-
-function gerarTextoCozinha(pedido) {
-    const pedidoOK = validarPedidoParaImpressao(pedido);
-    const itensAgrupados = agruparItens(pedidoOK.itens);
-
-    if (itensAgrupados.length === 0) {
-        throw new Error('Não há itens para gerar a via da cozinha.');
-    }
-
-    let texto = '';
-
-    texto += ESC_POS.INIT;
-    texto += ESC_POS.CP850;
-    texto += ESC_POS.CENTER;
-    texto += ESC_POS.BOLD_ON;
-    texto += ESC_POS.DOUBLE_ON;
-    texto += 'VIA COZINHA\n';
-    texto += `PEDIDO #${pedidoOK.id}\n`;
-    texto += ESC_POS.DOUBLE_OFF;
-    texto += ESC_POS.BOLD_OFF;
-    texto += '--------------------------------\n';
-    texto += ESC_POS.LEFT;
-
-    texto += `Cliente: ${limparTexto(pedidoOK.nomeCliente).toUpperCase()}\n`;
-    texto += pedidoOK.entrega ? 'ENTREGA\n' : 'RETIRADA BALCAO\n';
-    texto += `PAGAMENTO: ${limparTexto(pedidoOK.metodo).toUpperCase()}\n`;
-
-    if (pedidoOK.descricao) {
-        texto += `OBS: ${limparTexto(pedidoOK.descricao).toUpperCase()}\n`;
-    }
-
-    texto += '--------------------------------\n';
-    texto += ESC_POS.BOLD_ON + 'PREPARO\n' + ESC_POS.BOLD_OFF;
-    texto += '--------------------------------\n';
-
-    let totalProdutos = 0;
-
-    itensAgrupados.forEach(item => {
-        const qtdProduto = Number(item.qtd || 1);
-        const adicionais = item.adicionais || [];
-        const precoBase = Number(item.precoBase || 0);
-        const precoAdicionais = calcularPrecoAdicionais(adicionais);
-        const precoUnitarioCompleto = precoBase + precoAdicionais;
-
-        const subtotalItem = Number(item.subtotalServidor) > 0
-            ? Number(item.subtotalServidor)
-            : precoUnitarioCompleto * qtdProduto;
-
-        const precoUnitarioExibicao = qtdProduto > 0
-            ? subtotalItem / qtdProduto
-            : precoUnitarioCompleto;
-
-        totalProdutos += subtotalItem;
-
-        texto += ESC_POS.BOLD_ON;
-        texto += `${qtdProduto}x ${limparTexto(item.nome).toUpperCase()}`;
-        texto += `  R$ ${moeda(subtotalItem)}\n`;
-        texto += ESC_POS.BOLD_OFF;
-        texto += `   UNIT: R$ ${moeda(precoUnitarioExibicao)}\n`;
-
-        adicionais.forEach(adicional => {
-            const qtdAdicional = Number(adicional.qtd || 1);
-            const precoAdicional = Number(adicional.preco || 0);
-            const totalAdicionalUnitario = precoAdicional * qtdAdicional;
-
-            texto += `   + ${qtdAdicional}x ` +
-                     limparTexto(adicional.nome).toUpperCase();
-
-            if (totalAdicionalUnitario > 0) {
-                texto += ` R$ ${moeda(totalAdicionalUnitario)}`;
-            }
-
-            texto += '\n';
-        });
-
-        texto += '\n';
-    });
-
-    const totalPedido = Number(pedidoOK.totalPedido || 0);
-    const taxaMotoca = pedidoOK.entrega
-        ? Number(pedidoOK.taxaMotoca || 0)
-        : 0;
-    const descontoCalculado = Math.max(
-        0,
-        Number(pedidoOK.desconto || 0) ||
-        (totalProdutos - totalPedido)
-    );
-    const totalFinal = totalPedido + taxaMotoca;
-
-    texto += '--------------------------------\n';
-    texto += ESC_POS.BOLD_ON;
-    texto += `TOTAL PRODUTOS: R$ ${moeda(totalProdutos)}\n`;
-    texto += ESC_POS.BOLD_OFF;
-
-    if (descontoCalculado > 0.009) {
-        texto += `DESCONTO:       R$ ${moeda(descontoCalculado)}\n`;
-        texto += `APOS DESCONTO:  R$ ${moeda(totalPedido)}\n`;
-    }
-
-    if (taxaMotoca > 0) {
-        texto += `TAXA ENTREGA:   R$ ${moeda(taxaMotoca)}\n`;
-    }
-
-    texto += ESC_POS.BOLD_ON;
-    texto += `TOTAL FINAL:    R$ ${moeda(totalFinal)}\n`;
-    texto += ESC_POS.BOLD_OFF;
-    texto += '--------------------------------\n';
-    texto += ESC_POS.CENTER;
-    texto += ESC_POS.BOLD_ON + 'BOM TRABALHO!\n' + ESC_POS.BOLD_OFF;
-    texto += '\n\n\n\n\n\n';
-    texto += ESC_POS.CUT;
-
-    return texto;
-}
-
-/* =========================================================
-   IMPRESSÃO COMPLETA
-========================================================= */
-
-async function imprimirPedidoCompleto(pedido) {
-    const pedidoOK = validarPedidoParaImpressao(pedido);
-    const itensAgrupados = agruparItens(pedidoOK.itens);
-
-    const unidadesOriginais = pedidoOK.itens.reduce(
-        (total, item) => total + Number(item.qtd || 0),
-        0
-    );
-    const unidadesAgrupadas = itensAgrupados.reduce(
-        (total, item) => total + Number(item.qtd || 0),
-        0
-    );
-
-    if (
-        itensAgrupados.length === 0 ||
-        unidadesOriginais <= 0 ||
-        unidadesAgrupadas !== unidadesOriginais
-    ) {
-        throw new Error(
-            'A conferência da impressão detectou itens ou quantidades ausentes.'
-        );
-    }
-
-    const textoBalcao = gerarTextoBalcao(pedidoOK);
-    const textoCozinha = gerarTextoCozinha(pedidoOK);
-
-    if (!textoBalcao.includes('ITENS DO PEDIDO')) {
-        throw new Error('A via do balcão foi gerada sem a seção de itens.');
-    }
-
-    if (!textoCozinha.includes('PREPARO')) {
-        throw new Error('A via da cozinha foi gerada sem a seção de preparo.');
-    }
-
-    const textoConferencia = limparTexto(
-        `${textoBalcao}\n${textoCozinha}`
-    ).toUpperCase();
-
-    for (const item of pedidoOK.itens) {
-        const primeiraPalavra = limparTexto(item.nome)
-            .toUpperCase()
-            .split(/\s+/)[0];
-
-        if (primeiraPalavra && !textoConferencia.includes(primeiraPalavra)) {
-            throw new Error(
-                `O item "${item.nome}" não entrou no texto da impressão.`
-            );
-        }
-    }
-
-    await imprimirRaw(textoBalcao);
-    await sleep(DELAY_ENTRE_VIAS_MS);
-    await imprimirRaw(textoCozinha);
-}
-
-/* =========================================================
-   FILA DE IMPRESSÃO
-========================================================= */
-
-function enfileirarImpressao(pedido, callbacks = {}) {
-    try {
-        const pedidoSeguro = validarPedidoParaImpressao(
-            clonarSeguro(pedido)
-        );
-
-        salvarBackupPedido(pedidoSeguro);
-
-        printQueue.push({
-            pedido: clonarSeguro(pedidoSeguro),
-            callbacks
-        });
-
-        processarFilaImpressao();
-        return true;
-    } catch (erro) {
-        console.error('Pedido bloqueado antes de entrar na fila:', erro);
-        setQzStatus('erro');
-
-        if (typeof callbacks.onErro === 'function') {
-            try {
-                callbacks.onErro(erro);
-            } catch (_) {
-                // callback não deve quebrar o fluxo
-            }
-        }
-
-        return false;
-    }
-}
-
-async function processarFilaImpressao() {
-    if (printingLock || printQueue.length === 0) return;
-
-    printingLock = true;
-    setQzStatus('imprimindo');
-
-    let houveErro = false;
-
-    try {
-        while (printQueue.length > 0) {
-            const { pedido, callbacks } = printQueue.shift();
-
-            try {
-                const pedidoValidado = validarPedidoParaImpressao(pedido);
-                await imprimirPedidoCompleto(pedidoValidado);
-
-                ultimoPedidoImpresso = clonarSeguro(pedidoValidado);
-                salvarBackupPedido(pedidoValidado);
-
-                if (typeof callbacks.onOk === 'function') {
-                    try {
-                        callbacks.onOk();
-                    } catch (_) {
-                        // callback não deve quebrar a fila
-                    }
-                }
-            } catch (erro) {
-                houveErro = true;
-                console.error('Erro impressão pedido', pedido?.id, erro);
-
-                if (pedido?.itens?.length) {
-                    ultimoPedidoImpresso = clonarSeguro(pedido);
-                    salvarBackupPedido(pedido);
-                }
-
-                if (typeof callbacks.onErro === 'function') {
-                    try {
-                        callbacks.onErro(erro);
-                    } catch (_) {
-                        // callback não deve quebrar a fila
-                    }
-                }
-            }
-        }
-    } finally {
-        printingLock = false;
-        setQzStatus(houveErro ? 'erro' : 'ok');
-
-        if (printQueue.length > 0) {
-            processarFilaImpressao();
-        }
-    }
-}
-
-/* =========================================================
-   REIMPRESSÃO MANUAL
-========================================================= */
-
-async function reimprimirUltimoPedido() {
-    const pedidoDisponivel = ultimoPedidoImpresso || recuperarBackupPedido();
-
-    if (!pedidoDisponivel) {
-        mostrarAlerta(
-            'Sem pedido',
-            'Não há pedido válido para reimprimir.',
-            'aviso'
-        );
-        return;
-    }
-
-    setSucessoStatusImprimindo();
-
-    enfileirarImpressao(pedidoDisponivel, {
-        onOk: () => {
-            setSucessoStatusOk();
-            confirmarImpressaoNoServidor(pedidoDisponivel.id);
-        },
+function imprimirComStatus(pedido) {
+    Impressora.imprimir(pedido, {
+        onOk: () => setSucessoStatusOk(),
         onErro: erro => setSucessoStatusErro(erro?.message)
     });
+}
+
+function reimprimirUltimoPedido() {
+    const pedido = Impressora.ultimoPedido();
+    if (!pedido) {
+        mostrarAlerta('Sem pedido', 'Não há pedido válido para reimprimir.', 'aviso');
+        return;
+    }
+    setSucessoStatusImprimindo();
+    imprimirComStatus(pedido);
 }
 
 /* =========================================================
@@ -2375,7 +1499,7 @@ async function finalizarVenda() {
         }
 
         const carrinhoSnapshot = clonarSeguro(carrinho);
-        const itensSnapshot = normalizarItensImpressao(carrinhoSnapshot);
+        const itensSnapshot = Impressora.normalizarItens(carrinhoSnapshot);
 
         if (itensSnapshot.length !== carrinhoSnapshot.length) {
             mostrarAlerta(
@@ -2443,7 +1567,7 @@ async function finalizarVenda() {
         }
 
         const pedidoServidor = resultado.pedido_impressao || {};
-        const itensServidorNormalizados = normalizarItensImpressao(
+        const itensServidorNormalizados = Impressora.normalizarItens(
             pedidoServidor.itens
         );
         const unidadesServidor = itensServidorNormalizados.reduce(
@@ -2524,7 +1648,7 @@ async function finalizarVenda() {
         let pedidoValidado;
 
         try {
-            pedidoValidado = validarPedidoParaImpressao(pedidoParaImprimir);
+            pedidoValidado = Impressora.validar(pedidoParaImprimir);
 
             const unidadesValidadas = pedidoValidado.itens.reduce(
                 (total, item) => total + Number(item.qtd || 0),
@@ -2553,23 +1677,16 @@ async function finalizarVenda() {
             return;
         }
 
-        ultimoPedidoImpresso = clonarSeguro(pedidoValidado);
-        salvarBackupPedido(pedidoValidado);
-
-        // A venda já está concluída neste ponto. A impressão roda separadamente.
+        // A venda já está concluída neste ponto. A impressão roda
+        // separadamente, numa fila que não perde a notinha se a impressora
+        // estiver fora do ar.
         mostrarSucesso(
             resultado.pedido_id,
             formatar(totalFinalServidor),
             metodoPagamento.toUpperCase()
         );
 
-        enfileirarImpressao(pedidoValidado, {
-            onOk: () => {
-                setSucessoStatusOk();
-                confirmarImpressaoNoServidor(pedidoValidado.id);
-            },
-            onErro: erro => setSucessoStatusErro(erro?.message)
-        });
+        imprimirComStatus(pedidoValidado);
     } catch (erro) {
         console.error('Erro ao finalizar pedido:', erro);
 
@@ -2605,30 +1722,19 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    const backup = recuperarBackupPedido();
-    if (backup) {
-        ultimoPedidoImpresso = backup;
-    }
+    Impressora.aoMudar(estado => setQzStatus(estado === 'desconectado' ? 'erro' : estado));
 
     (async () => {
         try {
-            await conectarQZ();
-            const impressora = await obterImpressora();
-            setQzStatus('ok');
-            console.log('Impressora detectada:', impressora);
+            const impressora = await Impressora.escolherImpressora();
+            setQzStatus(Impressora.pendentes() ? 'imprimindo' : 'ok');
+            console.info('Impressora detectada:', impressora);
+            Impressora.processar();
         } catch (erro) {
-            const mensagem = erro?.message || String(erro);
-            console.warn('Falha ao detectar impressora no init:', mensagem);
+            console.warn('Impressora ainda não disponível:', erro?.message || erro);
             setQzStatus('erro');
-
-            mostrarAlerta(
-                'Impressora não encontrada',
-                mensagem.includes('QZ Tray') || mensagem.includes('Nenhuma impressora')
-                    ? mensagem
-                    : 'Não foi possível conectar à impressora. Verifique se o ' +
-                      'QZ Tray está aberto e se a impressora está ligada.',
-                'erro'
-            );
+            mostrarAlerta('Impressora não encontrada', erro?.message ||
+                'Verifique se o QZ Tray está aberto e se a impressora está ligada.', 'erro');
         }
     })();
 });
