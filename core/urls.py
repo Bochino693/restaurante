@@ -1,10 +1,10 @@
-from django.contrib import admin
-from django.urls import path, include
+from django.urls import path
 from .views import (CaixaView, EstoqueView,
                     PedidosView, CardapioClienteView,
                     adicionais_produto, VendasView, DashboardAnalyticsView,
                     LoginView, LogoutView, GerenciarPratosDiaView, RemoverPratoDiaView, avancar_status,
-                    confirmar_impressao, pedidos_pendentes_impressao, ResumoPedidosView, PedidoReimprimirView)
+                    confirmar_impressao, pedidos_pendentes_impressao, ResumoPedidosView, PedidoReimprimirView,
+                    registrar_clique)
 
 urlpatterns = [
     path('', CardapioClienteView.as_view(), name='cardapio'),
@@ -24,6 +24,7 @@ urlpatterns = [
 
 
     path('api/pedidos-impressao/', pedidos_pendentes_impressao),
+    path('api/clique/<int:produto_id>/', registrar_clique, name='registrar_clique'),
     path('api/confirmar-impressao/<int:pedido_id>/', confirmar_impressao),
     path('pedidos/resumo/', ResumoPedidosView.as_view(), name='resumo_pedidos'),
     path('pedido/<int:pedido_id>/reimprimir/', PedidoReimprimirView.as_view(), name='pedido_reimprimir'),
