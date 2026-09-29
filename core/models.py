@@ -186,6 +186,9 @@ class Pedidos(Prime):
 
     cep = models.CharField(max_length=9, blank=True, null=True)
 
+    # Telefone do cliente (entrega): sai numa linha da via do balcão.
+    telefone = models.CharField(max_length=20, blank=True, null=True)
+
     total = models.DecimalField(
         decimal_places=2,
         max_digits=9,

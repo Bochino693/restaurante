@@ -192,6 +192,7 @@
             metodo: String(p.metodo || p.forma_pagamento || ""),
             entrega,
             descricao: p.descricao || "",
+            telefone: String(p.telefone || end.telefone || "").trim(),
             endereco: {
                 rua: end.rua || p.rua || "",
                 numero: end.numero || p.numero || "",
@@ -217,92 +218,140 @@
     const pagamento = m => NOMES_PAGAMENTO[limpar(m).toUpperCase()] || limpar(m).toUpperCase() || "-";
 
     /* ------------------------------------------------------ as notinhas */
-    function cabecalho(p, via, L) {
-        let t = ESC.INIT + ESC.CP850 + ESC.CENTRO;
-        t += ESC.NEGRITO + ESC.GRANDE + "CANTINHO FAMILIA\n" + ESC.TAMANHO_NORMAL + ESC.NORMAL;
-        t += "comida caseira com carinho\n";
-        t += traco("=", L);
-        t += ESC.NEGRITO + ESC.GRANDE + `PEDIDO #${p.id}\n` + ESC.TAMANHO_NORMAL + ESC.NORMAL;
-        t += `${via}  |  ${limpar(p.criadoEm)}\n`;
-        t += ESC.ESQUERDA + traco("-", L);
-        return t;
+    /* LAYOUT COMPACTO (o da versão eb7bb7f): economiza papel e bobina — sem
+       cabeçalho da casa nem rodapé, 32 colunas, só o que o balcão e a
+       cozinha precisam. O telefone do cliente entra numa linha só, em letra
+       normal, quando foi informado. */
+    const OLD = {
+        CUT: "\x1D\x56\x00",
+        PARTIAL_CUT: "\x1D\x56\x01",
+        DOUBLE_ON: "\x1D\x21\x11",
+        DOUBLE_OFF: "\x1D\x21\x00"
+    };
+    const valor = v => Number(v || 0).toFixed(2).replace(".", ",");
+    const somaAdicionais = ads => (ads || []).reduce((s, a) => s + Number(a.preco || 0) * Number(a.qtd || 1), 0);
+
+    /** Itens iguais (mesmo nome e mesmos adicionais) numa linha só. */
+    function agrupar(itens) {
+        const mapa = {};
+        itens.forEach(item => {
+            const chave = item.nome + "_" + item.adicionais
+                .map(a => `${a.nome}:${a.preco}:${a.qtd || 1}`).sort().join("|");
+            if (!mapa[chave]) {
+                mapa[chave] = { nome: item.nome, qtd: item.qtd, precoBase: item.precoBase,
+                    subtotal: item.subtotal, adicionais: item.adicionais };
+            } else {
+                mapa[chave].qtd += item.qtd;
+                mapa[chave].subtotal += item.subtotal;
+            }
+        });
+        return Object.values(mapa);
     }
 
-    function blocoCliente(p, L, cozinha) {
-        let t = "";
-        t += linhaValor("Cliente:", limpar(p.nomeCliente).toUpperCase(), L);
-        t += linhaValor("Tipo:", p.entrega ? "ENTREGA" : "RETIRADA NO BALCAO", L);
-        if (p.entrega && (p.endereco.rua || p.endereco.numero)) {
-            quebrar(`Endereco: ${p.endereco.rua}, ${p.endereco.numero}` +
-                (p.endereco.cep ? ` - CEP ${p.endereco.cep}` : ""), L)
-                .forEach(l => { t += l + "\n"; });
-        }
-        t += linhaValor("Pagamento:", pagamento(p.metodo), L);
-        if (p.descricao) {
-            t += traco("-", L);
-            t += ESC.NEGRITO + (cozinha ? ESC.ALTO : "") + ">> OBSERVACAO\n";
-            quebrar(p.descricao.toUpperCase(), L).forEach(l => { t += l + "\n"; });
-            t += ESC.TAMANHO_NORMAL + ESC.NORMAL;
-        }
-        return t;
-    }
-
-    function blocoTotais(p, L) {
-        let t = traco("-", L);
-        t += linhaValor("Subtotal", moeda(p.somaItens), L);
-        if (p.desconto > 0.009) t += linhaValor("Desconto", "-" + moeda(p.desconto), L);
-        if (p.taxaMotoca > 0) t += linhaValor("Taxa de entrega", moeda(p.taxaMotoca), L);
-        t += ESC.NEGRITO + ESC.ALTO + linhaValor("TOTAL", moeda(p.totalFinal), L) + ESC.TAMANHO_NORMAL + ESC.NORMAL;
-        t += linhaValor("Forma de pagamento", pagamento(p.metodo), L);
-        return t;
+    function subtotalDe(item) {
+        if (Number(item.subtotal) > 0) return Number(item.subtotal);
+        return (Number(item.precoBase || 0) + somaAdicionais(item.adicionais)) * Number(item.qtd || 0);
     }
 
     function gerarBalcao(pedido) {
         const p = validar(pedido);
-        const L = config().colunas;
-        let t = cabecalho(p, "VIA BALCAO", L);
-        t += blocoCliente(p, L, false);
-        t += traco("-", L);
-        t += ESC.NEGRITO + linhaValor("ITEM", "VALOR", L) + ESC.NORMAL;
-        p.itens.forEach(item => {
-            t += ESC.NEGRITO + linhaValor(`${item.qtd}x ${item.nome}`, moeda(item.subtotal), L) + ESC.NORMAL;
-            if (item.qtd > 1 || item.adicionais.length) {
-                t += `   un. ${moeda(item.precoBase)}\n`;
-            }
-            item.adicionais.forEach(a => {
-                t += linhaValor(`   + ${a.qtd}x ${a.nome}`, moeda(a.preco * a.qtd), L);
+        const itens = agrupar(p.itens);
+        let t = "";
+        t += ESC.INIT + ESC.CP850 + ESC.CENTRO + ESC.NEGRITO + OLD.DOUBLE_ON;
+        t += "VIA BALCAO\n";
+        t += `PEDIDO #${p.id}\n`;
+        t += OLD.DOUBLE_OFF + ESC.NORMAL;
+        t += "--------------------------------\n";
+        t += ESC.ESQUERDA;
+        t += `Data: ${limpar(p.criadoEm)}\n`;
+        t += `Cliente: ${limpar(p.nomeCliente)}\n`;
+        if (p.telefone) t += `Tel: ${limpar(p.telefone)}\n`;
+        if (p.descricao) t += `Obs: ${limpar(p.descricao)}\n`;
+        t += `Pagamento: ${limpar(p.metodo).toUpperCase()}\n`;
+        t += p.entrega ? "Tipo: ENTREGA\n" : "Tipo: RETIRADA BALCAO\n";
+        if (p.entrega && (p.endereco.rua || p.endereco.numero)) {
+            t += `End: ${limpar(p.endereco.rua)}, ${limpar(p.endereco.numero)}\n`;
+            if (p.endereco.cep) t += `CEP: ${limpar(p.endereco.cep)}\n`;
+        }
+        t += "--------------------------------\n";
+        t += ESC.NEGRITO + "ITENS DO PEDIDO\n" + ESC.NORMAL;
+        t += "--------------------------------\n";
+
+        let subtotalGeral = 0;
+        itens.forEach(item => {
+            const qtd = Number(item.qtd || 1);
+            const sub = subtotalDe(item);
+            subtotalGeral += sub;
+            quebrar(`${qtd}x ${item.nome}`, 22).forEach((linha, i) => {
+                t += i === 0 ? linha.padEnd(22).slice(0, 22) + ` R$ ${valor(sub)}\n` : `${linha}\n`;
             });
+            t += `   Unit: R$ ${valor(qtd > 0 ? sub / qtd : 0)}\n`;
+            item.adicionais.forEach(a => {
+                const q = Number(a.qtd || 1);
+                t += `   + ${q}x ${limpar(a.nome)} R$ ${valor(Number(a.preco || 0) * q)}\n`;
+            });
+            t += "\n";
         });
-        t += blocoTotais(p, L);
-        t += traco("=", L);
-        t += ESC.CENTRO + "Obrigado pela preferencia!\n";
-        t += "Volte sempre - Cantinho Familia\n";
-        t += ESC.ESQUERDA + ESC.AVANCO + ESC.CORTE;
+
+        const desconto = Math.max(0, Number(p.desconto || 0) || (subtotalGeral - p.totalPedido));
+        t += "--------------------------------\n";
+        t += `Subtotal:     R$ ${valor(subtotalGeral)}\n`;
+        if (desconto > 0.009) t += `Desconto:     R$ ${valor(desconto)}\n`;
+        if (p.taxaMotoca > 0) t += `Taxa Entrega: R$ ${valor(p.taxaMotoca)}\n`;
+        t += ESC.NEGRITO + `TOTAL FINAL:  R$ ${valor(p.totalFinal)}\n` + ESC.NORMAL;
+        t += "--------------------------------\n";
+        t += ESC.NEGRITO + `PAGAMENTO:    ${limpar(p.metodo).toUpperCase()}\n` + ESC.NORMAL;
+        t += "\n\n\n\n\n\n";
+        t += OLD.PARTIAL_CUT;
         return t;
     }
 
     function gerarCozinha(pedido) {
         const p = validar(pedido);
-        const L = config().colunas;
-        let t = cabecalho(p, "VIA COZINHA", L);
-        t += blocoCliente(p, L, true);
-        t += traco("=", L);
+        const itens = agrupar(p.itens);
+        let t = "";
+        t += ESC.INIT + ESC.CP850 + ESC.CENTRO + ESC.NEGRITO + OLD.DOUBLE_ON;
+        t += "VIA COZINHA\n";
+        t += `PEDIDO #${p.id}\n`;
+        t += OLD.DOUBLE_OFF + ESC.NORMAL;
+        t += "--------------------------------\n";
+        t += ESC.ESQUERDA;
+        t += `Cliente: ${limpar(p.nomeCliente).toUpperCase()}\n`;
+        t += p.entrega ? "ENTREGA\n" : "RETIRADA BALCAO\n";
+        t += `PAGAMENTO: ${limpar(p.metodo).toUpperCase()}\n`;
+        if (p.descricao) t += `OBS: ${limpar(p.descricao).toUpperCase()}\n`;
+        t += "--------------------------------\n";
         t += ESC.NEGRITO + "PREPARO\n" + ESC.NORMAL;
-        t += traco("-", L);
-        p.itens.forEach(item => {
-            // item em letra alta: a cozinha lê de longe
-            t += ESC.NEGRITO + ESC.ALTO;
-            quebrar(`${item.qtd}x ${item.nome.toUpperCase()}`, L).forEach(l => { t += l + "\n"; });
-            t += ESC.TAMANHO_NORMAL + ESC.NORMAL;
+        t += "--------------------------------\n";
+
+        let totalProdutos = 0;
+        itens.forEach(item => {
+            const qtd = Number(item.qtd || 1);
+            const sub = subtotalDe(item);
+            totalProdutos += sub;
+            t += ESC.NEGRITO + `${qtd}x ${limpar(item.nome).toUpperCase()}  R$ ${valor(sub)}\n` + ESC.NORMAL;
+            t += `   UNIT: R$ ${valor(qtd > 0 ? sub / qtd : 0)}\n`;
             item.adicionais.forEach(a => {
-                t += `     + ${a.qtd}x ${limpar(a.nome).toUpperCase()}\n`;
+                const q = Number(a.qtd || 1);
+                const total = Number(a.preco || 0) * q;
+                t += `   + ${q}x ${limpar(a.nome).toUpperCase()}` + (total > 0 ? ` R$ ${valor(total)}` : "") + "\n";
             });
             t += "\n";
         });
-        t += blocoTotais(p, L);
-        t += traco("=", L);
+
+        const desconto = Math.max(0, Number(p.desconto || 0) || (totalProdutos - p.totalPedido));
+        t += "--------------------------------\n";
+        t += ESC.NEGRITO + `TOTAL PRODUTOS: R$ ${valor(totalProdutos)}\n` + ESC.NORMAL;
+        if (desconto > 0.009) {
+            t += `DESCONTO:       R$ ${valor(desconto)}\n`;
+            t += `APOS DESCONTO:  R$ ${valor(p.totalPedido)}\n`;
+        }
+        if (p.taxaMotoca > 0) t += `TAXA ENTREGA:   R$ ${valor(p.taxaMotoca)}\n`;
+        t += ESC.NEGRITO + `TOTAL FINAL:    R$ ${valor(p.totalFinal)}\n` + ESC.NORMAL;
+        t += "--------------------------------\n";
         t += ESC.CENTRO + ESC.NEGRITO + "BOM TRABALHO!\n" + ESC.NORMAL;
-        t += ESC.ESQUERDA + ESC.AVANCO + ESC.CORTE;
+        t += "\n\n\n\n\n\n";
+        t += OLD.CUT;
         return t;
     }
 

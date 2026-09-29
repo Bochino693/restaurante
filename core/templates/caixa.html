@@ -273,6 +273,13 @@
                                placeholder="Rua"
                                class="w-full border rounded-xl px-3 py-2 text-xs">
 
+                        <input id="telefone"
+                               placeholder="Telefone do cliente"
+                               inputmode="tel"
+                               maxlength="15"
+                               oninput="formatarTelefone(this)"
+                               class="w-full border rounded-xl px-3 py-2 text-xs">
+
                         <div class="bg-white border rounded-xl px-3 py-2">
                             <div class="text-[9px] font-black text-gray-400 uppercase leading-none mb-1">
                                 Taxa Motoca
@@ -609,6 +616,18 @@ function mascaraMoeda(input) {
     value = value.replace(/(\d)(\d{3}),/g, '$1.$2,');
     input.value = value;
     atualizarTotais();
+}
+
+/* Telefone do cliente: (11) 91234-5678 ou (11) 1234-5678. */
+function formatarTelefone(input) {
+    const d = input.value.replace(/\D/g, '').slice(0, 11);
+    let t = d;
+    if (d.length > 2) t = `(${d.slice(0, 2)}) ${d.slice(2)}`;
+    if (d.length > 6) {
+        const meio = d.length === 11 ? 7 : 6;
+        t = `(${d.slice(0, 2)}) ${d.slice(2, meio)}-${d.slice(meio)}`;
+    }
+    input.value = t;
 }
 
 function formatarCEP(input) {
@@ -1152,6 +1171,7 @@ function setEntrega(valor, btnElement) {
         document.getElementById('cep').value = '';
         document.getElementById('rua').value = '';
         document.getElementById('numero').value = '';
+        document.getElementById('telefone').value = '';
         document.getElementById('inputMotoca').value = '0,00';
         atualizarTotais();
     }
@@ -1287,6 +1307,7 @@ function resetarFormulario() {
     document.getElementById('cep').value = '';
     document.getElementById('rua').value = '';
     document.getElementById('numero').value = '';
+    document.getElementById('telefone').value = '';
 
     document.querySelectorAll('.metodo-btn').forEach(btn => {
         btn.classList.remove('selected', 'bg-blue-600', 'text-white');
@@ -1517,7 +1538,8 @@ async function finalizarVenda() {
         const endereco = {
             cep: tipoEntrega ? document.getElementById('cep').value.trim() : '',
             rua: tipoEntrega ? document.getElementById('rua').value.trim() : '',
-            numero: tipoEntrega ? document.getElementById('numero').value.trim() : ''
+            numero: tipoEntrega ? document.getElementById('numero').value.trim() : '',
+            telefone: tipoEntrega ? document.getElementById('telefone').value.trim() : ''
         };
 
         const dadosVenda = {

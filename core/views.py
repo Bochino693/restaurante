@@ -251,13 +251,14 @@ class CaixaView(LoginRequiredMixin, View):
             cep = str(endereco.get("cep") or "").strip()
             rua = str(endereco.get("rua") or "").strip()
             numero = str(endereco.get("numero") or "").strip()
+            telefone = str(endereco.get("telefone") or "").strip()
 
             if entrega and (not rua or not numero):
                 return resposta_erro(
                     "Rua e número são obrigatórios para entrega."
                 )
 
-            if len(cep) > 9 or len(rua) > 120 or len(numero) > 50:
+            if len(cep) > 9 or len(rua) > 120 or len(numero) > 50 or len(telefone) > 20:
                 return resposta_erro(
                     "O endereço ultrapassa o tamanho permitido."
                 )
@@ -446,6 +447,7 @@ class CaixaView(LoginRequiredMixin, View):
                     cep=cep or None,
                     rua=rua or None,
                     numero=numero or None,
+                    telefone=telefone or None,
                     impresso=False
                 )
 
@@ -578,7 +580,8 @@ class CaixaView(LoginRequiredMixin, View):
                     "endereco": {
                         "cep": pedido.cep or "",
                         "rua": pedido.rua or "",
-                        "numero": pedido.numero or ""
+                        "numero": pedido.numero or "",
+                        "telefone": pedido.telefone or ""
                     },
                     "itens": itens_impressao,
                     "quantidadeLinhas": len(itens_impressao),
@@ -708,6 +711,7 @@ def pedidos_pendentes_impressao(request):
             'rua': pedido.rua or '',
             'numero': pedido.numero or '',
             'cep': pedido.cep or '',
+            'telefone': pedido.telefone or '',
             'total': str(pedido.total),
             'taxa_motoca': str(pedido.taxa_motoca),
             'criado_em': timezone.localtime(pedido.criado_em).strftime('%d/%m/%Y %H:%M'),
@@ -1102,6 +1106,7 @@ class PedidoReimprimirView(LoginRequiredMixin, View):
                 "rua": pedido.rua or "",
                 "numero": pedido.numero or "",
                 "cep": pedido.cep or "",
+                "telefone": pedido.telefone or "",
             },
             "itens": itens_impressao
         }
