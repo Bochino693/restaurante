@@ -179,6 +179,11 @@
                     </div>
                 </div>
 
+                <!-- CORPO: lista + dados do pedido. Em tela baixa ele inteiro
+                     rola (ver .carrinho-corpo no CSS); o botão Finalizar fica
+                     sempre visível embaixo. -->
+                <div id="carrinhoCorpo" class="carrinho-corpo flex-1 min-h-0 flex flex-col custom-scrollbar">
+
                 <!-- LISTA -->
                 <div id="carrinhoItens" class="flex-1 min-h-0 p-4 space-y-3 custom-scrollbar bg-slate-50">
                     <div id="emptyCart" class="h-full min-h-[320px] flex flex-col items-center justify-center text-center text-gray-300">
@@ -191,7 +196,7 @@
                 </div>
 
                 <!-- RODAPÉ COMPACTO -->
-                <div class="shrink-0 border-t border-gray-200 bg-white px-3 py-3 space-y-2.5 shadow-[0_-8px_20px_rgba(15,23,42,0.05)]">
+                <div id="carrinhoRodape" class="shrink-0 border-t border-gray-200 bg-white px-3 py-3 space-y-2.5 shadow-[0_-8px_20px_rgba(15,23,42,0.05)]">
 
                     <!-- DESCONTO + TOTAL -->
                     <div class="grid grid-cols-2 gap-2">
@@ -326,11 +331,19 @@
                         </button>
                     </div>
 
-                    <!-- BOTÃO FINALIZAR -->
+                </div>
+                </div>
+                <!-- fim do CORPO -->
+
+                <!-- BOTÃO FINALIZAR: sempre visível, em qualquer tamanho de tela -->
+                <div class="shrink-0 bg-white px-3 pt-2 pb-3 border-t border-gray-100">
+                    <div id="dicaRolar" class="dica-rolar">
+                        <i class="fas fa-angles-down"></i> role para ver todos os campos
+                    </div>
                     <button id="btnFinalizar"
                             type="button"
                             onclick="finalizarVenda()"
-                            class="w-full bg-green-500 hover:bg-green-600 text-white font-black h-10 rounded-xl shadow-lg transition-all text-xs uppercase tracking-[0.15em] disabled:opacity-60 disabled:cursor-not-allowed">
+                            class="w-full bg-green-500 hover:bg-green-600 text-white font-black h-11 rounded-xl shadow-lg transition-all text-xs uppercase tracking-[0.15em] disabled:opacity-60 disabled:cursor-not-allowed">
                         <span id="btnFinalizarTexto">Finalizar Pedido</span>
                     </button>
                 </div>
@@ -450,6 +463,71 @@
 
     #carrinhoItens {
         scrollbar-gutter: stable;
+    }
+
+    /* TELA BAIXA (notebook, monitor pequeno): o carrinho inteiro rola —
+       itens e dados do pedido — com uma barra de rolagem larga e visível.
+       O botão Finalizar fica fora da rolagem, sempre à mão. */
+    .dica-rolar {
+        display: none;
+    }
+
+    @media (max-height: 980px) {
+        .carrinho-corpo {
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            scrollbar-gutter: stable;
+        }
+
+        .carrinho-corpo #carrinhoItens {
+            flex: 0 0 auto;
+            min-height: 150px;
+            max-height: 38vh;
+        }
+
+        .carrinho-corpo #carrinhoRodape {
+            box-shadow: none;
+        }
+
+        .carrinho-corpo::-webkit-scrollbar {
+            width: 10px;
+        }
+
+        .carrinho-corpo::-webkit-scrollbar-thumb {
+            background: #94a3b8;
+            border-radius: 999px;
+            border: 2px solid #fff;
+        }
+
+        .carrinho-corpo::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
+        }
+
+        .carrinho-corpo::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+
+        .carrinho-corpo {
+            scrollbar-width: auto;
+            scrollbar-color: #94a3b8 #f1f5f9;
+        }
+
+        .dica-rolar.visivel {
+            display: block;
+            text-align: center;
+            font-size: 10px;
+            font-weight: 800;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: .08em;
+            margin-bottom: 6px;
+            animation: dica-pulo 1.4s ease-in-out infinite;
+        }
+    }
+
+    @keyframes dica-pulo {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(2px); }
     }
 
     .categoria-btn.active {
@@ -814,6 +892,27 @@ function escaparHtml(valor) {
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#039;');
 }
+
+/* Dica "role para ver todos os campos": aparece enquanto o carrinho tem
+   conteúdo escondido embaixo (tela baixa) e some quando chega no fim. */
+function atualizarDicaRolar() {
+    const corpo = document.getElementById('carrinhoCorpo');
+    const dica = document.getElementById('dicaRolar');
+    if (!corpo || !dica) return;
+    const falta = corpo.scrollHeight - corpo.clientHeight - corpo.scrollTop;
+    dica.classList.toggle('visivel', falta > 12);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const corpo = document.getElementById('carrinhoCorpo');
+    if (!corpo) return;
+    corpo.addEventListener('scroll', atualizarDicaRolar, { passive: true });
+    window.addEventListener('resize', atualizarDicaRolar);
+    new MutationObserver(atualizarDicaRolar).observe(corpo, {
+        childList: true, subtree: true, attributes: true, attributeFilter: ['class']
+    });
+    atualizarDicaRolar();
+});
 
 function renderCarrinho() {
     const container = document.getElementById('carrinhoItens');

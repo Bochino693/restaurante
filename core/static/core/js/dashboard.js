@@ -255,24 +255,97 @@
         rosca("chartEntrega", "graficoEntregaJson", false);
         rosca("chartStatus", "graficoStatusJson", false);
 
+        /* RANKINGS EM BARRAS DEITADAS (campeões, faturamento, cliques).
+           - Passar o mouse EM CIMA da barra (ou do nome) mostra o valor: a
+             interação segue o eixo vertical; antes seguia o horizontal e só
+             andava com o mouse de lado.
+           - O 1º colocado fica em cima; o valor aparece na ponta da barra.
+           - A altura cresce com o número de produtos (nada espremido) e os
+             nomes longos são encurtados — o nome inteiro vai na dica. */
+        const valorNaPonta = {
+            id: "valorNaPonta",
+            afterDatasetsDraw(chart, _args, opts) {
+                const { ctx } = chart;
+                const meta = chart.getDatasetMeta(0);
+                if (!meta || meta.hidden) return;
+                ctx.save();
+                ctx.font = "800 11px Inter, ui-sans-serif, system-ui, sans-serif";
+                ctx.textBaseline = "middle";
+                const area = chart.chartArea;
+                meta.data.forEach((barra, i) => {
+                    const v = chart.data.datasets[0].data[i];
+                    const texto = opts.formatar(v);
+                    const largura = ctx.measureText(texto).width;
+                    const cabeFora = barra.x + 8 + largura <= area.right;
+                    ctx.fillStyle = cabeFora ? opts.corTexto : "#fff";
+                    ctx.textAlign = cabeFora ? "left" : "right";
+                    ctx.fillText(texto, cabeFora ? barra.x + 8 : barra.x - 8, barra.y);
+                });
+                ctx.restore();
+            }
+        };
+
         function barrasDeitadas(id, dadosId, dinheiro, cor) {
             const d = ler(dadosId, {});
+            // do maior para o menor: o campeão em cima
+            const pares = (d.labels || []).map((l, i) => [l, Number((d.valores || [])[i] || 0)])
+                .sort((a, b) => b[1] - a[1]);
+            const labels = pares.map(p => p[0]);
+            const valores = pares.map(p => p[1]);
+            const formatar = v => dinheiro ? brl.format(v) : `${v} un.`;
+            const estreita = window.matchMedia("(max-width: 560px)").matches;
+            const limite = estreita ? 14 : 26;
+
+            const caixa = document.getElementById(id)?.parentElement;
+            if (caixa) caixa.style.height = Math.max(240, labels.length * (estreita ? 34 : 40) + 40) + "px";
+
             const op = base(c);
             op.indexAxis = "y";
-            op.plugins.legend.display = false;
-            op.scales = {
-                x: { beginAtZero: true, grid: { color: c.grade }, ticks: { color: c.texto, precision: 0, callback: v => dinheiro ? brlCurto(v) : v, font: { size: 10 } } },
-                y: { grid: { display: false }, ticks: { color: c.texto, font: { size: 11, weight: "700" } } }
+            op.interaction = { mode: "index", axis: "y", intersect: false };
+            op.onHover = (evt, ativos) => {
+                const alvo = evt?.native?.target;
+                if (alvo) alvo.style.cursor = ativos.length ? "pointer" : "default";
             };
-            op.plugins.tooltip.callbacks = { label: ctx => dinheiro ? ` ${brl.format(ctx.parsed.x)}` : ` ${ctx.parsed.x}` };
+            op.layout = { padding: { right: estreita ? 64 : 84 } };
+            op.plugins.legend.display = false;
+            op.plugins.valorNaPonta = { formatar, corTexto: c.texto };
+            op.scales = {
+                x: { beginAtZero: true, grace: "5%", grid: { color: c.grade }, ticks: { color: c.texto, precision: 0, maxTicksLimit: estreita ? 4 : 6, callback: v => dinheiro ? brlCurto(v) : v, font: { size: 10 } } },
+                y: {
+                    grid: { display: false },
+                    ticks: {
+                        color: c.texto,
+                        font: { size: estreita ? 10 : 11, weight: "700" },
+                        callback(valor) {
+                            const nome = String(this.getLabelForValue(valor) || "");
+                            return nome.length > limite ? nome.slice(0, limite - 1) + "…" : nome;
+                        }
+                    }
+                }
+            };
+            op.plugins.tooltip.callbacks = {
+                title: itens => itens.length ? `${itens[0].dataIndex + 1}º  ${itens[0].label}` : "",
+                label: ctx => dinheiro ? ` ${brl.format(ctx.parsed.x)}` : ` ${ctx.parsed.x} unidades`
+            };
             criar(id, {
                 type: "bar",
                 data: {
-                    labels: d.labels || [],
-                    datasets: [{ label: d.titulo || "Total", data: d.valores || [], backgroundColor: transparente(cor, .8), borderRadius: 8, borderSkipped: false }]
+                    labels,
+                    datasets: [{
+                        label: d.titulo || "Total",
+                        data: valores,
+                        backgroundColor: transparente(cor, .78),
+                        hoverBackgroundColor: cor,
+                        borderRadius: 8,
+                        borderSkipped: false,
+                        maxBarThickness: 28,
+                        categoryPercentage: .78,
+                        barPercentage: .9
+                    }]
                 },
-                options: op
-            }, d.valores);
+                options: op,
+                plugins: [valorNaPonta]
+            }, valores);
         }
 
         barrasDeitadas("chartTopProdutos", "graficoTopProdutosJson", false, c.marca);
@@ -301,6 +374,11 @@
 
     // Trocou o tema: os gráficos repintam com as cores novas.
     document.addEventListener("cf:tema", () => { if (window.Chart) redesenhar(); });
+    // Celular <-> tela larga: os rankings mudam de altura e de tamanho de nome.
+    const telaEstreita = window.matchMedia("(max-width: 560px)");
+    const aoMudarLargura = () => { if (window.Chart) redesenhar(); };
+    if (telaEstreita.addEventListener) telaEstreita.addEventListener("change", aoMudarLargura);
+    else if (telaEstreita.addListener) telaEstreita.addListener(aoMudarLargura);
 
     // Filtros e atalhos: a tela de carregamento aparece na hora do clique.
     document.querySelectorAll("[data-carregar]").forEach(a => a.addEventListener("click", () => mostrarTela("Calculando o período…")));
