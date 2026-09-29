@@ -218,18 +218,54 @@
     const pagamento = m => NOMES_PAGAMENTO[limpar(m).toUpperCase()] || limpar(m).toUpperCase() || "-";
 
     /* ------------------------------------------------------ as notinhas */
-    /* LAYOUT COMPACTO (o da versão eb7bb7f): economiza papel e bobina — sem
-       cabeçalho da casa nem rodapé, 32 colunas, só o que o balcão e a
-       cozinha precisam. O telefone do cliente entra numa linha só, em letra
-       normal, quando foi informado. */
-    const OLD = {
-        CUT: "\x1D\x56\x00",
-        PARTIAL_CUT: "\x1D\x56\x01",
-        DOUBLE_ON: "\x1D\x21\x11",
-        DOUBLE_OFF: "\x1D\x21\x00"
-    };
+    /* LAYOUT ECONÔMICO: as duas vias do mesmo tamanho e em letra normal —
+       nada de letra dupla, linha em branco entre itens, rodapé ou avanço de
+       papel sobrando. Nome, telefone e endereço numa linha cada; o corte
+       avança só até a faca (GS V 66). */
     const valor = v => Number(v || 0).toFixed(2).replace(".", ",");
     const somaAdicionais = ads => (ads || []).reduce((s, a) => s + Number(a.preco || 0) * Number(a.qtd || 1), 0);
+
+    /** "29/09/2026, 14:30:12" -> "29/09 14:30". */
+    function dataCurta(txt) {
+        const s = limpar(txt);
+        const d = s.match(/(\d{2}\/\d{2})/);
+        const h = s.match(/(\d{1,2}:\d{2})/);
+        return d && h ? `${d[1]} ${h[1]}` : s;
+    }
+
+    /** Cabeçalho das duas vias: 3 a 5 linhas em letra normal. */
+    function topo(p, via, L) {
+        let t = ESC.INIT + ESC.CP850 + ESC.ESQUERDA + ESC.TAMANHO_NORMAL;
+        t += ESC.NEGRITO + linhaValor(`PEDIDO #${p.id}`, via, L) + ESC.NORMAL;
+        t += linhaValor(p.nomeCliente, dataCurta(p.criadoEm), L);
+        if (p.telefone) t += `Tel: ${limpar(p.telefone)}\n`;
+        if (p.entrega) {
+            const end = [limpar(p.endereco.rua), limpar(p.endereco.numero)].filter(Boolean).join(", ");
+            const cep = limpar(p.endereco.cep);
+            quebrar(`Entrega: ${end || "-"}${cep ? " CEP " + cep : ""}`, L).forEach(l => { t += l + "\n"; });
+        } else {
+            t += "Retirada no balcao\n";
+        }
+        if (p.descricao) {
+            t += ESC.NEGRITO;
+            quebrar(`Obs: ${p.descricao}`, L).forEach(l => { t += l + "\n"; });
+            t += ESC.NORMAL;
+        }
+        return t + traco("-", L);
+    }
+
+    /** Total e pagamento (as duas vias: o motoboy cobra pela da cozinha). */
+    function fechamento(p, somaItens, L) {
+        let t = traco("-", L);
+        const desconto = Math.max(0, Number(p.desconto || 0) || (somaItens - p.totalPedido));
+        if (desconto > 0.009 || p.taxaMotoca > 0) {
+            t += linhaValor("Subtotal", valor(somaItens), L);
+            if (desconto > 0.009) t += linhaValor("Desconto", "-" + valor(desconto), L);
+            if (p.taxaMotoca > 0) t += linhaValor("Taxa entrega", valor(p.taxaMotoca), L);
+        }
+        t += ESC.NEGRITO + linhaValor(`TOTAL ${pagamento(p.metodo)}`, "R$ " + valor(p.totalFinal), L) + ESC.NORMAL;
+        return t + ESC.CORTE;
+    }
 
     /** Itens iguais (mesmo nome e mesmos adicionais) numa linha só. */
     function agrupar(itens) {
@@ -253,106 +289,44 @@
         return (Number(item.precoBase || 0) + somaAdicionais(item.adicionais)) * Number(item.qtd || 0);
     }
 
+    /** Balcão: cada item com o valor na mesma linha; "un." só se qtd > 1. */
     function gerarBalcao(pedido) {
         const p = validar(pedido);
-        const itens = agrupar(p.itens);
-        let t = "";
-        t += ESC.INIT + ESC.CP850 + ESC.CENTRO + ESC.NEGRITO + OLD.DOUBLE_ON;
-        t += "VIA BALCAO\n";
-        t += `PEDIDO #${p.id}\n`;
-        t += OLD.DOUBLE_OFF + ESC.NORMAL;
-        t += "--------------------------------\n";
-        t += ESC.ESQUERDA;
-        t += `Data: ${limpar(p.criadoEm)}\n`;
-        t += `Cliente: ${limpar(p.nomeCliente)}\n`;
-        if (p.telefone) t += `Tel: ${limpar(p.telefone)}\n`;
-        if (p.descricao) t += `Obs: ${limpar(p.descricao)}\n`;
-        t += `Pagamento: ${limpar(p.metodo).toUpperCase()}\n`;
-        t += p.entrega ? "Tipo: ENTREGA\n" : "Tipo: RETIRADA BALCAO\n";
-        if (p.entrega && (p.endereco.rua || p.endereco.numero)) {
-            t += `End: ${limpar(p.endereco.rua)}, ${limpar(p.endereco.numero)}\n`;
-            if (p.endereco.cep) t += `CEP: ${limpar(p.endereco.cep)}\n`;
-        }
-        t += "--------------------------------\n";
-        t += ESC.NEGRITO + "ITENS DO PEDIDO\n" + ESC.NORMAL;
-        t += "--------------------------------\n";
-
-        let subtotalGeral = 0;
-        itens.forEach(item => {
+        const L = config().colunas;
+        let t = topo(p, "BALCAO", L);
+        let soma = 0;
+        agrupar(p.itens).forEach(item => {
             const qtd = Number(item.qtd || 1);
             const sub = subtotalDe(item);
-            subtotalGeral += sub;
-            quebrar(`${qtd}x ${item.nome}`, 22).forEach((linha, i) => {
-                t += i === 0 ? linha.padEnd(22).slice(0, 22) + ` R$ ${valor(sub)}\n` : `${linha}\n`;
-            });
-            t += `   Unit: R$ ${valor(qtd > 0 ? sub / qtd : 0)}\n`;
-            item.adicionais.forEach(a => {
-                const q = Number(a.qtd || 1);
-                t += `   + ${q}x ${limpar(a.nome)} R$ ${valor(Number(a.preco || 0) * q)}\n`;
-            });
-            t += "\n";
-        });
-
-        const desconto = Math.max(0, Number(p.desconto || 0) || (subtotalGeral - p.totalPedido));
-        t += "--------------------------------\n";
-        t += `Subtotal:     R$ ${valor(subtotalGeral)}\n`;
-        if (desconto > 0.009) t += `Desconto:     R$ ${valor(desconto)}\n`;
-        if (p.taxaMotoca > 0) t += `Taxa Entrega: R$ ${valor(p.taxaMotoca)}\n`;
-        t += ESC.NEGRITO + `TOTAL FINAL:  R$ ${valor(p.totalFinal)}\n` + ESC.NORMAL;
-        t += "--------------------------------\n";
-        t += ESC.NEGRITO + `PAGAMENTO:    ${limpar(p.metodo).toUpperCase()}\n` + ESC.NORMAL;
-        t += "\n\n\n\n\n\n";
-        t += OLD.PARTIAL_CUT;
-        return t;
-    }
-
-    function gerarCozinha(pedido) {
-        const p = validar(pedido);
-        const itens = agrupar(p.itens);
-        let t = "";
-        t += ESC.INIT + ESC.CP850 + ESC.CENTRO + ESC.NEGRITO + OLD.DOUBLE_ON;
-        t += "VIA COZINHA\n";
-        t += `PEDIDO #${p.id}\n`;
-        t += OLD.DOUBLE_OFF + ESC.NORMAL;
-        t += "--------------------------------\n";
-        t += ESC.ESQUERDA;
-        t += `Cliente: ${limpar(p.nomeCliente).toUpperCase()}\n`;
-        t += p.entrega ? "ENTREGA\n" : "RETIRADA BALCAO\n";
-        t += `PAGAMENTO: ${limpar(p.metodo).toUpperCase()}\n`;
-        if (p.descricao) t += `OBS: ${limpar(p.descricao).toUpperCase()}\n`;
-        t += "--------------------------------\n";
-        t += ESC.NEGRITO + "PREPARO\n" + ESC.NORMAL;
-        t += "--------------------------------\n";
-
-        let totalProdutos = 0;
-        itens.forEach(item => {
-            const qtd = Number(item.qtd || 1);
-            const sub = subtotalDe(item);
-            totalProdutos += sub;
-            t += ESC.NEGRITO + `${qtd}x ${limpar(item.nome).toUpperCase()}  R$ ${valor(sub)}\n` + ESC.NORMAL;
-            t += `   UNIT: R$ ${valor(qtd > 0 ? sub / qtd : 0)}\n`;
+            soma += sub;
+            t += linhaValor(`${qtd}x ${item.nome}`, valor(sub), L);
+            if (qtd > 1) t += `   un. ${valor(sub / qtd)}\n`;
             item.adicionais.forEach(a => {
                 const q = Number(a.qtd || 1);
                 const total = Number(a.preco || 0) * q;
-                t += `   + ${q}x ${limpar(a.nome).toUpperCase()}` + (total > 0 ? ` R$ ${valor(total)}` : "") + "\n";
+                t += total > 0 ? linhaValor(`   + ${q}x ${a.nome}`, valor(total), L)
+                               : `   + ${q}x ${limpar(a.nome)}\n`;
             });
-            t += "\n";
         });
+        return t + fechamento(p, soma, L);
+    }
 
-        const desconto = Math.max(0, Number(p.desconto || 0) || (totalProdutos - p.totalPedido));
-        t += "--------------------------------\n";
-        t += ESC.NEGRITO + `TOTAL PRODUTOS: R$ ${valor(totalProdutos)}\n` + ESC.NORMAL;
-        if (desconto > 0.009) {
-            t += `DESCONTO:       R$ ${valor(desconto)}\n`;
-            t += `APOS DESCONTO:  R$ ${valor(p.totalPedido)}\n`;
-        }
-        if (p.taxaMotoca > 0) t += `TAXA ENTREGA:   R$ ${valor(p.taxaMotoca)}\n`;
-        t += ESC.NEGRITO + `TOTAL FINAL:    R$ ${valor(p.totalFinal)}\n` + ESC.NORMAL;
-        t += "--------------------------------\n";
-        t += ESC.CENTRO + ESC.NEGRITO + "BOM TRABALHO!\n" + ESC.NORMAL;
-        t += "\n\n\n\n\n\n";
-        t += OLD.CUT;
-        return t;
+    /** Cozinha: itens em negrito e maiúsculas, sem preço por item. */
+    function gerarCozinha(pedido) {
+        const p = validar(pedido);
+        const L = config().colunas;
+        let t = topo(p, "COZINHA", L);
+        let soma = 0;
+        agrupar(p.itens).forEach(item => {
+            soma += subtotalDe(item);
+            t += ESC.NEGRITO;
+            quebrar(`${Number(item.qtd || 1)}x ${item.nome.toUpperCase()}`, L).forEach(l => { t += l + "\n"; });
+            t += ESC.NORMAL;
+            item.adicionais.forEach(a => {
+                quebrar(`+ ${Number(a.qtd || 1)}x ${a.nome.toUpperCase()}`, L - 3).forEach(l => { t += "   " + l + "\n"; });
+            });
+        });
+        return t + fechamento(p, soma, L);
     }
 
     /* ------------------------------------------------------- QZ Tray */
