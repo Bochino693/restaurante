@@ -1,177 +1,223 @@
-{% load static %}<!DOCTYPE html>
-<html lang="pt-br" data-tema="sol">
+<!DOCTYPE html>
+<html lang="pt-br">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Painel{% endblock %} · Cantinho Família</title>
-    {% include "_tema_head.html" %}
-    <style>
-        .pulse-notify { animation: pulse-red 2s infinite; }
-        @keyframes pulse-red {
-            0% { box-shadow: 0 0 0 0 rgba(227, 53, 61, .55); }
-            70% { box-shadow: 0 0 0 10px rgba(227, 53, 61, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(227, 53, 61, 0); }
-        }
-        .cf-nav a { position: relative; }
-        .cf-nav a.ativo { color: var(--cf-marca); }
-        .cf-nav a.ativo::after {
-            content: ""; position: absolute; left: 0; right: 0; bottom: -10px;
-            height: 3px; border-radius: 3px; background: var(--cf-marca);
-        }
-        .cf-topo {
-            background: color-mix(in srgb, var(--cf-superficie) 88%, transparent);
-            -webkit-backdrop-filter: blur(12px);
-            backdrop-filter: blur(12px);
-            border-bottom: 1px solid var(--cf-borda);
-        }
-        .cf-lateral a.ativo { background: var(--cf-marca); color: #fff; box-shadow: 0 10px 24px rgba(227, 53, 61, .35); }
-    </style>
-    {% block head_extra %}{% endblock %}
-</head>
-<body class="cf-painel font-sans min-h-screen">
-{% include "_ceu.html" %}
+    <title>{% block title %}Sistema Restaurante{% endblock %}</title>
 
-{% with url_name=request.resolver_match.url_name %}
-<header class="cf-topo sticky top-0 z-40">
-    <div class="flex items-center justify-between gap-4 px-4 md:px-6 py-2.5">
-        <div class="flex items-center gap-3 min-w-0">
-            <button type="button" onclick="toggleMenu()" class="cf-tema-botao" aria-label="Abrir menu">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        /* Animação de pulso para notificações novas */
+        .pulse-notify {
+            animation: pulse-red 2s infinite;
+        }
+        @keyframes pulse-red {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans" hx-boost="true">
+
+<div class="fixed left-6 bottom-10 flex flex-col gap-4 z-50">
+
+    {% if user.is_staff %}
+    <div class="relative group">
+        <a href="/admin"
+           target="_blank"
+           class="flex items-center justify-center w-14 h-14 bg-indigo-600 text-white rounded-full shadow-2xl hover:bg-indigo-700 hover:scale-110 transition-all duration-300">
+            <i class="fas fa-user-shield text-xl"></i>
+        </a>
+        <span class="absolute left-16 top-1/2 -translate-y-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none shadow-lg">
+            Painel Admin
+        </span>
+    </div>
+    {% endif %}
+
+    <div class="relative group">
+        <a href="{% url 'pedidos' %}"
+           class="flex items-center justify-center w-14 h-14 bg-white text-orange-500 rounded-full shadow-2xl hover:bg-orange-50 hover:scale-110 transition-all duration-300 border border-gray-100 {% if pedidos_pendentes_count > 0 %}pulse-notify{% endif %}">
+            <i class="fas fa-bell text-xl"></i>
+        </a>
+
+        {% if pedidos_pendentes_count > 0 %}
+        <span class="absolute -top-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-red-600 text-white text-[11px] font-black border-2 border-white shadow-sm">
+            {{ pedidos_pendentes_count }}
+        </span>
+        {% endif %}
+
+        <span class="absolute left-16 top-1/2 -translate-y-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none shadow-lg">
+            {{ pedidos_pendentes_count }} Pedidos Pendentes
+        </span>
+    </div>
+
+</div>
+
+<header class="bg-white shadow-sm border-b sticky top-0 z-40">
+    <div class="flex items-center justify-between px-6 py-3">
+        <div class="flex items-center gap-4">
+            <button onclick="toggleMenu()" class="text-gray-500 hover:text-gray-800 text-2xl transition-colors">
                 <i class="fas fa-bars"></i>
             </button>
-            <a href="{% url 'pedidos' %}" class="block h-11 shrink-0" title="Cantinho Família">
-                {% include "_logo.html" %}
-            </a>
+            <div class="flex flex-col">
+                <span class="text-xs font-bold text-blue-600 uppercase tracking-widest">Premium</span>
+                <h1 class="text-xl font-black text-gray-800 leading-none">Restaurante Admin</h1>
+            </div>
         </div>
 
-        <nav class="cf-nav hidden lg:flex items-center gap-7 text-sm font-bold text-gray-500">
-            <a href="{% url 'caixa' %}" class="flex items-center gap-2 hover:text-gray-800 {% if url_name == 'caixa' %}ativo{% endif %}">
+       <div class="hidden md:flex items-center gap-8 text-sm font-medium text-gray-500">
+        {% with url_name=request.resolver_match.url_name %}
+            <a href="{% url 'caixa' %}"
+               class="flex items-center gap-2 transition-all {% if url_name == 'caixa' %}text-blue-600 font-black border-b-2 border-blue-600 pb-1{% else %}hover:text-blue-600{% endif %}">
                 <i class="fas fa-cash-register"></i> Caixa
             </a>
-            <a href="{% url 'pedidos' %}" class="flex items-center gap-2 hover:text-gray-800 {% if url_name == 'pedidos' %}ativo{% endif %}">
-                <i class="fas fa-concierge-bell"></i> Pedidos
-            </a>
-            <a href="{% url 'estoque' %}" class="flex items-center gap-2 hover:text-gray-800 {% if url_name == 'estoque' %}ativo{% endif %}">
+
+            <a href="{% url 'estoque' %}"
+               class="flex items-center gap-2 transition-all {% if url_name == 'estoque' %}text-blue-600 font-black border-b-2 border-blue-600 pb-1{% else %}hover:text-blue-600{% endif %}">
                 <i class="fas fa-boxes"></i> Estoque
             </a>
-            {% if user.is_staff %}
-            <a href="{% url 'vendas' %}" class="flex items-center gap-2 hover:text-gray-800 {% if url_name == 'vendas' %}ativo{% endif %}">
-                <i class="fas fa-receipt"></i> Vendas
-            </a>
-            <a href="{% url 'dashboards' %}" class="flex items-center gap-2 hover:text-gray-800 {% if url_name == 'dashboards' %}ativo{% endif %}">
-                <i class="fas fa-chart-pie"></i> Estatísticas
-            </a>
-            {% endif %}
-        </nav>
-
-        <div class="flex items-center gap-2">
-            {% if loja %}
-            <span class="hidden md:inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wide px-3 py-2 rounded-xl {% if loja.aberta %}bg-green-50 text-green-600{% else %}bg-red-50 text-red-600{% endif %}"
-                  title="Funcionamento: {{ loja.horario }}">
-                <i class="fas fa-circle text-[7px] {% if loja.aberta %}animate-pulse{% endif %}"></i>
-                {% if loja.aberta %}Aberto{% else %}Fechado{% endif %}
-            </span>
-            {% endif %}
 
             <a href="{% url 'pedidos' %}"
-               class="cf-tema-botao relative {% if pedidos_pendentes_count %}pulse-notify{% endif %}"
-               title="{{ pedidos_pendentes_count|default:0 }} pedido{{ pedidos_pendentes_count|pluralize }} de hoje em andamento">
-                <i class="fas fa-bell" style="color: var(--cf-marca)"></i>
-                {% if pedidos_pendentes_count %}
-                <span class="absolute -top-1.5 -right-1.5 min-w-[20px] h-5 px-1 flex items-center justify-center rounded-full text-white text-[10px] font-black"
-                      style="background: var(--cf-marca)">{{ pedidos_pendentes_count }}</span>
-                {% endif %}
+               class="flex items-center gap-2 transition-all {% if url_name == 'pedidos' %}text-blue-600 font-black border-b-2 border-blue-600 pb-1{% else %}hover:text-blue-600{% endif %}">
+                <i class="fas fa-concierge-bell"></i> Pedidos
             </a>
-
-            <div class="relative">
-                <button type="button" class="cf-tema-botao" data-cf-tema-botao aria-label="Escolher tema"></button>
-            </div>
 
             {% if user.is_staff %}
-            <a href="/admin/" target="_blank" rel="noopener" class="cf-tema-botao hidden sm:inline-flex" title="Painel Admin">
-                <i class="fas fa-user-shield"></i>
+            <a href="{% url 'vendas' %}"
+               class="flex items-center gap-2 transition-all {% if url_name == 'vendas' %}text-blue-600 font-black border-b-2 border-blue-600 pb-1{% else %}hover:text-blue-600{% endif %}">
+                <i class="fas fa-receipt"></i> Vendas
+            </a>
+
+            <a href="{% url 'dashboards' %}"
+               class="flex items-center gap-2 transition-all {% if url_name == 'dashboards' %}text-blue-600 font-black border-b-2 border-blue-600 pb-1{% else %}hover:text-blue-600{% endif %}">
+                <i class="fas fa-chart-pie"></i> Dashboards
             </a>
             {% endif %}
+        {% endwith %}
+    </div>
 
-            <div class="hidden sm:flex items-center gap-2 pl-1">
-                <div class="w-9 h-9 rounded-xl flex items-center justify-center font-black text-sm text-white"
-                     style="background: var(--cf-marca)">{{ user.username|slice:":1"|upper }}</div>
+        <div class="flex items-center gap-3">
+            <span class="text-sm font-semibold text-gray-700">{{ user.username }}</span>
+            <div class="w-8 h-8 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-bold text-xs border border-blue-200">
+                {{ user.username|slice:":1"|upper }}
             </div>
         </div>
     </div>
 </header>
 
 <aside id="sidebar"
-       class="cf-lateral fixed top-0 left-0 h-full w-72 bg-gray-900 shadow-2xl transform -translate-x-full transition-transform duration-300 z-[60]"
-       style="background: #121012">
-    <div class="p-7 flex flex-col h-full">
-        <div class="flex justify-between items-center mb-8">
-            <div class="h-10">
-                <img src="{% static 'core/img/logo-claro.webp' %}?v={{ versao_estaticos }}" alt="Cantinho Família" class="h-full w-auto">
-            </div>
-            <button type="button" onclick="toggleMenu()" class="text-gray-400 hover:text-white text-xl" aria-label="Fechar menu">
+       class="fixed top-0 left-0 h-full w-72 bg-gray-900 shadow-2xl transform -translate-x-full transition-transform duration-300 z-[60]">
+    <div class="p-8">
+        <div class="flex justify-between items-center mb-10">
+            <h2 class="font-black text-2xl text-white uppercase tracking-tighter">Navegação</h2>
+            <button onclick="toggleMenu()" class="text-gray-400 hover:text-white text-xl">
                 <i class="fas fa-times"></i>
             </button>
         </div>
 
-        <nav class="flex flex-col gap-1.5 text-gray-300 font-semibold">
-            <a href="{% url 'caixa' %}" class="flex items-center gap-4 p-3 rounded-xl transition-all hover:bg-white/10 {% if url_name == 'caixa' %}ativo{% endif %}">
-                <i class="fas fa-cash-register w-6"></i> PDV / Caixa
-            </a>
-            <a href="{% url 'pedidos' %}" class="flex items-center gap-4 p-3 rounded-xl transition-all hover:bg-white/10 {% if url_name == 'pedidos' %}ativo{% endif %}">
-                <i class="fas fa-concierge-bell w-6"></i> Pedidos
-            </a>
-            <a href="{% url 'estoque' %}" class="flex items-center gap-4 p-3 rounded-xl transition-all hover:bg-white/10 {% if url_name == 'estoque' %}ativo{% endif %}">
-                <i class="fas fa-truck-loading w-6"></i> Estoque
-            </a>
-            <a href="{% url 'gerenciar_pratos_dia' %}" class="flex items-center gap-4 p-3 rounded-xl transition-all hover:bg-white/10 {% if url_name == 'gerenciar_pratos_dia' %}ativo{% endif %}">
-                <i class="fas fa-calendar-day w-6"></i> Cardápio do Dia
-            </a>
-            <a href="{% url 'cardapio' %}" target="_blank" rel="noopener" class="flex items-center gap-4 p-3 rounded-xl transition-all hover:bg-white/10">
-                <i class="fas fa-mobile-screen w-6"></i> Ver cardápio do cliente
-            </a>
+        <nav class="flex flex-col gap-2">
+    {% with url_name=request.resolver_match.url_name %}
 
-            {% if user.is_staff %}
-            <div class="mt-5 mb-1 px-3 text-[10px] font-black text-gray-500 uppercase tracking-widest">Gestão e relatórios</div>
-            <a href="{% url 'vendas' %}" class="flex items-center gap-4 p-3 rounded-xl transition-all hover:bg-white/10 {% if url_name == 'vendas' %}ativo{% endif %}">
-                <i class="fas fa-receipt w-6"></i> Histórico de Vendas
-            </a>
-            <a href="{% url 'dashboards' %}" class="flex items-center gap-4 p-3 rounded-xl transition-all hover:bg-white/10 {% if url_name == 'dashboards' %}ativo{% endif %}">
-                <i class="fas fa-chart-pie w-6"></i> Estatísticas
-            </a>
-            <a href="/admin/" target="_blank" rel="noopener" class="flex items-center gap-4 p-3 rounded-xl transition-all hover:bg-white/10">
-                <i class="fas fa-user-shield w-6"></i> Painel Admin
-            </a>
-            {% endif %}
-        </nav>
+        <a href="{% url 'caixa' %}"
+           class="flex items-center gap-4 p-3 rounded-xl transition-all {% if url_name == 'caixa' %}bg-blue-600 text-white shadow-lg shadow-blue-900/50 font-bold{% else %}text-gray-300 hover:bg-gray-800{% endif %}">
+            <i class="fas fa-cash-register w-6"></i> PDV / Caixa
+        </a>
 
-        <div class="mt-auto pt-6 border-t border-white/10">
-            {% if loja %}
-            <p class="text-[11px] text-gray-400 mb-3"><i class="fas fa-clock mr-1"></i> Funcionamento: {{ loja.horario }}</p>
-            {% endif %}
-            <a href="{% url 'logout' %}"
-               class="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-red-500/10 text-red-400 font-black hover:bg-red-500/20 transition-all">
-                <i class="fas fa-sign-out-alt"></i> Sair ({{ user.username }})
-            </a>
-        </div>
+        <a href="{% url 'estoque' %}"
+           class="flex items-center gap-4 p-3 rounded-xl transition-all {% if url_name == 'estoque' %}bg-blue-600 text-white shadow-lg shadow-blue-900/50 font-bold{% else %}text-gray-300 hover:bg-gray-800{% endif %}">
+            <i class="fas fa-truck-loading w-6"></i> Estoque
+        </a>
+
+        <a href="{% url 'pedidos' %}"
+           class="flex items-center gap-4 p-3 rounded-xl transition-all {% if url_name == 'pedidos' %}bg-blue-600 text-white shadow-lg shadow-blue-900/50 font-bold{% else %}text-gray-300 hover:bg-gray-800{% endif %}">
+            <i class="fas fa-concierge-bell w-6"></i> Pedidos
+        </a>
+
+        <a href="{% url 'gerenciar_pratos_dia' %}"
+           class="flex items-center gap-4 p-3 rounded-xl transition-all {% if request.resolver_match.url_name == 'gerenciar_pratos_dia' %}bg-blue-600 text-white shadow-lg shadow-blue-900/50 font-bold{% else %}text-gray-300 hover:bg-gray-800{% endif %}">
+            <i class="fas fa-calendar-day w-6"></i> Cardápio do Dia
+        </a>
+
+        {% if user.is_staff %}
+        <div class="mt-6 mb-2 px-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest">Gestão e Relatórios</div>
+
+        <a href="{% url 'vendas' %}"
+           class="flex items-center gap-4 p-3 rounded-xl transition-all {% if url_name == 'vendas' %}bg-blue-600 text-white shadow-lg shadow-blue-900/50 font-bold{% else %}text-gray-300 hover:bg-gray-800{% endif %}">
+            <i class="fas fa-receipt w-6"></i> Histórico de Vendas
+        </a>
+
+        <a href="{% url 'dashboards' %}"
+           class="flex items-center gap-4 p-3 rounded-xl transition-all {% if url_name == 'dashboards' %}bg-blue-600 text-white shadow-lg shadow-blue-900/50 font-bold{% else %}text-gray-300 hover:bg-gray-800{% endif %}">
+            <i class="fas fa-chart-pie w-6"></i> Dashboards
+        </a>
+
+        <a href="{% url 'logout' %}"
+           class="px-4 py-2 rounded-xl bg-red-50 text-red-500 font-bold hover:bg-red-100 transition-all">
+            <i class="fas fa-sign-out-alt mr-1"></i> Sair
+        </a>
+        {% endif %}
+
+    {% endwith %}
+</nav>
     </div>
 </aside>
-{% endwith %}
 
 <div id="overlay" onclick="toggleMenu()" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-[55]"></div>
 
-<main id="conteudo" class="p-4 md:p-6">
+<main id="conteudo" class="p-6 transition-all">
     {% block content %}{% endblock %}
 </main>
 
 <script>
+
 function toggleMenu() {
-    document.getElementById('sidebar').classList.toggle('-translate-x-full');
-    document.getElementById('overlay').classList.toggle('hidden');
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('overlay');
+    sidebar.classList.toggle('-translate-x-full');
+    overlay.classList.toggle('hidden');
 }
-document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape' && !document.getElementById('sidebar').classList.contains('-translate-x-full')) toggleMenu();
+
+// Escuta o evento do HTMX após a troca de conteúdo
+document.body.addEventListener('htmx:afterOnLoad', function(evt) {
+    const currentPath = window.location.pathname;
+
+    document.querySelectorAll('nav a, header a').forEach(link => {
+        const isHeaderLink = link.closest('header');
+        const href = link.getAttribute('href');
+
+        if (isHeaderLink) {
+            // Limpa apenas as classes de destaque do Header, sem forçar cor cinza
+            link.classList.remove('text-blue-600', 'font-black', 'border-b-2', 'border-blue-600', 'pb-1');
+
+            // Se for o link atual, aplica o destaque azul e sublinhado
+            if (href === currentPath) {
+                link.classList.add('text-blue-600', 'font-black', 'border-b-2', 'border-blue-600', 'pb-1');
+            }
+        } else {
+            // Limpa as classes de destaque da Sidebar
+            link.classList.remove('bg-blue-600', 'text-white', 'shadow-lg', 'font-bold');
+            link.classList.add('text-gray-300'); // Mantém o padrão da sidebar escura
+
+            // Se for o link atual na sidebar
+            if (href === currentPath) {
+                link.classList.add('bg-blue-600', 'text-white', 'shadow-lg', 'font-bold');
+                link.classList.remove('text-gray-300');
+            }
+        }
+    });
+
+    // Fechar sidebar no mobile
+    const sidebar = document.getElementById('sidebar');
+    if (sidebar && !sidebar.classList.contains('-translate-x-full')) {
+        toggleMenu();
+    }
 });
 </script>
-{% block scripts %}{% endblock %}
+
+<script src="https://unpkg.com/htmx.org@1.9.10"></script>
+
 </body>
 </html>

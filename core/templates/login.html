@@ -1,27 +1,24 @@
-{% load static %}<!DOCTYPE html>
-<html lang="pt-br" data-tema="sol">
+<!DOCTYPE html>
+<html lang="pt-br">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Entrar · Cantinho Família</title>
-    {% include "_tema_head.html" %}
-</head>
-<body class="min-h-screen flex items-center justify-center px-4 py-10">
-{% include "_ceu.html" %}
+    <title>Login | Restaurante Admin</title>
 
-    <div class="absolute top-4 right-4">
-        <div class="relative"><button type="button" class="cf-tema-botao" data-cf-tema-botao aria-label="Escolher tema"></button></div>
-    </div>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="min-h-screen bg-gradient-to-br from-slate-100 via-white to-blue-50 flex items-center justify-center px-4">
 
     <div class="w-full max-w-md">
         <div class="text-center mb-8">
-            <div class="h-20 flex justify-center">{% include "_logo.html" %}</div>
-            <p class="text-sm text-gray-500 mt-4">Acesse o painel com seu usuário ou e-mail</p>
+            <span class="text-xs font-bold text-blue-600 uppercase tracking-[0.35em]">Premium</span>
+            <h1 class="text-4xl font-black text-gray-800 mt-2 tracking-tight">Restaurante Admin</h1>
+            <p class="text-sm text-gray-500 mt-2">Acesse o painel com seu usuário ou e-mail</p>
         </div>
 
         <div class="bg-white rounded-[2rem] shadow-2xl border border-gray-100 p-8">
-            <div class="w-16 h-16 mx-auto mb-6 rounded-2xl flex items-center justify-center text-2xl shadow-sm"
-                 style="background: var(--cf-marca-suave); color: var(--cf-marca)">
+            <div class="w-16 h-16 mx-auto mb-6 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center text-2xl shadow-sm">
                 <i class="fas fa-user-lock"></i>
             </div>
 
@@ -55,7 +52,7 @@
                             type="text"
                             name="identificador"
                             placeholder="Digite seu usuário ou e-mail"
-                            class="w-full pl-12 pr-4 py-4 rounded-2xl border border-gray-200 bg-gray-50 focus:bg-white focus:border-red-400 focus:ring-4 focus:ring-red-100 outline-none transition-all"
+                            class="w-full pl-12 pr-4 py-4 rounded-2xl border border-gray-200 bg-gray-50 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all"
                             required
                         >
                     </div>
@@ -73,14 +70,14 @@
                             type="password"
                             name="senha"
                             placeholder="Digite sua senha"
-                            class="w-full pl-12 pr-12 py-4 rounded-2xl border border-gray-200 bg-gray-50 focus:bg-white focus:border-red-400 focus:ring-4 focus:ring-red-100 outline-none transition-all"
+                            class="w-full pl-12 pr-12 py-4 rounded-2xl border border-gray-200 bg-gray-50 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all"
                             id="senha"
                             required
                         >
                         <button
                             type="button"
                             onclick="toggleSenha()"
-                            class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-500 transition-colors"
+                            class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-blue-600 transition-colors"
                         >
                             <i id="icone-senha" class="fas fa-eye"></i>
                         </button>
@@ -89,8 +86,7 @@
 
                 <button
                     type="submit"
-                    class="w-full text-white py-4 rounded-2xl font-black uppercase tracking-wide shadow-xl active:scale-[0.98] hover:brightness-110 transition-all"
-                    style="background: linear-gradient(135deg, var(--cf-marca), var(--cf-marca-forte)); box-shadow: 0 14px 30px rgba(227, 53, 61, .30)"
+                    class="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-2xl font-black uppercase tracking-wide shadow-xl shadow-blue-200 active:scale-[0.98] transition-all"
                 >
                     Entrar no painel
                 </button>
@@ -98,7 +94,7 @@
         </div>
 
         <p class="text-center text-xs text-gray-400 mt-6">
-            Sistema interno · Cantinho Família
+            Sistema interno de gestão do restaurante
         </p>
     </div>
 
