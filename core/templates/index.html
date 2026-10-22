@@ -13,7 +13,7 @@
                  data-id="{{ produto.id }}" data-nome="{{ produto.nome|lower }}" data-codigo="{{ produto.codigo }}">
             <div class="relative w-32 sm:w-full sm:aspect-[16/9] shrink-0 bg-gray-100">
                 {% if produto.imagem %}
-                <img src="{{ produto.imagem }}" alt="{{ produto.nome }}" loading="lazy" decoding="async" onerror="this.style.display='none'" class="absolute inset-0 w-full h-full object-cover">
+                <img src="{{ produto.imagem }}" alt="{{ produto.nome }}" loading="lazy" decoding="async" onerror="this.style.display='none'" class="absolute inset-0 w-full h-full object-cover{% if produto.bebida %} foto-bebida{% endif %}">
                 {% else %}
                 <div class="absolute inset-0 flex items-center justify-center text-gray-300"><i class="fas fa-utensils text-3xl"></i></div>
                 {% endif %}
@@ -47,7 +47,7 @@
                      data-id="{{ produto.id }}" data-nome="{{ produto.nome|lower }}" data-codigo="{{ produto.codigo }}">
                 <div class="w-24 h-24 rounded-2xl overflow-hidden bg-gray-100 shrink-0 relative">
                     {% if produto.imagem %}
-                    <img src="{{ produto.imagem }}" alt="{{ produto.nome }}" loading="lazy" decoding="async" onerror="this.style.display='none'" class="w-full h-full object-cover">
+                    <img src="{{ produto.imagem }}" alt="{{ produto.nome }}" loading="lazy" decoding="async" onerror="this.style.display='none'" class="w-full h-full object-cover{% if produto.bebida %} foto-bebida{% endif %}">
                     {% else %}
                     <div class="w-full h-full flex items-center justify-center text-gray-300"><i class="fas fa-image text-2xl"></i></div>
                     {% endif %}

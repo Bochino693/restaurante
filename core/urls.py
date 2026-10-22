@@ -4,7 +4,7 @@ from .views import (CaixaView, EstoqueView,
                     adicionais_produto, VendasView, DashboardAnalyticsView,
                     LoginView, LogoutView, GerenciarPratosDiaView, RemoverPratoDiaView, avancar_status,
                     confirmar_impressao, pedidos_pendentes_impressao, ResumoPedidosView, PedidoReimprimirView,
-                    registrar_clique)
+                    registrar_clique, RelatorioPedidosView, PedidoDetalheView)
 
 urlpatterns = [
     path('', CardapioClienteView.as_view(), name='cardapio'),
@@ -28,6 +28,8 @@ urlpatterns = [
     path('api/confirmar-impressao/<int:pedido_id>/', confirmar_impressao),
     path('pedidos/resumo/', ResumoPedidosView.as_view(), name='resumo_pedidos'),
     path('pedido/<int:pedido_id>/reimprimir/', PedidoReimprimirView.as_view(), name='pedido_reimprimir'),
+    path('pedidos/relatorio/<slug:tipo>/', RelatorioPedidosView.as_view(), name='relatorio_pedidos'),
+    path('pedido/<int:pedido_id>/detalhes/', PedidoDetalheView.as_view(), name='pedido_detalhes'),
 
 
     path("logout/", LogoutView.as_view(), name="logout"),

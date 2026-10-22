@@ -72,6 +72,16 @@ html.cf-trocando *::after {
 
 .cf-preco { color: var(--cf-marca); }
 
+/* Fotos de bebida: a lata/garrafa aparece inteira, sem corte (o "cover"
+   cortava a lata e parecia zoom). Fundo branco, como foto de produto, e
+   a imagem só diminui, nunca é esticada: fica nítida. */
+img.foto-bebida {
+    object-fit: contain !important;
+    object-position: center;
+    padding: 6px;
+    background: #fff;
+}
+
 /* ------------------------------------------------------------- logo */
 .cf-logo { display: block; height: 100%; width: auto; }
 .cf-logo-claro { display: none; }

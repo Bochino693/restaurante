@@ -62,7 +62,7 @@
                                 {% if prato.produto.image_produto %}
                                 <img src="{{ prato.produto.image_produto.url }}"
                                      alt="{{ prato.produto.nome_produto }}"
-                                     class="object-cover w-full h-full">
+                                     class="object-cover w-full h-full{% if prato.produto.eh_bebida %} foto-bebida{% endif %}">
                                 {% else %}
                                 <i class="fas fa-utensils text-orange-300 text-3xl"></i>
                                 {% endif %}
@@ -118,7 +118,7 @@
                                 {% if produto.image_produto %}
                                 <img src="{{ produto.image_produto.url }}"
                                      alt="{{ produto.nome_produto }}"
-                                     class="object-cover w-full h-full">
+                                     class="object-cover w-full h-full{% if produto.eh_bebida %} foto-bebida{% endif %}">
                                 {% else %}
                                 <i class="fas fa-box text-gray-200 text-3xl"></i>
                                 {% endif %}

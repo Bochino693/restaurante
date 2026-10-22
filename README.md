@@ -25,18 +25,24 @@ para o servidor, o cardápio do cliente e o painel.
 
 ## Relatórios
 
-- **Pedidos**: no topo, Dinheiro, Pix, Cartão, Taxa do motoca, **Bebidas** e o
-  total do período, obedecendo aos filtros de período e de pagamento. Clicar
-  em "Bebidas" abre a lista de cada bebida vendida (unidades e valor).
-- **Estatísticas**: além dos gráficos de vendas, o "Recebido por dia"
-  (Dinheiro, Cartão, Pix, Misto e taxa do motoca empilhados) e a seção
-  **Relatório de bebidas**: faturamento, unidades, peso no faturamento,
-  pedidos com bebida, bebidas por dia, as mais vendidas e o ticket médio do
-  pedido com bebida x sem bebida.
+- **Pedidos**: no topo, Total, Dinheiro, Pix, Cartão, Misto, Taxa do motoca,
+  Bebidas e a conferência do caixa em dinheiro, obedecendo aos filtros de
+  período e de pagamento. **Cada cartão abre um relatório** (valor,
+  destaques, divisão em barras e a lista dos pedidos que formam o número).
+  **Clicar num pedido** abre tudo dele: andamento, cliente, WhatsApp, mapa,
+  itens com adicionais, desconto, taxa e total, com os botões de avançar o
+  status e reimprimir. Dados: `pedidos/relatorio/<tipo>/` e
+  `pedido/<id>/detalhes/` (JSON, com login). Código: `core/static/core/js/pedidos.js`.
+- **Estatísticas**: os indicadores no topo e os gráficos em **abas** (Vendas,
+  Pagamentos, Produtos, Bebidas, Horários, Cardápio online), cada uma com
+  destaques calculados do período. A aba fica no endereço (`#bebidas`,
+  `#pagamentos`...), e trocar o período mantém a aba aberta.
 
 Bebida é todo produto cuja categoria tem no nome uma das `PALAVRAS_BEBIDAS`
 ("Bebidas", "Refrigerantes", "Sucos"...). O valor das bebidas é preço ×
-quantidade dos itens; o desconto do pedido inteiro não é rateado.
+quantidade dos itens; o desconto do pedido inteiro não é rateado. No
+cardápio e no caixa a foto da bebida aparece inteira (sem corte), em fundo
+branco.
 
 ## Impressão das notinhas
 
