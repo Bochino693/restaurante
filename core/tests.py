@@ -114,3 +114,114 @@ class TelasTests(TestCase):
         for nome in ["pedidos", "caixa", "estoque", "gerenciar_pratos_dia"]:
             with self.subTest(tela=nome):
                 self.assertEqual(self.client.get(reverse(nome)).status_code, 200)
+
+
+class RelatorioBebidasTests(TestCase):
+    """Bebidas = produtos de categoria com "bebida", "refri", "suco"... no nome."""
+
+    def setUp(self):
+        cache.clear()
+        self.usuario = User.objects.create_superuser("dono", "dono@x.com", "senha-segura-123")
+        marmitas = self._categoria("Marmitas")
+        bebidas = self._categoria("Bebidas")
+        sucos = self._categoria("SUCOS NATURAIS")
+        marmita = Produtos.objects.create(nome_produto="Marmita", categoria=marmitas, preco=Decimal("20.00"))
+        coca = Produtos.objects.create(nome_produto="Coca-Cola 2L", categoria=bebidas, preco=Decimal("6.00"))
+        suco = Produtos.objects.create(nome_produto="Suco de laranja", categoria=sucos, preco=Decimal("5.00"))
+
+        # Pix com entrega: marmita + 2 cocas + 1 suco (duas bebidas no mesmo pedido).
+        self._pedido("PIX", [(marmita, 1), (coca, 2), (suco, 1)], taxa=Decimal("5.00"), entrega=True)
+        # Dinheiro: só a marmita.
+        self._pedido("DINHEIRO", [(marmita, 1)])
+        # Cancelado: não entra em relatório nenhum.
+        self._pedido("PIX", [(coca, 3)], status=Pedidos.StatusPedido.CANCELADO)
+
+    def _categoria(self, nome):
+        categoria = CategoriaProdutos(nome_categoria=nome)
+        categoria.imagem_categoria.name = "x.png"
+        categoria.save()
+        return categoria
+
+    def _pedido(self, pagamento, itens, taxa=Decimal("0.00"), entrega=False, status=Pedidos.StatusPedido.PAGO):
+        criados = [
+            ItensPedido.objects.create(
+                produto=produto, quantidade=qtd, preco_unitario=produto.preco, subtotal=produto.preco * qtd
+            )
+            for produto, qtd in itens
+        ]
+        pedido = Pedidos.objects.create(
+            nome_cliente="Cliente", forma_pagamento=pagamento, status=status, entrega=entrega,
+            taxa_motoca=taxa, total=sum((i.subtotal for i in criados), Decimal("0.00")),
+        )
+        pedido.itens.add(*criados)
+        return pedido
+
+    def test_relatorio_da_tela_de_pedidos(self):
+        self.client.force_login(self.usuario)
+        resposta = self.client.get(reverse("pedidos") + "?periodo=hoje")
+        self.assertEqual(resposta.status_code, 200)
+        self.assertEqual(resposta.context["total_bebidas"], "17,00")
+        self.assertEqual(resposta.context["qtd_bebidas"], 3)
+        self.assertEqual(
+            resposta.context["bebidas_vendidas"],
+            [
+                {"nome": "Coca-Cola 2L", "unidades": 2, "receita": "12,00"},
+                {"nome": "Suco de laranja", "unidades": 1, "receita": "5,00"},
+            ],
+        )
+        # O resto do relatório continua igual.
+        self.assertEqual(resposta.context["total_pix"], "37,00")
+        self.assertEqual(resposta.context["total_taxa_motoca"], "5,00")
+        self.assertContains(resposta, "Bebidas vendidas")
+
+    def test_bebidas_obedecem_ao_filtro_de_pagamento(self):
+        self.client.force_login(self.usuario)
+        dados = self.client.get(reverse("resumo_pedidos") + "?periodo=hoje&pagamento=DINHEIRO").json()
+        self.assertEqual(dados["total_bebidas"], "0,00")
+        self.assertEqual(dados["qtd_bebidas"], 0)
+        dados = self.client.get(reverse("resumo_pedidos") + "?periodo=hoje&pagamento=PIX").json()
+        self.assertEqual(dados["total_bebidas"], "17,00")
+        self.assertEqual(dados["total_pix"], "37,00")
+
+    def test_relatorio_grafico_de_bebidas_nas_estatisticas(self):
+        self.client.force_login(self.usuario)
+        self.assertEqual(self.client.get(reverse("dashboards") + "?atalho=hoje").status_code, 200)
+        dados = self.client.get(reverse("dashboards") + "?atalho=hoje&ajax=1").json()
+
+        bebidas = dados["bebidas"]
+        self.assertEqual(bebidas["receita"], "17,00")
+        self.assertEqual(bebidas["unidades"], 3)
+        self.assertEqual(bebidas["lider"], "Coca-Cola 2L")
+        self.assertEqual(bebidas["participacao"], 29.8)       # 17 de 57 em itens
+        self.assertEqual(bebidas["pedidos_com"], 1)            # sem contar duas vezes
+        self.assertEqual(bebidas["pedidos_pct"], 50.0)
+        self.assertEqual(bebidas["ticket_com"], "37,00")
+        self.assertEqual(bebidas["ticket_sem"], "20,00")
+        self.assertEqual([b["nome"] for b in bebidas["ranking"]], ["Coca-Cola 2L", "Suco de laranja"])
+        self.assertEqual(dados["grafico_top_bebidas"]["valores"], [1, 2])
+
+        serie = dados["grafico_vendas_diarias"]
+        self.assertEqual(sum(serie["bebidas"]), 17.0)
+        self.assertEqual(sum(serie["bebidas_unidades"]), 3)
+        self.assertEqual(sum(serie["por_pagamento"]["PIX"]), 37.0)
+        self.assertEqual(sum(serie["por_pagamento"]["DINHEIRO"]), 20.0)
+        self.assertEqual(sum(serie["taxas"]), 5.0)
+        self.assertEqual(len(serie["bebidas"]), len(serie["labels"]))
+
+    @override_settings(PALAVRAS_BEBIDAS=[])
+    def test_sem_palavras_nada_e_bebida(self):
+        self.client.force_login(self.usuario)
+        dados = self.client.get(reverse("resumo_pedidos") + "?periodo=hoje").json()
+        self.assertEqual(dados["total_bebidas"], "0,00")
+
+    def test_estatisticas_e_pedidos_sem_nenhum_pedido(self):
+        Pedidos.objects.all().delete()
+        self.client.force_login(self.usuario)
+        self.assertEqual(self.client.get(reverse("dashboards")).status_code, 200)
+        dados = self.client.get(reverse("dashboards") + "?ajax=1").json()
+        self.assertEqual(dados["bebidas"]["receita"], "0,00")
+        self.assertEqual(dados["bebidas"]["lider"], "Sem vendas")
+        self.assertIsNone(dados["bebidas"]["ticket_diferenca"])
+        resposta = self.client.get(reverse("pedidos"))
+        self.assertEqual(resposta.context["total_bebidas"], "0,00")
+        self.assertContains(resposta, "Nenhuma bebida vendida neste período.")

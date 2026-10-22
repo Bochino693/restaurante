@@ -433,6 +433,11 @@ html.cf-escuro .text-violet-600, html.cf-escuro .text-purple-700 { color: #c4b5f
 html.cf-escuro .text-yellow-700, html.cf-escuro .text-amber-600, html.cf-escuro .text-amber-500 { color: #fcd34d !important; }
 html.cf-escuro .text-red-600, html.cf-escuro .text-red-700 { color: #fca5a5 !important; }
 
+/* Bebidas (azul-céu): cartão e relatório da tela de Pedidos. */
+html.cf-escuro .bg-sky-50 { background-color: rgba(56, 189, 248, .12) !important; }
+html.cf-escuro [class*="border-sky-1"] { border-color: rgba(255, 255, 255, .08) !important; }
+html.cf-escuro .text-sky-500, html.cf-escuro .text-sky-600 { color: #7dd3fc !important; }
+
 html.cf-escuro .shadow-sm, html.cf-escuro .shadow, html.cf-escuro .shadow-lg,
 html.cf-escuro .shadow-xl, html.cf-escuro .shadow-2xl { --tw-shadow-color: rgba(0, 0, 0, .45); }
 html.cf-escuro ::-webkit-scrollbar-thumb { background: var(--cf-superficie-3) !important; }
