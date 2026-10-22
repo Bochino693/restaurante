@@ -358,3 +358,44 @@ class FotosDasBebidasTests(TestCase):
         self.client.force_login(self.usuario)
         imagens = self._imagens(self.client.get(reverse("caixa")).content.decode())
         self.assertEqual(imagens, {"Guaraná Lata": True, "Marmita": False})
+
+
+class QuantidadeDasBebidasTests(TestCase):
+    """Bebida abre o modal de quantidade (Caixa e cardápio); comida continua indo direto."""
+
+    def setUp(self):
+        cache.clear()
+        self.usuario = User.objects.create_superuser("dono", "dono@x.com", "senha-segura-123")
+        self.produtos = {}
+        for nome_categoria, nome_produto in [("Bebidas", "Guaraná Lata"), ("Marmitas", "Marmita")]:
+            categoria = CategoriaProdutos(nome_categoria=nome_categoria)
+            categoria.imagem_categoria.name = "x.png"
+            categoria.save()
+            self.produtos[nome_produto] = Produtos.objects.create(
+                nome_produto=nome_produto, categoria=categoria, preco=Decimal("6.00")
+            )
+
+    def test_caixa(self):
+        self.client.force_login(self.usuario)
+        html = self.client.get(reverse("caixa")).content.decode()
+        guarana, marmita = self.produtos["Guaraná Lata"].id, self.produtos["Marmita"].id
+        self.assertEqual(html.count(f"abrirQtdBebida(this, '{guarana}'"), 2)   # foto e nome do card
+        self.assertNotIn(f"addProduto('{guarana}'", html)
+        self.assertEqual(html.count(f"addProduto('{marmita}'"), 2)
+        self.assertIn("core/js/quantidade.js", html)
+
+    def test_bebida_com_adicionais_continua_no_modal_de_adicionais(self):
+        from .models import Adicional
+        Adicional.objects.create(nome="Gelo e limão", preco=Decimal("1.00")).produtos.add(self.produtos["Guaraná Lata"])
+        self.client.force_login(self.usuario)
+        html = self.client.get(reverse("caixa")).content.decode()
+        guarana = self.produtos["Guaraná Lata"].id
+        self.assertNotIn(f"abrirQtdBebida(this, '{guarana}'", html)
+        self.assertIn(f"abrirModalAdicionais('{guarana}'", html)
+
+    def test_cardapio(self):
+        html = self.client.get(reverse("cardapio")).content.decode()
+        cards = dict(re.findall(r'data-id="(\d+)"[^>]*?(data-bebida="1")?>', html))
+        self.assertEqual(cards[str(self.produtos["Guaraná Lata"].id)], 'data-bebida="1"')
+        self.assertEqual(cards[str(self.produtos["Marmita"].id)], "")
+        self.assertIn("core/js/quantidade.js", html)

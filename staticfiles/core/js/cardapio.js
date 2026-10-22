@@ -63,7 +63,7 @@
             carrinho.push({ chave, id: String(id), nome: p.nome, precoBase: Number(p.preco), adicionais: extras, qtd });
         }
         salvar();
-        toast(`${p.nome} no carrinho!`);
+        toast(`${qtd > 1 ? qtd + "x " : ""}${p.nome} no carrinho!`);
         const contador = $("cart-count");
         contador.classList.remove("cf-pulo");
         void contador.offsetWidth;
@@ -185,6 +185,26 @@
         m.classList.remove("flex");
     }
 
+    /* ------------------------------------------- quantidade (bebidas)
+       Bebida abre o modal de quantidade (core/js/quantidade.js): escolhe
+       quantas, confirma e a foto voa até a cesta. */
+    function abrirQuantidade(id, elemento) {
+        const p = catalogo[id];
+        const card = elemento.closest(".produto-card");
+        const img = card && card.querySelector("img");
+        window.Quantidade.abrir({
+            nome: p.nome,
+            preco: Number(p.preco),
+            imagem: img && img.style.display !== "none" ? (img.currentSrc || img.src) : (p.imagem || ""),
+            max: 20,
+            origem: card || elemento,
+            destino: [$("cart-count"), $("barra-carrinho"), document.querySelector('[aria-label="Abrir carrinho"]')],
+            aoConfirmar: qtd => adicionar(id, [], qtd)
+        });
+    }
+
+    const ehBebidaSimples = id => !!(catalogo[id] && catalogo[id].bebida && !catalogo[id].tem_adicionais && window.Quantidade);
+
     /* ---------------------------------------------------------- envio */
     function escolha(grupo) {
         const ativo = document.querySelector(`[data-grupo="${grupo}"] .cf-escolha.ativo`);
@@ -289,7 +309,14 @@
         if (add) {
             const id = add.closest(".produto-card").dataset.id;
             if (catalogo[id] && catalogo[id].tem_adicionais) abrirAdicionais(id);
+            else if (ehBebidaSimples(id)) abrirQuantidade(id, add);
             else adicionar(id);
+            return;
+        }
+        // Tocar em qualquer parte do card de uma bebida também abre o modal.
+        const cardBebida = e.target.closest(".produto-card[data-bebida]");
+        if (cardBebida && ehBebidaSimples(cardBebida.dataset.id)) {
+            abrirQuantidade(cardBebida.dataset.id, cardBebida);
             return;
         }
         const qtd = e.target.closest("[data-qtd]");

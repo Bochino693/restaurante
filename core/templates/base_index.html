@@ -17,6 +17,7 @@
         .cf-escolha { border: 1.5px solid var(--cf-borda); background: var(--cf-superficie); color: var(--cf-texto-2); }
         .cf-escolha.ativo { border-color: var(--cf-marca); background: var(--cf-marca-suave); color: var(--cf-marca); }
         #toast { transition: opacity .25s ease, transform .25s ease; }
+        .produto-card[data-bebida] { cursor: pointer; }
         #toast.escondido { opacity: 0; transform: translate(-50%, 12px); pointer-events: none; }
         .cf-adicionar { transition: transform .15s ease; }
         .cf-adicionar:active { transform: scale(.88); }
@@ -195,6 +196,7 @@
 </div>
 
 {{ catalogo|json_script:"catalogo-json" }}
+<script src="{% static 'core/js/quantidade.js' %}?v={{ versao_estaticos }}" defer></script>
 <script src="{% static 'core/js/cardapio.js' %}?v={{ versao_estaticos }}" defer></script>
 </body>
 </html>

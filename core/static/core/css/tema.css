@@ -82,6 +82,125 @@ img.foto-bebida {
     background: #fff;
 }
 
+/* ----------------------------------------- modal de quantidade (bebidas)
+   Abre ao clicar numa bebida no Caixa e no cardápio. Cresce a partir do
+   card, o número pula a cada mudança e, ao confirmar, o botão vira
+   "Adicionado!" e a foto voa até o carrinho. */
+html.qtd-travado, html.qtd-travado body { overflow: hidden; }
+.qtd-fundo {
+    position: fixed; inset: 0; z-index: 2500;
+    display: flex; align-items: center; justify-content: center; padding: 18px;
+    background: rgba(12, 10, 9, .5); -webkit-backdrop-filter: blur(7px); backdrop-filter: blur(7px);
+    opacity: 0; transition: opacity .25s ease;
+}
+.qtd-fundo[hidden] { display: none; }
+.qtd-fundo.aberto { opacity: 1; }
+.qtd-caixa {
+    position: relative; width: min(100%, 380px); overflow: hidden;
+    background: var(--cf-superficie); color: var(--cf-texto);
+    border: 1px solid var(--cf-borda); border-radius: 30px;
+    box-shadow: 0 40px 90px -20px rgba(0, 0, 0, .5);
+    transform: scale(.55); opacity: 0;
+    transition: transform .5s cubic-bezier(.2, 1.25, .35, 1), opacity .25s ease;
+}
+.qtd-fundo.aberto .qtd-caixa { transform: none; opacity: 1; }
+.qtd-fechar {
+    position: absolute; top: 12px; right: 12px; z-index: 2;
+    width: 38px; height: 38px; border-radius: 13px; display: grid; place-items: center;
+    background: rgba(255, 255, 255, .85); color: #44403c; font-size: 16px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, .12);
+    transition: transform .3s cubic-bezier(.2, 1.4, .4, 1), background .2s, color .2s;
+}
+.qtd-fechar:hover { transform: rotate(90deg); background: #ef4444; color: #fff; }
+.qtd-foto {
+    position: relative; height: 190px; display: grid; place-items: center; overflow: hidden;
+    background: radial-gradient(circle at 50% 62%, #ffffff 0%, #f1f5f9 70%);
+}
+html.cf-escuro .qtd-foto { background: radial-gradient(circle at 50% 62%, #ffffff 0%, #e2e8f0 75%); }
+.qtd-foto img { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; object-fit: contain; padding: 14px; }
+.qtd-foto i { display: none; font-size: 64px; color: #0284c7; opacity: .7; }
+.qtd-foto.sem-foto img { display: none; }
+.qtd-foto.sem-foto i { display: block; }
+.qtd-fundo.aberto .qtd-foto img, .qtd-fundo.aberto .qtd-foto i { animation: qtd-flutuar .7s cubic-bezier(.2, 1.3, .4, 1) backwards .12s; }
+@keyframes qtd-flutuar { from { opacity: 0; transform: translateY(18px) scale(.85) rotate(-4deg); } }
+.qtd-corpo { padding: 18px 20px 20px; text-align: center; }
+.qtd-nome { font-size: 20px; font-weight: 950; line-height: 1.15; color: var(--cf-texto); }
+.qtd-preco { margin-top: 3px; font-size: 13px; font-weight: 700; color: var(--cf-texto-suave); }
+.qtd-seletor { display: flex; align-items: center; justify-content: center; gap: 18px; margin: 16px 0 12px; }
+.qtd-passo {
+    width: 54px; height: 54px; border-radius: 18px; display: grid; place-items: center;
+    font-size: 18px; color: var(--cf-texto); background: var(--cf-superficie-2); border: 1px solid var(--cf-borda);
+    transition: transform .15s ease, background .2s, color .2s;
+}
+.qtd-passo:hover:not(:disabled) { background: var(--cf-marca); color: #fff; border-color: transparent; }
+.qtd-passo:active:not(:disabled) { transform: scale(.88); }
+.qtd-passo:disabled { opacity: .35; cursor: not-allowed; }
+.qtd-numero { display: block; min-width: 76px; font-size: 52px; font-weight: 950; line-height: 1; color: var(--cf-texto); font-variant-numeric: tabular-nums; }
+.qtd-numero.sobe { animation: qtd-sobe .32s cubic-bezier(.2, 1.4, .4, 1); }
+.qtd-numero.desce { animation: qtd-desce .32s cubic-bezier(.2, 1.4, .4, 1); }
+@keyframes qtd-sobe { from { transform: translateY(14px) scale(.8); opacity: .3; } }
+@keyframes qtd-desce { from { transform: translateY(-14px) scale(.8); opacity: .3; } }
+.qtd-atalhos { display: flex; justify-content: center; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+.qtd-atalho {
+    min-width: 42px; height: 34px; padding: 0 10px; border-radius: 11px;
+    font-size: 13px; font-weight: 900; color: var(--cf-texto-2);
+    background: var(--cf-superficie-2); border: 1px solid var(--cf-borda);
+    transition: transform .15s ease, background .2s, color .2s;
+}
+.qtd-atalho:hover { transform: translateY(-2px); }
+.qtd-atalho.ativo { background: var(--cf-marca-suave); color: var(--cf-marca); border-color: var(--cf-marca); }
+.qtd-atalho[hidden] { display: none; }
+.qtd-confirmar {
+    position: relative; width: 100%; height: 56px; border-radius: 18px; overflow: hidden;
+    color: #fff; font-size: 15px; font-weight: 900;
+    background: linear-gradient(135deg, var(--cf-marca), var(--cf-marca-forte));
+    box-shadow: 0 14px 28px -12px var(--cf-marca);
+    transition: transform .15s ease, background .3s ease, box-shadow .3s ease;
+}
+.qtd-confirmar:hover { transform: translateY(-2px); }
+.qtd-confirmar:active { transform: scale(.98); }
+.qtd-confirmar:focus-visible { outline: 3px solid var(--cf-marca-suave); outline-offset: 3px; }
+.qtd-confirmar-texto, .qtd-feito {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: space-between; padding: 0 20px;
+    transition: transform .3s cubic-bezier(.2, 1.2, .4, 1), opacity .2s ease;
+}
+.qtd-feito { justify-content: center; gap: 8px; transform: translateY(100%); opacity: 0; }
+.qtd-fundo.confirmado .qtd-confirmar { background: linear-gradient(135deg, #22c55e, #16a34a); box-shadow: 0 14px 28px -12px #16a34a; }
+.qtd-fundo.confirmado .qtd-confirmar-texto { transform: translateY(-100%); opacity: 0; }
+.qtd-fundo.confirmado .qtd-feito { transform: none; opacity: 1; }
+.qtd-fundo.confirmado .qtd-feito i { animation: qtd-check .45s cubic-bezier(.2, 1.6, .4, 1); }
+@keyframes qtd-check { from { transform: scale(0) rotate(-45deg); } }
+.qtd-dica { display: block; margin-top: 10px; font-size: 10.5px; font-weight: 700; color: var(--cf-texto-suave); }
+@media (hover: none) { .qtd-dica { display: none; } }
+
+/* A foto que voa até o carrinho, com a quantidade. */
+.qtd-voo {
+    position: fixed; z-index: 3000; pointer-events: none;
+    display: grid; place-items: center; border-radius: 22px;
+    background: #fff; box-shadow: 0 18px 40px -10px rgba(0, 0, 0, .45);
+}
+.qtd-voo img { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; object-fit: contain; padding: 12px; border-radius: inherit; }
+.qtd-voo i { font-size: 54px; color: #0284c7; }
+.qtd-voo b {
+    position: absolute; top: -12px; right: -12px; min-width: 46px; height: 46px; padding: 0 10px;
+    border-radius: 999px; display: grid; place-items: center;
+    background: #16a34a; color: #fff; font-size: 20px; font-weight: 950;
+    box-shadow: 0 8px 20px -6px #16a34a;
+}
+/* O carrinho dá um pulo quando a bebida chega. */
+.qtd-chegou { animation: qtd-chegou .6s cubic-bezier(.2, 1.6, .4, 1); }
+@keyframes qtd-chegou { 0% { transform: scale(1); } 35% { transform: scale(1.35); } 100% { transform: scale(1); } }
+@media (max-width: 520px) {
+    .qtd-fundo { align-items: flex-end; padding: 0; }
+    .qtd-caixa { width: 100%; border-radius: 28px 28px 0 0; transform: translateY(100%); }
+    .qtd-corpo { padding-bottom: calc(20px + env(safe-area-inset-bottom)); }
+    .qtd-foto { height: 170px; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .qtd-caixa, .qtd-fundo, .qtd-confirmar-texto, .qtd-feito { transition: none !important; }
+    .qtd-numero.sobe, .qtd-numero.desce, .qtd-chegou, .qtd-fundo.aberto .qtd-foto img, .qtd-fundo.confirmado .qtd-feito i { animation: none !important; }
+}
+
 /* ------------------------------------------------------------- logo */
 .cf-logo { display: block; height: 100%; width: auto; }
 .cf-logo-claro { display: none; }

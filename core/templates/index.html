@@ -44,7 +44,7 @@
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {% for produto in categoria.produtos %}
             <article class="cf-card produto-card rounded-[1.5rem] p-3 flex gap-4 items-center"
-                     data-id="{{ produto.id }}" data-nome="{{ produto.nome|lower }}" data-codigo="{{ produto.codigo }}">
+                     data-id="{{ produto.id }}" data-nome="{{ produto.nome|lower }}" data-codigo="{{ produto.codigo }}"{% if produto.bebida %} data-bebida="1"{% endif %}>
                 <div class="w-24 h-24 rounded-2xl overflow-hidden bg-gray-100 shrink-0 relative">
                     {% if produto.imagem %}
                     <img src="{{ produto.imagem }}" alt="{{ produto.nome }}" loading="lazy" decoding="async" onerror="this.style.display='none'" class="w-full h-full object-cover{% if produto.bebida %} foto-bebida{% endif %}">
