@@ -4,430 +4,340 @@
 {% block title %} Histórico de Pedidos {% endblock %}
 
 {% block content %}
-<div class="flex flex-col h-[calc(100vh-80px)] gap-4 overflow-hidden relative">
+{{ pedidos_detalhes|json_script:"pedidosPaginaJson" }}
 
-    <!-- TOPO / FILTROS / TOTAIS -->
-    <div class="bg-white p-5 rounded-[2rem] shadow-sm border border-gray-100">
-        <div class="flex flex-col gap-6 xl:flex-row xl:items-center xl:justify-between">
+<div class="pedidos-tela">
 
-            <div class="flex flex-col md:flex-row items-start md:items-center gap-4 md:gap-8">
-
-                <h1 class="text-xl font-black text-gray-800 uppercase tracking-tight flex items-center gap-2 whitespace-nowrap">
-                    <i class="fas fa-receipt text-orange-500"></i> Pedidos
-                    <button type="button" onclick="Impressora.abrirConfiguracao()" title="Configurar impressora"
-                        class="ml-1 w-8 h-8 rounded-xl bg-gray-100 text-gray-500 text-sm hover:text-orange-500">
-                        <i class="fas fa-print"></i>
-                    </button>
-                </h1>
-
-                <div class="flex flex-col gap-3 w-full sm:w-auto">
-                    <div class="flex flex-wrap gap-2">
-                        <button onclick="setPeriodo('hoje')" class="btnPeriodo {% if periodo_atual == 'hoje' %}ativo{% endif %}">
-                            Hoje
-                        </button>
-
-                        <button onclick="setPeriodo('semana')" class="btnPeriodo {% if periodo_atual == 'semana' %}ativo{% endif %}">
-                            Semana
-                        </button>
-
-                        <button onclick="setPeriodo('quinzena')" class="btnPeriodo {% if periodo_atual == 'quinzena' %}ativo{% endif %}">
-                            Quinzena
-                        </button>
-
-                        <button onclick="setPeriodo('mes')" class="btnPeriodo {% if periodo_atual == 'mes' %}ativo{% endif %}">
-                            Mês
-                        </button>
-
-                        <button onclick="setPeriodo('todos')" class="btnPeriodo {% if periodo_atual == 'todos' %}ativo{% endif %}">
-                            Todos
-                        </button>
-                    </div>
-
-                    <div class="flex flex-wrap gap-2">
-                        <button onclick="togglePagamento('DINHEIRO')" class="btnPagamento {% if 'DINHEIRO' in pagamentos_atuais %}ativo{% endif %}">
-                            Dinheiro
-                        </button>
-
-                        <button onclick="togglePagamento('PIX')" class="btnPagamento {% if 'PIX' in pagamentos_atuais %}ativo{% endif %}">
-                            Pix
-                        </button>
-
-                        <button onclick="togglePagamento('CARTAO')" class="btnPagamento {% if 'CARTAO' in pagamentos_atuais %}ativo{% endif %}">
-                            Cartão
-                        </button>
-
-                        <button onclick="togglePagamento('MISTO')" class="btnPagamento {% if 'MISTO' in pagamentos_atuais %}ativo{% endif %}">
-                            Misto
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <div class="flex flex-wrap items-center gap-2 justify-start md:justify-end">
-                <div class="bg-green-50 text-green-600 px-4 py-2 rounded-2xl flex flex-col shadow-sm border border-green-100 min-w-[112px]">
-                    <span class="text-[9px] font-black uppercase">Dinheiro recebido</span>
-                    <span class="font-black text-sm leading-none" data-dinheiro>
-                        R$ {{ total_dinheiro|default:"0,00" }}
-                    </span>
-                    <span class="text-[8px] font-bold text-green-500/70 mt-1">Pagamento em espécie</span>
-                </div>
-
-                <div class="bg-teal-50 text-teal-600 px-4 py-2 rounded-2xl flex flex-col shadow-sm border border-teal-100 min-w-[100px]">
-                    <span class="text-[9px] font-black uppercase">Pix</span>
-                    <span class="font-black text-sm leading-none" data-pix>
-                        R$ {{ total_pix|default:"0,00" }}
-                    </span>
-                </div>
-
-                <div class="bg-blue-50 text-blue-600 px-4 py-2 rounded-2xl flex flex-col shadow-sm border border-blue-100 min-w-[100px]">
-                    <span class="text-[9px] font-black uppercase">Cartão</span>
-                    <span class="font-black text-sm leading-none" data-cartao>
-                        R$ {{ total_cartao|default:"0,00" }}
-                    </span>
-                </div>
-
-                <div class="bg-violet-50 text-violet-600 px-4 py-2 rounded-2xl flex flex-col shadow-sm border border-violet-100 min-w-[120px]">
-                    <span class="text-[9px] font-black uppercase">Taxa Motoca</span>
-                    <span class="font-black text-sm leading-none" data-taxa>
-                        R$ {{ total_taxa_motoca|default:"0,00" }}
-                    </span>
-                </div>
-
-                <button type="button" onclick="abrirModalBebidas()" title="Ver as bebidas vendidas"
-                    class="bg-sky-50 text-sky-600 px-4 py-2 rounded-2xl flex flex-col text-left shadow-sm border border-sky-100 min-w-[112px] cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5">
-                    <span class="text-[9px] font-black uppercase">
-                        <i class="fas fa-bottle-water mr-0.5"></i> Bebidas
-                    </span>
-                    <span class="font-black text-sm leading-none" data-bebidas>
-                        R$ {{ total_bebidas|default:"0,00" }}
-                    </span>
-                    <span class="text-[8px] font-bold text-sky-500 mt-1" data-qtd-bebidas>
-                        {{ qtd_bebidas|default:0 }} un. · ver detalhes
-                    </span>
+    <!-- TOPO: FILTROS + RELATÓRIO (cada cartão abre o detalhe) -->
+    <section class="pedidos-topo">
+        <div class="pt-linha">
+            <h1 class="pt-titulo">
+                <i class="fas fa-receipt"></i> Pedidos
+                <button type="button" onclick="Impressora.abrirConfiguracao()" title="Configurar impressora" class="pt-icone-btn">
+                    <i class="fas fa-print"></i>
                 </button>
+            </h1>
 
-                <div class="bg-orange-100 text-orange-600 px-5 py-2 rounded-2xl flex flex-col shadow-sm border border-orange-200">
-                    <span class="text-[10px] font-black uppercase" data-label-total>
-                        {{ label_total|default:"Total" }}
-                    </span>
-                    <span class="font-black text-lg leading-none" data-total-dia>
-                        R$ {{ total_dia|default:"0,00" }}
-                    </span>
+            <div class="pt-filtros">
+                <div class="filtro-linha" role="group" aria-label="Período">
+                    <button onclick="setPeriodo('hoje')" class="btnPeriodo {% if periodo_atual == 'hoje' %}ativo{% endif %}">Hoje</button>
+                    <button onclick="setPeriodo('semana')" class="btnPeriodo {% if periodo_atual == 'semana' %}ativo{% endif %}">Semana</button>
+                    <button onclick="setPeriodo('quinzena')" class="btnPeriodo {% if periodo_atual == 'quinzena' %}ativo{% endif %}">Quinzena</button>
+                    <button onclick="setPeriodo('mes')" class="btnPeriodo {% if periodo_atual == 'mes' %}ativo{% endif %}">Mês</button>
+                    <button onclick="setPeriodo('todos')" class="btnPeriodo {% if periodo_atual == 'todos' %}ativo{% endif %}">Todos</button>
+                </div>
+                <div class="filtro-linha" role="group" aria-label="Forma de pagamento">
+                    <button onclick="togglePagamento('DINHEIRO')" class="btnPagamento {% if 'DINHEIRO' in pagamentos_atuais %}ativo{% endif %}">Dinheiro</button>
+                    <button onclick="togglePagamento('PIX')" class="btnPagamento {% if 'PIX' in pagamentos_atuais %}ativo{% endif %}">Pix</button>
+                    <button onclick="togglePagamento('CARTAO')" class="btnPagamento {% if 'CARTAO' in pagamentos_atuais %}ativo{% endif %}">Cartão</button>
+                    <button onclick="togglePagamento('MISTO')" class="btnPagamento {% if 'MISTO' in pagamentos_atuais %}ativo{% endif %}">Misto</button>
                 </div>
             </div>
+        </div>
+
+        <div class="rel-grade">
+            <button type="button" class="rel-tile rel-cheio tom-total" data-relatorio="total" style="--i: 0">
+                <span class="rel-icone"><i class="fas fa-sack-dollar"></i></span>
+                <span class="rel-texto">
+                    <span class="rel-rotulo" data-label-total>{{ label_total|default:"Total" }}</span>
+                    <strong class="rel-valor" data-total-dia>R$ {{ total_dia|default:"0,00" }}</strong>
+                    <span class="rel-sub">{{ qtd_total|default:0 }} pedido{{ qtd_total|pluralize }}</span>
+                </span>
+                <i class="fas fa-chevron-right rel-seta" aria-hidden="true"></i>
+            </button>
+
+            <button type="button" class="rel-tile tom-dinheiro" data-relatorio="dinheiro" style="--i: 1">
+                <span class="rel-icone"><i class="fas fa-money-bill-wave"></i></span>
+                <span class="rel-texto">
+                    <span class="rel-rotulo">Dinheiro</span>
+                    <strong class="rel-valor" data-dinheiro>R$ {{ total_dinheiro|default:"0,00" }}</strong>
+                    <span class="rel-sub">{{ qtd_dinheiro|default:0 }} pedido{{ qtd_dinheiro|pluralize }} · espécie</span>
+                </span>
+                <i class="fas fa-chevron-right rel-seta" aria-hidden="true"></i>
+            </button>
+
+            <button type="button" class="rel-tile tom-pix" data-relatorio="pix" style="--i: 2">
+                <span class="rel-icone"><i class="fa-brands fa-pix"></i></span>
+                <span class="rel-texto">
+                    <span class="rel-rotulo">Pix</span>
+                    <strong class="rel-valor" data-pix>R$ {{ total_pix|default:"0,00" }}</strong>
+                    <span class="rel-sub">{{ qtd_pix|default:0 }} pedido{{ qtd_pix|pluralize }}</span>
+                </span>
+                <i class="fas fa-chevron-right rel-seta" aria-hidden="true"></i>
+            </button>
+
+            <button type="button" class="rel-tile tom-cartao" data-relatorio="cartao" style="--i: 3">
+                <span class="rel-icone"><i class="fas fa-credit-card"></i></span>
+                <span class="rel-texto">
+                    <span class="rel-rotulo">Cartão</span>
+                    <strong class="rel-valor" data-cartao>R$ {{ total_cartao|default:"0,00" }}</strong>
+                    <span class="rel-sub">{{ qtd_cartao|default:0 }} pedido{{ qtd_cartao|pluralize }}</span>
+                </span>
+                <i class="fas fa-chevron-right rel-seta" aria-hidden="true"></i>
+            </button>
+
+            <button type="button" class="rel-tile tom-misto" data-relatorio="misto" style="--i: 4">
+                <span class="rel-icone"><i class="fas fa-shuffle"></i></span>
+                <span class="rel-texto">
+                    <span class="rel-rotulo">Misto</span>
+                    <strong class="rel-valor" data-misto>R$ {{ total_misto|default:"0,00" }}</strong>
+                    <span class="rel-sub">{{ qtd_misto|default:0 }} pedido{{ qtd_misto|pluralize }}</span>
+                </span>
+                <i class="fas fa-chevron-right rel-seta" aria-hidden="true"></i>
+            </button>
+
+            <button type="button" class="rel-tile tom-taxa" data-relatorio="taxa" style="--i: 5">
+                <span class="rel-icone"><i class="fas fa-motorcycle"></i></span>
+                <span class="rel-texto">
+                    <span class="rel-rotulo">Taxa motoca</span>
+                    <strong class="rel-valor" data-taxa>R$ {{ total_taxa_motoca|default:"0,00" }}</strong>
+                    <span class="rel-sub">{{ qtd_entregas|default:0 }} entrega{{ qtd_entregas|pluralize }}</span>
+                </span>
+                <i class="fas fa-chevron-right rel-seta" aria-hidden="true"></i>
+            </button>
+
+            <button type="button" class="rel-tile tom-bebidas" data-relatorio="bebidas" style="--i: 6">
+                <span class="rel-icone"><i class="fas fa-bottle-water"></i></span>
+                <span class="rel-texto">
+                    <span class="rel-rotulo">Bebidas</span>
+                    <strong class="rel-valor" data-bebidas>R$ {{ total_bebidas|default:"0,00" }}</strong>
+                    <span class="rel-sub" data-qtd-bebidas>{{ qtd_bebidas|default:0 }} un. vendida{{ qtd_bebidas|pluralize }}</span>
+                </span>
+                <i class="fas fa-chevron-right rel-seta" aria-hidden="true"></i>
+            </button>
         </div>
 
         <!-- CONFERÊNCIA DO CAIXA EM DINHEIRO -->
-        <div class="mt-4 pt-4 border-t border-gray-100 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
-            <div class="flex items-center gap-3 min-w-0">
-                <div class="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
-                    <i class="fas fa-cash-register"></i>
-                </div>
-
-                <div class="min-w-0">
-                    <div class="text-[10px] font-black uppercase tracking-widest text-gray-500">
-                        Conferência do caixa em dinheiro
-                    </div>
-                    <div class="text-[10px] font-bold text-gray-400 leading-tight">
-                        Confira abaixo quanto veio de retirada, de entrega e o valor físico esperado no caixa.
-                    </div>
+        <div class="caixa-conf">
+            <div class="caixa-conf-titulo">
+                <span class="rel-icone tom-caixa"><i class="fas fa-cash-register"></i></span>
+                <div>
+                    <strong>Conferência do caixa em dinheiro</strong>
+                    <small>Quanto veio de retirada, de entrega e o valor físico esperado no caixa. Clique para ver os pedidos.</small>
                 </div>
             </div>
-
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 w-full lg:w-auto">
-                <div class="bg-gray-50 text-gray-700 px-4 py-2.5 rounded-2xl border border-gray-100 min-w-[145px]">
-                    <div class="flex items-center gap-2 mb-1">
-                        <i class="fas fa-store text-[10px] text-gray-400"></i>
-                        <span class="text-[9px] font-black uppercase">Retirada em dinheiro</span>
-                    </div>
-                    <span class="font-black text-sm leading-none" data-dinheiro-retirada>
-                        R$ {{ dinheiro_retirada|default:"0,00" }}
+            <div class="caixa-conf-grade">
+                <button type="button" class="rel-tile rel-compacto tom-retirada" data-relatorio="retirada_dinheiro" style="--i: 7">
+                    <span class="rel-icone"><i class="fas fa-store"></i></span>
+                    <span class="rel-texto">
+                        <span class="rel-rotulo">Retirada em dinheiro</span>
+                        <strong class="rel-valor" data-dinheiro-retirada>R$ {{ dinheiro_retirada|default:"0,00" }}</strong>
+                        <span class="rel-sub">Recebido no balcão · {{ qtd_dinheiro_retirada|default:0 }}</span>
                     </span>
-                    <span class="block text-[8px] font-bold text-gray-400 mt-1">Recebido no balcão</span>
-                </div>
-
-                <div class="bg-indigo-50 text-indigo-700 px-4 py-2.5 rounded-2xl border border-indigo-100 min-w-[145px]">
-                    <div class="flex items-center gap-2 mb-1">
-                        <i class="fas fa-motorcycle text-[10px] text-indigo-400"></i>
-                        <span class="text-[9px] font-black uppercase">Entrega em dinheiro</span>
-                    </div>
-                    <span class="font-black text-sm leading-none" data-dinheiro-entrega>
-                        R$ {{ dinheiro_entrega|default:"0,00" }}
+                    <i class="fas fa-chevron-right rel-seta" aria-hidden="true"></i>
+                </button>
+                <button type="button" class="rel-tile rel-compacto tom-entrega" data-relatorio="entrega_dinheiro" style="--i: 8">
+                    <span class="rel-icone"><i class="fas fa-motorcycle"></i></span>
+                    <span class="rel-texto">
+                        <span class="rel-rotulo">Entrega em dinheiro</span>
+                        <strong class="rel-valor" data-dinheiro-entrega>R$ {{ dinheiro_entrega|default:"0,00" }}</strong>
+                        <span class="rel-sub">Recebido pelo motoca · {{ qtd_dinheiro_entrega|default:0 }}</span>
                     </span>
-                    <span class="block text-[8px] font-bold text-indigo-400 mt-1">Recebido pelo motoca</span>
-                </div>
-
-                <div class="bg-emerald-100 text-emerald-700 px-4 py-2.5 rounded-2xl border border-emerald-200 min-w-[160px] shadow-sm">
-                    <div class="flex items-center gap-2 mb-1">
-                        <i class="fas fa-money-bill-wave text-[10px] text-emerald-500"></i>
-                        <span class="text-[9px] font-black uppercase">Dinheiro no caixa</span>
-                    </div>
-                    <span class="font-black text-base leading-none" data-dinheiro-caixa>
-                        R$ {{ dinheiro_caixa|default:"0,00" }}
+                    <i class="fas fa-chevron-right rel-seta" aria-hidden="true"></i>
+                </button>
+                <button type="button" class="rel-tile rel-compacto rel-cheio tom-caixa" data-relatorio="caixa_dinheiro" style="--i: 9">
+                    <span class="rel-icone"><i class="fas fa-money-bill-wave"></i></span>
+                    <span class="rel-texto">
+                        <span class="rel-rotulo">Dinheiro no caixa</span>
+                        <strong class="rel-valor" data-dinheiro-caixa>R$ {{ dinheiro_caixa|default:"0,00" }}</strong>
+                        <span class="rel-sub">Valor físico esperado</span>
                     </span>
-                    <span class="block text-[8px] font-black text-emerald-500 mt-1 uppercase tracking-wide">Valor físico esperado</span>
-                </div>
+                    <i class="fas fa-chevron-right rel-seta" aria-hidden="true"></i>
+                </button>
             </div>
         </div>
+    </section>
+
+    <!-- LISTA DE PEDIDOS: grade que usa a largura toda, sem rolagem presa -->
+    <div class="lista-cabecalho">
+        <span>
+            {% if page_obj.paginator.count %}
+                {{ page_obj.paginator.count }} pedido{{ page_obj.paginator.count|pluralize }}
+                {% if page_obj.paginator.num_pages > 1 %}· página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}{% endif %}
+            {% endif %}
+        </span>
+        <span class="lista-dica"><i class="fas fa-hand-pointer"></i> Clique no pedido para ver tudo</span>
     </div>
 
-    <!-- LISTA DE PEDIDOS + PAGINAÇÃO -->
-    <div class="flex-1 overflow-y-auto custom-scrollbar pb-10">
-
-        <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4" id="listaPedidos">
-            {% for pedido in pedidos %}
-            <div class="pedido-card bg-white rounded-[2.5rem] p-6 shadow-xl border border-gray-50 hover:border-orange-200 transition-all group flex flex-col h-full"
+    <div class="pedidos-grade" id="listaPedidos">
+        {% for pedido in pedidos %}
+        <article class="pedido-card st-borda-{{ pedido.status|lower }}" tabindex="0" role="button"
+                 aria-label="Ver detalhes do pedido {{ pedido.id }}"
+                 style="--i: {{ forloop.counter0 }}"
+                 data-pedido-id="{{ pedido.id }}"
                  data-data="{{ pedido.criado_em|date:'Y-m-d' }}"
                  data-pagamento="{{ pedido.forma_pagamento }}">
 
-                <div class="flex-1">
-                    {% if not pedido.impresso %}
-                    <div class="bg-black text-white text-[9px] font-black px-4 py-1 rounded-full inline-block mb-2">
-                        NÃO IMPRESSO
-                    </div>
-                    {% endif %}
-
-                    <div class="flex justify-between items-start mb-3">
-                        <div>
-                            <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest">
-                                Pedido #{{ pedido.id }}
-                            </span>
-
-                            <h3 class="text-gray-800 font-black text-lg leading-none">
-                                {{ pedido.criado_em|date:"H:i" }}
-                            </h3>
-
-                            <p class="text-[10px] text-gray-400 font-bold uppercase">
-                                {{ pedido.criado_em|date:"d \d\e F" }}
-                            </p>
-                        </div>
-
-                        <div class="px-4 py-2 rounded-2xl text-xs font-black shadow-sm
-                            {% if pedido.status == 'PAGO' %} bg-yellow-100 text-yellow-700
-                            {% elif pedido.status == 'PREPARO' %} bg-blue-100 text-blue-700
-                            {% elif pedido.status == 'ENTREGA' %} bg-purple-100 text-purple-700
-                            {% elif pedido.status == 'FINALIZADO' %} bg-green-100 text-green-700
-                            {% elif pedido.status == 'CANCELADO' %} bg-red-100 text-red-700
-                            {% endif %}">
-                            {{ pedido.get_status_display }}
-                        </div>
-                    </div>
-
-                    <div class="flex justify-between items-start mb-4 gap-3">
-                        <div class="space-y-2">
-                            <div class="text-lg font-black text-green-600">
-                                R$ {{ pedido.total }}
-                            </div>
-
-                            {% if pedido.taxa_motoca and pedido.taxa_motoca > 0 %}
-                            <div class="inline-flex items-center gap-2 bg-violet-50 text-violet-600 px-3 py-1 rounded-xl border border-violet-100">
-                                <i class="fas fa-motorcycle text-[10px]"></i>
-                                <span class="text-[10px] font-black uppercase">Taxa Motoca</span>
-                                <span class="text-[11px] font-black">R$ {{ pedido.taxa_motoca }}</span>
-                            </div>
-                            {% endif %}
-                        </div>
-
-                        <div class="text-[10px] font-bold text-gray-400 uppercase text-right">
-                            {{ pedido.get_forma_pagamento_display }}
-                        </div>
-                    </div>
-
-                    <div class="space-y-3 mb-4">
-                        <div class="flex flex-wrap items-center gap-2">
-                            <span class="text-[9px] {% if pedido.entrega %}bg-indigo-100 text-indigo-600{% else %}bg-gray-100 text-gray-600{% endif %} px-2 py-1 rounded-lg font-bold">
-                                {% if pedido.entrega %}ENTREGA{% else %}RETIRADA{% endif %}
-                            </span>
-
-                            {% if pedido.nome_cliente %}
-                            <span class="text-[9px] bg-orange-50 text-orange-500 px-2 py-1 rounded-lg font-bold">
-                                {{ pedido.nome_cliente }}
-                            </span>
-                            {% endif %}
-                        </div>
-
-                        {% if pedido.descricao %}
-                        <div class="bg-amber-50 border border-amber-100 rounded-2xl p-3 shadow-sm">
-                            <div class="flex items-start gap-3">
-                                <div class="w-10 h-10 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
-                                    <i class="fas fa-note-sticky"></i>
-                                </div>
-
-                                <div class="min-w-0 flex-1">
-                                    <div class="text-[9px] font-black uppercase tracking-widest text-amber-500 mb-1">
-                                        Descrição
-                                    </div>
-
-                                    <div class="text-sm font-bold text-gray-800 leading-tight break-words whitespace-pre-line">
-                                        {{ pedido.descricao }}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        {% endif %}
-
-                        {% if pedido.entrega and pedido.rua %}
-                        <div class="bg-gradient-to-r from-indigo-50 to-sky-50 border border-indigo-100 rounded-2xl p-3 shadow-sm">
-                            <div class="flex items-start gap-3">
-                                <div class="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
-                                    <i class="fas fa-location-dot"></i>
-                                </div>
-
-                                <div class="min-w-0 flex-1">
-                                    <div class="text-[9px] font-black uppercase tracking-widest text-indigo-500 mb-1">
-                                        Endereço de Entrega
-                                    </div>
-
-                                    <div class="text-sm font-black text-gray-800 leading-tight break-words">
-                                        {{ pedido.rua }}{% if pedido.numero %}, {{ pedido.numero }}{% endif %}
-                                    </div>
-
-                                    {% if pedido.cep %}
-                                    <div class="mt-1 text-[11px] font-bold text-gray-500">
-                                        CEP: {{ pedido.cep }}
-                                    </div>
-                                    {% endif %}
-
-                                    {% if pedido.telefone %}
-                                    <div class="mt-1 text-[11px] font-bold text-gray-500">
-                                        <i class="fas fa-phone mr-1"></i>{{ pedido.telefone }}
-                                    </div>
-                                    {% endif %}
-                                </div>
-                            </div>
-                        </div>
-                        {% endif %}
-                    </div>
-
-                    <hr class="border-gray-50 mb-4">
-
-                    <div class="space-y-2.5 mb-4">
-                        {% for item in pedido.itens.all %}
-                        <div class="bg-gray-50 rounded-2xl px-3 py-2.5 border border-gray-100">
-                            <div class="flex justify-between items-start gap-3">
-                                <div class="min-w-0">
-                                    <div class="text-sm font-bold text-gray-700 leading-tight break-words">
-                                        <span class="text-orange-500">{{ item.quantidade }}x</span>
-                                        {{ item.produto.nome_produto }}
-                                    </div>
-
-                                    {% if item.adicionais %}
-                                    <div class="flex flex-wrap gap-1 mt-2">
-                                        {% for adicional in item.adicionais %}
-                                        <span class="text-[9px] bg-orange-50 text-orange-600 border border-orange-200 px-2 py-1 rounded-md font-bold leading-none">
-                                            + {{ adicional.nome }}
-                                        </span>
-                                        {% endfor %}
-                                    </div>
-                                    {% endif %}
-                                </div>
-
-                                <span class="text-xs font-black text-gray-500 whitespace-nowrap">
-                                    R$ {{ item.subtotal }}
-                                </span>
-                            </div>
-                        </div>
-                        {% endfor %}
-                    </div>
+            <div class="pc-topo">
+                <div class="pc-ident">
+                    <span class="pc-numero">#{{ pedido.id }}</span>
+                    <span class="pc-hora"><i class="far fa-clock"></i> {{ pedido.criado_em|date:"H:i" }} · {{ pedido.criado_em|date:"d/m" }}</span>
                 </div>
+                <span class="pc-status st-{{ pedido.status|lower }}">{{ pedido.get_status_display }}</span>
+            </div>
 
-                <div class="mt-auto pt-4 flex gap-2">
+            {% if not pedido.impresso %}
+            <span class="pc-nao-impresso"><i class="fas fa-print"></i> Não impresso</span>
+            {% endif %}
+
+            <div class="pc-cliente">{{ pedido.nome_cliente|default:"Sem nome" }}</div>
+
+            <div class="pc-chips">
+                <span class="pc-chip {% if pedido.entrega %}chip-entrega{% else %}chip-retirada{% endif %}">
+                    <i class="fas {% if pedido.entrega %}fa-motorcycle{% else %}fa-store{% endif %}"></i>
+                    {% if pedido.entrega %}Entrega{% else %}Retirada{% endif %}
+                </span>
+                <span class="pc-chip chip-pag tom-{{ pedido.forma_pagamento|lower }}">{{ pedido.get_forma_pagamento_display }}</span>
+            </div>
+
+            {% if pedido.entrega and pedido.rua %}
+            <div class="pc-info">
+                <i class="fas fa-location-dot"></i>
+                <span>
+                    {{ pedido.rua }}{% if pedido.numero %}, {{ pedido.numero }}{% endif %}
+                    {% if pedido.cep %}<small>CEP {{ pedido.cep }}</small>{% endif %}
+                    {% if pedido.telefone %}<small><i class="fas fa-phone"></i> {{ pedido.telefone }}</small>{% endif %}
+                </span>
+            </div>
+            {% endif %}
+
+            {% if pedido.descricao %}
+            <div class="pc-info pc-obs">
+                <i class="fas fa-note-sticky"></i>
+                <span>{{ pedido.descricao }}</span>
+            </div>
+            {% endif %}
+
+            <ul class="pc-itens">
+                {% for item in pedido.itens.all %}
+                <li>
+                    <span class="pc-qtd">{{ item.quantidade }}x</span>
+                    <span class="pc-item-nome">
+                        {{ item.produto.nome_produto|default:"Produto removido" }}
+                        {% if item.adicionais %}
+                        <span class="pc-adicionais">
+                            {% for adicional in item.adicionais %}<span>+ {{ adicional.nome }}</span>{% endfor %}
+                        </span>
+                        {% endif %}
+                    </span>
+                    <span class="pc-item-valor">R$ {{ item.subtotal }}</span>
+                </li>
+                {% endfor %}
+            </ul>
+
+            <div class="pc-rodape">
+                <div class="pc-total">
+                    <span>Total</span>
+                    <strong>R$ {{ pedido.total }}</strong>
+                    {% if pedido.taxa_motoca and pedido.taxa_motoca > 0 %}
+                    <small><i class="fas fa-motorcycle"></i> + R$ {{ pedido.taxa_motoca }} motoca</small>
+                    {% endif %}
+                </div>
+                <div class="pc-acoes">
                     {% if pedido.status != 'FINALIZADO' and pedido.status != 'CANCELADO' %}
-                    <button type="button"
-                        class="btn-abrir-status flex-1 bg-orange-500 text-white py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 hover:scale-[1.02] shadow-md shadow-orange-500/20"
+                    <button type="button" class="btn-abrir-status pc-btn pc-btn-primario"
                         data-pedido-id="{{ pedido.id }}"
                         data-status="{{ pedido.status }}"
                         data-pagamento="{{ pedido.forma_pagamento }}">
                         <i class="fas fa-arrow-right"></i> Atualizar
                     </button>
                     {% endif %}
-
-                    <button type="button"
-                        class="btn-abrir-print flex-1 bg-gray-50 text-gray-500 hover:bg-orange-500 hover:text-white py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2"
-                        data-pedido-id="{{ pedido.id }}">
-                        <i class="fas fa-print"></i> Reimprimir
+                    <button type="button" class="btn-abrir-print pc-btn" data-pedido-id="{{ pedido.id }}" title="Reimprimir">
+                        <i class="fas fa-print"></i><span class="pc-btn-texto"> Reimprimir</span>
                     </button>
                 </div>
             </div>
+        </article>
 
-            {% empty %}
-            <div class="col-span-full flex flex-col items-center justify-center p-20 text-gray-300">
-                <i class="fas fa-ghost text-6xl mb-4 opacity-20"></i>
-                <p class="font-bold italic">Nenhum pedido encontrado.</p>
-            </div>
+        {% empty %}
+        <div class="lista-vazia">
+            <i class="fas fa-ghost"></i>
+            <p>Nenhum pedido encontrado.</p>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- PAGINAÇÃO MODERNA -->
+    {% if page_obj.paginator.num_pages > 1 %}
+    <div class="mt-8 flex flex-col items-center gap-4 pb-8">
+
+        <div class="text-[11px] font-black text-gray-400 uppercase tracking-widest text-center">
+            Mostrando {{ page_obj.start_index }} até {{ page_obj.end_index }}
+            de {{ page_obj.paginator.count }} pedidos
+        </div>
+
+        <div class="flex flex-wrap items-center justify-center gap-2 bg-white border border-gray-100 shadow-lg rounded-[2rem] px-4 py-3">
+
+            {% if page_obj.has_previous %}
+            <a href="?{% if query_string %}{{ query_string }}&{% endif %}page=1"
+               class="paginacao-btn">
+                <i class="fas fa-angles-left"></i>
+            </a>
+
+            <a href="?{% if query_string %}{{ query_string }}&{% endif %}page={{ page_obj.previous_page_number }}"
+               class="paginacao-btn">
+                <i class="fas fa-chevron-left"></i>
+            </a>
+            {% else %}
+            <span class="paginacao-btn paginacao-disabled">
+                <i class="fas fa-angles-left"></i>
+            </span>
+
+            <span class="paginacao-btn paginacao-disabled">
+                <i class="fas fa-chevron-left"></i>
+            </span>
+            {% endif %}
+
+            {% for pagina in paginas_range %}
+                {% if pagina == "..." %}
+                    <span class="px-2 text-gray-300 font-black">...</span>
+                {% elif pagina == page_obj.number %}
+                    <span class="paginacao-numero paginacao-ativa">
+                        {{ pagina }}
+                    </span>
+                {% else %}
+                    <a href="?{% if query_string %}{{ query_string }}&{% endif %}page={{ pagina }}"
+                       class="paginacao-numero">
+                        {{ pagina }}
+                    </a>
+                {% endif %}
             {% endfor %}
+
+            {% if page_obj.has_next %}
+            <a href="?{% if query_string %}{{ query_string }}&{% endif %}page={{ page_obj.next_page_number }}"
+               class="paginacao-btn">
+                <i class="fas fa-chevron-right"></i>
+            </a>
+
+            <a href="?{% if query_string %}{{ query_string }}&{% endif %}page={{ page_obj.paginator.num_pages }}"
+               class="paginacao-btn">
+                <i class="fas fa-angles-right"></i>
+            </a>
+            {% else %}
+            <span class="paginacao-btn paginacao-disabled">
+                <i class="fas fa-chevron-right"></i>
+            </span>
+
+            <span class="paginacao-btn paginacao-disabled">
+                <i class="fas fa-angles-right"></i>
+            </span>
+            {% endif %}
+
         </div>
+    </div>
+    {% endif %}
+</div>
 
-        <!-- PAGINAÇÃO MODERNA -->
-        {% if page_obj.paginator.num_pages > 1 %}
-        <div class="mt-8 flex flex-col items-center gap-4 pb-8">
-
-            <div class="text-[11px] font-black text-gray-400 uppercase tracking-widest text-center">
-                Mostrando {{ page_obj.start_index }} até {{ page_obj.end_index }}
-                de {{ page_obj.paginator.count }} pedidos
-            </div>
-
-            <div class="flex flex-wrap items-center justify-center gap-2 bg-white border border-gray-100 shadow-lg rounded-[2rem] px-4 py-3">
-
-                {% if page_obj.has_previous %}
-                <a href="?{% if query_string %}{{ query_string }}&{% endif %}page=1"
-                   class="paginacao-btn">
-                    <i class="fas fa-angles-left"></i>
-                </a>
-
-                <a href="?{% if query_string %}{{ query_string }}&{% endif %}page={{ page_obj.previous_page_number }}"
-                   class="paginacao-btn">
-                    <i class="fas fa-chevron-left"></i>
-                </a>
-                {% else %}
-                <span class="paginacao-btn paginacao-disabled">
-                    <i class="fas fa-angles-left"></i>
-                </span>
-
-                <span class="paginacao-btn paginacao-disabled">
-                    <i class="fas fa-chevron-left"></i>
-                </span>
-                {% endif %}
-
-                {% for pagina in paginas_range %}
-                    {% if pagina == "..." %}
-                        <span class="px-2 text-gray-300 font-black">...</span>
-                    {% elif pagina == page_obj.number %}
-                        <span class="paginacao-numero paginacao-ativa">
-                            {{ pagina }}
-                        </span>
-                    {% else %}
-                        <a href="?{% if query_string %}{{ query_string }}&{% endif %}page={{ pagina }}"
-                           class="paginacao-numero">
-                            {{ pagina }}
-                        </a>
-                    {% endif %}
-                {% endfor %}
-
-                {% if page_obj.has_next %}
-                <a href="?{% if query_string %}{{ query_string }}&{% endif %}page={{ page_obj.next_page_number }}"
-                   class="paginacao-btn">
-                    <i class="fas fa-chevron-right"></i>
-                </a>
-
-                <a href="?{% if query_string %}{{ query_string }}&{% endif %}page={{ page_obj.paginator.num_pages }}"
-                   class="paginacao-btn">
-                    <i class="fas fa-angles-right"></i>
-                </a>
-                {% else %}
-                <span class="paginacao-btn paginacao-disabled">
-                    <i class="fas fa-chevron-right"></i>
-                </span>
-
-                <span class="paginacao-btn paginacao-disabled">
-                    <i class="fas fa-angles-right"></i>
-                </span>
-                {% endif %}
-
-            </div>
-        </div>
-        {% endif %}
-
+<!-- MODAL DE DETALHES: o relatório de cada cartão e o pedido completo -->
+<div id="painelModal" class="pm-fundo" hidden
+     data-url-relatorio="{% url 'relatorio_pedidos' 'TIPO' %}"
+     data-url-detalhe="{% url 'pedido_detalhes' 0 %}"
+     data-url-estatisticas="{% if user.is_staff %}{% url 'dashboards' %}{% endif %}">
+    <div class="pm-caixa" role="dialog" aria-modal="true" aria-labelledby="pmTitulo">
+        <span class="pm-alca" aria-hidden="true"></span>
+        <button type="button" class="pm-fechar" aria-label="Fechar"><i class="fas fa-xmark"></i></button>
+        <div id="pmConteudo" class="pm-conteudo"></div>
+        <div id="pmRodape" class="pm-rodape"></div>
     </div>
 </div>
 
@@ -453,62 +363,6 @@
                 Imprimir
             </button>
         </div>
-    </div>
-</div>
-
-<!-- MODAL BEBIDAS: o relatório de bebidas do período e do filtro atuais -->
-<div id="modalBebidas" class="modal-pedido hidden">
-    <div class="modal-caixa max-w-md">
-        <div class="flex justify-between items-start gap-4 mb-5">
-            <div>
-                <div class="text-[10px] font-black uppercase tracking-widest text-sky-600">
-                    {{ label_total|default:"Total" }}
-                </div>
-                <h2 class="text-xl font-black text-gray-800">Bebidas vendidas</h2>
-            </div>
-            <button type="button" onclick="fecharModalBebidas()" class="text-gray-400 hover:text-red-500" aria-label="Fechar">
-                <i class="fas fa-times text-xl"></i>
-            </button>
-        </div>
-
-        <div class="grid grid-cols-2 gap-2 mb-5">
-            <div class="bg-sky-50 text-sky-600 border border-sky-100 rounded-2xl px-4 py-3">
-                <span class="block text-[9px] font-black uppercase">Total em bebidas</span>
-                <span class="block font-black text-lg leading-tight">R$ {{ total_bebidas|default:"0,00" }}</span>
-            </div>
-            <div class="bg-gray-50 text-gray-700 border border-gray-100 rounded-2xl px-4 py-3">
-                <span class="block text-[9px] font-black uppercase">Unidades</span>
-                <span class="block font-black text-lg leading-tight">{{ qtd_bebidas|default:0 }}</span>
-            </div>
-        </div>
-
-        <div class="max-h-[50vh] overflow-y-auto custom-scrollbar space-y-2">
-            {% for bebida in bebidas_vendidas %}
-            <div class="flex items-center justify-between gap-3 bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3">
-                <div class="min-w-0">
-                    <div class="text-sm font-black text-gray-800 leading-tight break-words">{{ bebida.nome }}</div>
-                    <div class="text-[10px] font-bold text-gray-400 uppercase">{{ bebida.unidades }} unidade{{ bebida.unidades|pluralize }}</div>
-                </div>
-                <span class="text-sm font-black text-sky-600 whitespace-nowrap">R$ {{ bebida.receita }}</span>
-            </div>
-            {% empty %}
-            <div class="text-center text-sm font-bold text-gray-400 py-8">
-                <i class="fas fa-bottle-water text-3xl opacity-30 mb-2 block"></i>
-                Nenhuma bebida vendida neste período.
-            </div>
-            {% endfor %}
-        </div>
-
-        <p class="text-[10px] font-bold text-gray-400 mt-4 leading-snug">
-            Valor dos itens de bebida (preço × quantidade), sem os pedidos cancelados e obedecendo ao filtro de pagamento.
-        </p>
-
-        {% if user.is_staff %}
-        <a href="{% url 'dashboards' %}#bebidas"
-           class="mt-4 w-full bg-sky-500 text-white py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-sky-600 transition-all">
-            <i class="fas fa-chart-column"></i> Ver relatório gráfico
-        </a>
-        {% endif %}
     </div>
 </div>
 
@@ -552,153 +406,440 @@
 </div>
 
 <style>
+/* ======================================================================
+   TELA DE PEDIDOS
+   A página rola inteira (antes a lista ficava presa numa caixa de altura
+   fixa e cortava os pedidos em telas baixas e no celular).
+   ====================================================================== */
+.pedidos-tela { display: flex; flex-direction: column; gap: 16px; max-width: 1800px; margin: 0 auto; padding-bottom: 28px; }
 
-    .custom-scrollbar {
-    scrollbar-width: auto;
-    scrollbar-color: #f97316 #fff7ed;
-    scrollbar-gutter: stable;
-    padding-right: 8px;
+/* Cores de cada tipo de valor (as mesmas dos gráficos das Estatísticas). */
+.rel-tile, .pm-cabeca, .pm-hero, .pm-barra-linha, .chip-pag { --tom: #f97316; }
+.tom-total, .tom-pedido { --tom: #f97316; }
+.tom-dinheiro { --tom: #10b981; }
+.tom-pix { --tom: #14b8a6; }
+.tom-cartao { --tom: #3b82f6; }
+.tom-misto { --tom: #f59e0b; }
+.tom-taxa { --tom: #8b5cf6; }
+.tom-bebidas { --tom: #0284c7; }
+.tom-retirada { --tom: #64748b; }
+.tom-entrega { --tom: #6366f1; }
+.tom-caixa { --tom: #059669; }
+html.cf-escuro .tom-total, html.cf-escuro .tom-pedido { --tom: #fb923c; }
+html.cf-escuro .tom-dinheiro { --tom: #34d399; }
+html.cf-escuro .tom-pix { --tom: #2dd4bf; }
+html.cf-escuro .tom-cartao { --tom: #60a5fa; }
+html.cf-escuro .tom-misto { --tom: #fbbf24; }
+html.cf-escuro .tom-taxa { --tom: #a78bfa; }
+html.cf-escuro .tom-bebidas { --tom: #38bdf8; }
+html.cf-escuro .tom-retirada { --tom: #94a3b8; }
+html.cf-escuro .tom-entrega { --tom: #818cf8; }
+html.cf-escuro .tom-caixa { --tom: #10b981; }
+
+/* ------------------------------------------------------------ topo */
+.pedidos-topo {
+    display: flex; flex-direction: column; gap: 14px;
+    padding: 18px; border-radius: 28px;
+    background: var(--cf-superficie); border: 1px solid var(--cf-borda); box-shadow: var(--cf-sombra);
 }
-
-/* Chrome, Edge e Safari */
-.custom-scrollbar::-webkit-scrollbar {
-    width: 14px;
+.pt-linha { display: flex; align-items: center; justify-content: space-between; gap: 12px 24px; flex-wrap: wrap; }
+.pt-titulo { display: flex; align-items: center; gap: 10px; font-size: 20px; font-weight: 900; text-transform: uppercase; color: var(--cf-texto); }
+.pt-titulo > i { color: #f97316; }
+.pt-icone-btn {
+    width: 34px; height: 34px; border-radius: 12px; display: grid; place-items: center;
+    background: var(--cf-superficie-2); color: var(--cf-texto-suave); font-size: 13px; transition: transform .2s, color .2s;
 }
-
-.custom-scrollbar::-webkit-scrollbar-track {
-    background: #fff7ed;
-    border-radius: 999px;
-    border: 1px solid #fed7aa;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb {
-    background: linear-gradient(180deg, #fb923c 0%, #f97316 50%, #ea580c 100%);
-    border-radius: 999px;
-    border: 3px solid #fff7ed;
-    min-height: 70px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: linear-gradient(180deg, #fdba74 0%, #f97316 45%, #c2410c 100%);
-}
-
-.custom-scrollbar::-webkit-scrollbar-corner {
-    background: #fff7ed;
-}
-
-.pedido-card {
-    animation: slideUp .4s ease forwards;
-}
-
-@keyframes slideUp {
-    from {
-        opacity: 0;
-        transform: translateY(20px);
-    }
-
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
+.pt-icone-btn:hover { color: #f97316; transform: translateY(-1px); }
+.pt-filtros { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; min-width: 0; max-width: 100%; }
+.filtro-linha { display: flex; gap: 6px; max-width: 100%; overflow-x: auto; scrollbar-width: none; padding: 2px; }
+.filtro-linha::-webkit-scrollbar { display: none; }
+@media (min-width: 900px) { .filtro-linha + .filtro-linha { padding-left: 14px; border-left: 1px solid var(--cf-borda); } }
 
 .btnPeriodo,
 .btnPagamento {
-    background: #f3f4f6;
-    color: #6b7280;
-    padding: 8px 18px;
-    border-radius: 999px;
-    font-size: 11px;
-    font-weight: 900;
-    letter-spacing: .08em;
-    transition: .2s;
+    flex: none; white-space: nowrap;
+    background: #f3f4f6; color: #6b7280;
+    padding: 8px 16px; border-radius: 999px;
+    font-size: 11px; font-weight: 900; letter-spacing: .08em;
+    transition: background .2s, color .2s, box-shadow .2s, transform .2s;
 }
-
 .btnPeriodo:hover,
-.btnPagamento:hover {
-    background: #fed7aa;
-    color: #ea580c;
-}
-
+.btnPagamento:hover { background: #fed7aa; color: #ea580c; }
 .btnPeriodo.ativo,
-.btnPagamento.ativo {
-    background: #f97316;
-    color: white;
-    box-shadow: 0 6px 18px rgba(249, 115, 22, .25);
+.btnPagamento.ativo { background: #f97316; color: white; box-shadow: 0 6px 18px rgba(249, 115, 22, .25); }
+
+/* Cartões do relatório: ícone + rótulo em cima, valor grande, quantidade. */
+.rel-grade { display: grid; gap: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.rel-grade .tom-total { grid-column: 1 / -1; }
+@media (min-width: 640px) { .rel-grade { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (min-width: 1024px) {
+    .rel-grade { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .rel-grade .tom-total { grid-column: span 2; }
+}
+@media (min-width: 1280px) {
+    .rel-grade { grid-template-columns: 1.3fr repeat(6, minmax(0, 1fr)); }
+    .rel-grade .tom-total { grid-column: auto; }
+}
+.rel-tile {
+    position: relative; min-width: 0; text-align: left; cursor: pointer;
+    display: grid; grid-template-columns: 28px minmax(0, 1fr); column-gap: 8px; align-items: center;
+    padding: 12px 28px 12px 12px; border-radius: 18px;
+    background: color-mix(in srgb, var(--tom) 8%, var(--cf-superficie));
+    border: 1px solid color-mix(in srgb, var(--tom) 22%, transparent);
+    transition: transform .25s cubic-bezier(.2, .8, .2, 1), box-shadow .25s, border-color .25s;
+    animation: rel-entrar .55s cubic-bezier(.2, .8, .2, 1) backwards;
+    animation-delay: calc(var(--i, 0) * 45ms);
+}
+.rel-tile:hover { transform: translateY(-3px); border-color: color-mix(in srgb, var(--tom) 50%, transparent); box-shadow: 0 14px 28px -14px color-mix(in srgb, var(--tom) 70%, transparent); }
+.rel-tile:active { transform: translateY(0) scale(.97); }
+.rel-tile:focus-visible { outline: 3px solid color-mix(in srgb, var(--tom) 55%, transparent); outline-offset: 2px; }
+.rel-icone {
+    grid-row: 1; grid-column: 1;
+    width: 28px; height: 28px; border-radius: 10px; display: grid; place-items: center;
+    background: color-mix(in srgb, var(--tom) 16%, transparent); color: var(--tom); font-size: 13px;
+}
+.rel-texto { display: contents; }
+.rel-rotulo { grid-row: 1; grid-column: 2; min-width: 0; color: var(--tom); font-size: 9.5px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rel-valor { grid-row: 2; grid-column: 1 / -1; margin-top: 8px; color: var(--cf-texto); font-size: 18px; font-weight: 950; line-height: 1.1; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.rel-sub { grid-row: 3; grid-column: 1 / -1; margin-top: 3px; color: var(--cf-texto-suave); font-size: 10px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rel-seta { position: absolute; top: 18px; right: 12px; font-size: 10px; color: var(--tom); opacity: .45; transition: opacity .2s, right .2s; }
+.rel-tile:hover .rel-seta { opacity: 1; right: 9px; }
+.rel-cheio { background: linear-gradient(135deg, var(--tom), color-mix(in srgb, var(--tom) 68%, #000)); border-color: transparent; }
+.rel-cheio .rel-rotulo, .rel-cheio .rel-valor, .rel-cheio .rel-sub, .rel-cheio .rel-seta { color: #fff; }
+.rel-cheio .rel-sub { opacity: .85; }
+.rel-cheio .rel-icone { background: rgba(255, 255, 255, .2); color: #fff; }
+.rel-cheio .rel-valor { font-size: 21px; }
+@keyframes rel-entrar { from { opacity: 0; transform: translateY(12px) scale(.97); } }
+
+/* Conferência do caixa em dinheiro */
+.caixa-conf { display: grid; grid-template-columns: minmax(220px, .75fr) 2.25fr; gap: 12px; align-items: center; padding-top: 14px; border-top: 1px solid var(--cf-borda); }
+.caixa-conf-titulo { display: flex; align-items: center; gap: 10px; }
+.caixa-conf-titulo .rel-icone { width: 38px; height: 38px; flex: 0 0 38px; font-size: 15px; }
+.caixa-conf-titulo strong { display: block; font-size: 10px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; color: var(--cf-texto-2); }
+.caixa-conf-titulo small { display: block; margin-top: 2px; font-size: 10.5px; font-weight: 600; line-height: 1.35; color: var(--cf-texto-suave); }
+.caixa-conf-grade { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
+@media (max-width: 1023px) { .caixa-conf { grid-template-columns: 1fr; } }
+/* No celular a conferência vira três colunas enxutas (antes empilhava). */
+@media (max-width: 640px) {
+    .caixa-conf-grade { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+    .rel-compacto { grid-template-columns: minmax(0, 1fr); padding: 10px 9px; border-radius: 15px; }
+    .rel-compacto .rel-icone, .rel-compacto .rel-seta { display: none; }
+    .rel-compacto .rel-rotulo { grid-column: 1; font-size: 8.5px; line-height: 1.25; white-space: normal; }
+    .rel-compacto .rel-valor, .rel-cheio.rel-compacto .rel-valor { margin-top: 4px; font-size: 14px; }
+    .rel-compacto .rel-sub { display: none; }
+    .caixa-conf-titulo small { display: none; }
 }
 
-.endereco-entrega-card {
-    background: linear-gradient(90deg, #eef2ff 0%, #f0f9ff 100%);
-    border: 1px solid #c7d2fe;
+/* ----------------------------------------------------- lista de pedidos */
+.lista-cabecalho {
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px;
+    padding: 0 6px; font-size: 11px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; color: var(--cf-texto-suave);
 }
+.lista-dica i { color: #f97316; margin-right: 4px; }
+.pedidos-grade { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); }
 
+.pedido-card {
+    --st: #eab308;
+    position: relative; min-width: 0; overflow: hidden; cursor: pointer;
+    display: flex; flex-direction: column; gap: 10px;
+    padding: 18px 16px 14px; border-radius: 22px;
+    background: var(--cf-superficie); border: 1px solid var(--cf-borda); box-shadow: var(--cf-sombra);
+    container-type: inline-size;
+    transition: transform .3s cubic-bezier(.2, .8, .2, 1), box-shadow .3s, border-color .3s;
+    animation: pc-entrar .55s cubic-bezier(.2, .8, .2, 1) backwards;
+    animation-delay: calc(min(var(--i, 0), 12) * 40ms + 120ms);
+}
+.pedido-card::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 4px; background: var(--st); }
+.pedido-card:hover { transform: translateY(-4px); border-color: color-mix(in srgb, var(--st) 50%, var(--cf-borda)); box-shadow: 0 22px 44px -22px rgba(0, 0, 0, .35); }
+.pedido-card:focus-visible { outline: 3px solid color-mix(in srgb, #f97316 60%, transparent); outline-offset: 3px; }
+.pedido-card:active { transform: translateY(-1px) scale(.99); }
+@keyframes pc-entrar { from { opacity: 0; transform: translateY(18px); } }
+.st-borda-pago { --st: #eab308; }
+.st-borda-preparo { --st: #3b82f6; }
+.st-borda-entrega { --st: #8b5cf6; }
+.st-borda-finalizado { --st: #10b981; }
+.st-borda-cancelado { --st: #ef4444; }
+
+.pc-topo { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.pc-numero { display: block; font-size: 19px; font-weight: 950; line-height: 1; color: var(--cf-texto); }
+.pc-hora { display: block; margin-top: 5px; font-size: 11px; font-weight: 700; color: var(--cf-texto-suave); }
+.pc-status { display: inline-flex; align-items: center; padding: 5px 10px; border-radius: 999px; font-size: 10px; font-weight: 900; letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; }
+.st-pago { background: #fef9c3; color: #a16207; }
+.st-preparo { background: #dbeafe; color: #1d4ed8; }
+.st-entrega { background: #ede9fe; color: #6d28d9; }
+.st-finalizado { background: #dcfce7; color: #15803d; }
+.st-cancelado { background: #fee2e2; color: #b91c1c; }
+html.cf-escuro .st-pago { background: rgba(234, 179, 8, .16); color: #fde047; }
+html.cf-escuro .st-preparo { background: rgba(59, 130, 246, .18); color: #93c5fd; }
+html.cf-escuro .st-entrega { background: rgba(139, 92, 246, .18); color: #c4b5fd; }
+html.cf-escuro .st-finalizado { background: rgba(16, 185, 129, .16); color: #6ee7b7; }
+html.cf-escuro .st-cancelado { background: rgba(239, 68, 68, .16); color: #fca5a5; }
+.pc-nao-impresso { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; background: #111; color: #fff; font-size: 9.5px; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; }
+html.cf-escuro .pc-nao-impresso { background: #f4f4f5; color: #111; }
+.pc-cliente { font-size: 15px; font-weight: 900; line-height: 1.2; color: var(--cf-texto); overflow-wrap: anywhere; }
+.pc-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.pc-chip { display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px; border-radius: 9px; font-size: 10px; font-weight: 900; letter-spacing: .03em; text-transform: uppercase; background: var(--cf-superficie-2); color: var(--cf-texto-2); }
+.chip-entrega { background: color-mix(in srgb, #6366f1 14%, transparent); color: #4f46e5; }
+html.cf-escuro .chip-entrega { color: #a5b4fc; }
+.chip-pag { background: color-mix(in srgb, var(--tom) 14%, transparent); color: color-mix(in srgb, var(--tom) 72%, #000); }
+html.cf-escuro .chip-pag { color: var(--tom); }
+.pc-info { display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px; border-radius: 12px; background: var(--cf-superficie-2); font-size: 12px; font-weight: 700; line-height: 1.35; color: var(--cf-texto-2); overflow-wrap: anywhere; }
+.pc-info > i { margin-top: 2px; color: #6366f1; }
+.pc-info small { display: block; font-size: 10.5px; font-weight: 700; color: var(--cf-texto-suave); }
+.pc-obs { background: color-mix(in srgb, #f59e0b 12%, transparent); white-space: pre-line; }
+.pc-obs > i { color: #d97706; }
+.pc-itens { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.pc-itens li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: baseline; gap: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--cf-borda); font-size: 13px; font-weight: 700; color: var(--cf-texto-2); }
+.pc-itens li:last-child { padding-bottom: 0; border-bottom: 0; }
+.pc-qtd { font-weight: 900; color: #f97316; }
+.pc-item-nome { color: var(--cf-texto); overflow-wrap: anywhere; }
+.pc-adicionais { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.pc-adicionais span { padding: 2px 6px; border-radius: 6px; font-size: 9.5px; font-weight: 800; background: color-mix(in srgb, #f97316 12%, transparent); color: #c2410c; }
+html.cf-escuro .pc-adicionais span { color: #fdba74; }
+.pc-item-valor { font-size: 11.5px; font-weight: 900; white-space: nowrap; color: var(--cf-texto-suave); }
+.pc-rodape { margin-top: auto; display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; padding-top: 10px; border-top: 1px solid var(--cf-borda); }
+.pc-total span { display: block; font-size: 9.5px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; color: var(--cf-texto-suave); }
+.pc-total strong { display: block; font-size: 20px; font-weight: 950; line-height: 1.1; color: #16a34a; }
+.pc-total small { display: block; margin-top: 2px; font-size: 10.5px; font-weight: 800; color: #7c3aed; }
+html.cf-escuro .pc-total strong { color: #4ade80; }
+html.cf-escuro .pc-total small { color: #c4b5fd; }
+.pc-acoes { display: flex; gap: 6px; }
+.pc-btn {
+    height: 38px; padding: 0 12px; border-radius: 12px;
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    font-size: 10.5px; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap;
+    background: var(--cf-superficie-2); color: var(--cf-texto-2);
+    transition: background .2s, color .2s, transform .2s;
+}
+.pc-btn:hover { background: #f97316; color: #fff; }
+.pc-btn-primario { background: #f97316; color: #fff; box-shadow: 0 8px 18px -8px rgba(249, 115, 22, .7); }
+.pc-btn-primario:hover { background: #ea580c; transform: translateY(-1px); }
+@container (max-width: 340px) { .pc-btn-texto { display: none; } }
+.lista-vazia { grid-column: 1 / -1; padding: 70px 20px; text-align: center; color: var(--cf-texto-suave); font-weight: 800; font-style: italic; }
+.lista-vazia i { display: block; margin-bottom: 12px; font-size: 54px; opacity: .2; }
+
+/* ---------------------------------------------------------- paginação */
 .paginacao-btn,
 .paginacao-numero {
-    width: 42px;
-    height: 42px;
-    border-radius: 999px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    background: #f3f4f6;
-    color: #6b7280;
-    font-size: 12px;
-    font-weight: 900;
-    transition: .2s;
-    border: 1px solid #f1f5f9;
+    width: 42px; height: 42px; border-radius: 999px;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: #f3f4f6; color: #6b7280; font-size: 12px; font-weight: 900;
+    transition: .2s; border: 1px solid #f1f5f9;
 }
-
 .paginacao-btn:hover,
-.paginacao-numero:hover {
-    background: #fed7aa;
-    color: #ea580c;
-    transform: translateY(-1px);
-}
+.paginacao-numero:hover { background: #fed7aa; color: #ea580c; transform: translateY(-1px); }
+.paginacao-ativa { background: #f97316 !important; color: white !important; box-shadow: 0 8px 24px rgba(249, 115, 22, .28); border-color: #fb923c !important; }
+.paginacao-disabled { opacity: .35; cursor: not-allowed; pointer-events: none; }
 
-.paginacao-ativa {
-    background: #f97316 !important;
-    color: white !important;
-    box-shadow: 0 8px 24px rgba(249, 115, 22, .28);
-    border-color: #fb923c !important;
-}
-
-.paginacao-disabled {
-    opacity: .35;
-    cursor: not-allowed;
-    pointer-events: none;
-}
-
+/* ------------------------------------------- modais de impressão e status */
 #modalPrint,
-#modalStatus,
-#modalBebidas {
-    z-index: 999999 !important;
-}
-
+#modalStatus { z-index: 999999 !important; }
 .modal-pedido {
-    position: fixed !important;
-    inset: 0 !important;
+    position: fixed !important; inset: 0 !important;
     background: rgba(17, 24, 39, .55) !important;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 999999 !important;
-    padding: 16px;
+    display: flex; align-items: center; justify-content: center;
+    z-index: 999999 !important; padding: 16px;
+}
+.modal-pedido.hidden { display: none !important; }
+.modal-caixa { width: 100%; background: white; border-radius: 2rem; padding: 2rem; box-shadow: 0 30px 80px rgba(0, 0, 0, .25); }
+.modal-pedido:not(.hidden) .modal-caixa { animation: pm-surgir .45s cubic-bezier(.2, 1.1, .3, 1); }
+@keyframes pm-surgir { from { opacity: 0; transform: translateY(22px) scale(.95); } }
+
+/* ======================================================================
+   MODAL DE DETALHES (relatórios dos cartões e o pedido completo).
+   No computador abre no centro; no celular sobe de baixo, como uma folha.
+   ====================================================================== */
+html.pm-travado, html.pm-travado body { overflow: hidden; }
+.pm-fundo {
+    position: fixed; inset: 0; z-index: 99990;
+    display: flex; align-items: center; justify-content: center; padding: 20px;
+    background: rgba(12, 10, 9, .55); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+    opacity: 0; transition: opacity .3s ease;
+}
+.pm-fundo[hidden] { display: none; }
+.pm-fundo.aberto { opacity: 1; }
+.pm-caixa {
+    position: relative; width: min(100%, 700px); max-height: min(90vh, 980px);
+    display: flex; flex-direction: column; overflow: hidden;
+    background: var(--cf-superficie); color: var(--cf-texto);
+    border: 1px solid var(--cf-borda); border-radius: 30px;
+    box-shadow: 0 40px 100px -20px rgba(0, 0, 0, .5);
+    transform: translateY(40px) scale(.93); opacity: 0;
+    transition: transform .55s cubic-bezier(.2, 1.15, .3, 1), opacity .3s ease;
+}
+.pm-fundo.aberto .pm-caixa { transform: none; opacity: 1; }
+.pm-conteudo { flex: 1 1 auto; overflow-y: auto; overscroll-behavior: contain; padding: 26px; }
+.pm-rodape { flex: none; display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 26px 18px; border-top: 1px solid var(--cf-borda); background: var(--cf-superficie); }
+.pm-rodape:empty { display: none; }
+.pm-fechar {
+    position: absolute; top: 14px; right: 14px; z-index: 3;
+    width: 40px; height: 40px; border-radius: 14px; display: grid; place-items: center;
+    background: var(--cf-superficie-2); color: var(--cf-texto-2); font-size: 17px;
+    transition: transform .3s cubic-bezier(.2, 1.4, .4, 1), background .2s, color .2s;
+}
+.pm-fechar:hover { transform: rotate(90deg); background: #ef4444; color: #fff; }
+.pm-alca { display: none; }
+@media (max-width: 640px) {
+    .pm-fundo { align-items: flex-end; padding: 0; }
+    .pm-caixa { width: 100%; max-height: 93vh; border-radius: 26px 26px 0 0; border-bottom: 0; transform: translateY(100%); }
+    .pm-alca { display: block; flex: none; width: 44px; height: 5px; margin: 10px auto 0; border-radius: 99px; background: var(--cf-superficie-3); }
+    .pm-fechar { top: 16px; }
+    .pm-conteudo { padding: 16px 16px 20px; }
+    .pm-rodape { padding: 10px 16px calc(14px + env(safe-area-inset-bottom)); }
 }
 
-.modal-pedido.hidden {
-    display: none !important;
-}
+/* Entrada em cascata do conteúdo. */
+.pm-anim > * { animation: pm-subir .5s cubic-bezier(.2, .8, .2, 1) backwards; }
+.pm-anim > *:nth-child(2) { animation-delay: .05s; }
+.pm-anim > *:nth-child(3) { animation-delay: .1s; }
+.pm-anim > *:nth-child(4) { animation-delay: .15s; }
+.pm-anim > *:nth-child(5) { animation-delay: .2s; }
+.pm-anim > *:nth-child(6) { animation-delay: .25s; }
+.pm-anim > *:nth-child(n+7) { animation-delay: .3s; }
+.pm-lista li, .pm-item, .pm-barra-linha { animation: pm-subir .45s cubic-bezier(.2, .8, .2, 1) backwards; animation-delay: calc(.22s + min(var(--i, 0), 14) * 35ms); }
+.pm-rodape > * { animation: pm-subir .45s cubic-bezier(.2, .8, .2, 1) backwards .25s; }
+@keyframes pm-subir { from { opacity: 0; transform: translateY(14px); } }
 
-.modal-caixa {
-    width: 100%;
-    background: white;
-    border-radius: 2rem;
-    padding: 2rem;
-    box-shadow: 0 30px 80px rgba(0, 0, 0, .25);
+.pm-voltar {
+    display: inline-flex; align-items: center; gap: 7px; margin-bottom: 14px; padding: 7px 12px; border-radius: 12px;
+    background: var(--cf-superficie-2); color: var(--cf-texto-2);
+    font-size: 11px; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; transition: transform .2s, color .2s;
+}
+.pm-voltar:hover { transform: translateX(-3px); color: #f97316; }
+.pm-cabeca { display: flex; align-items: flex-start; gap: 14px; padding-right: 48px; }
+.pm-icone {
+    width: 54px; height: 54px; flex: 0 0 54px; border-radius: 18px; display: grid; place-items: center;
+    font-size: 22px; color: #fff;
+    background: linear-gradient(135deg, var(--tom), color-mix(in srgb, var(--tom) 62%, #000));
+    box-shadow: 0 12px 26px -10px var(--tom);
+    animation: pm-pop .65s cubic-bezier(.2, 1.5, .4, 1) backwards .12s;
+}
+@keyframes pm-pop { from { opacity: 0; transform: scale(.35) rotate(-14deg); } }
+.pm-eyebrow { display: block; color: var(--tom); font-size: 10px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
+.pm-cabeca h2 { margin: 3px 0 3px; font-size: 24px; font-weight: 950; line-height: 1.1; color: var(--cf-texto); }
+.pm-cabeca p { font-size: 12.5px; font-weight: 600; line-height: 1.4; color: var(--cf-texto-suave); }
+.pm-hero {
+    position: relative; overflow: hidden; margin-top: 18px; padding: 16px 20px; border-radius: 22px;
+    background: linear-gradient(135deg, color-mix(in srgb, var(--tom) 15%, var(--cf-superficie)), color-mix(in srgb, var(--tom) 4%, var(--cf-superficie)));
+    border: 1px solid color-mix(in srgb, var(--tom) 26%, transparent);
+}
+.pm-hero::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(110deg, transparent 30%, rgba(255, 255, 255, .35) 50%, transparent 70%);
+    transform: translateX(-100%); animation: pm-brilho 1.3s ease .4s;
+}
+@keyframes pm-brilho { to { transform: translateX(100%); } }
+.pm-hero span { font-size: 10px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; color: var(--tom); }
+.pm-hero strong { display: block; font-size: clamp(28px, 6vw, 40px); font-weight: 950; line-height: 1.1; letter-spacing: -.02em; color: var(--cf-texto); font-variant-numeric: tabular-nums; }
+.pm-destaques { display: grid; grid-template-columns: repeat(auto-fit, minmax(125px, 1fr)); gap: 8px; margin-top: 10px; }
+.pm-destaque { padding: 10px 12px; border-radius: 16px; background: var(--cf-superficie-2); min-width: 0; }
+.pm-destaque span { display: block; font-size: 9.5px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; color: var(--cf-texto-suave); }
+.pm-destaque strong { display: block; margin-top: 2px; font-size: 16px; font-weight: 950; color: var(--cf-texto); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pm-secao { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 22px 0 10px; font-size: 11px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; color: var(--cf-texto-2); }
+.pm-secao span { padding: 3px 9px; border-radius: 99px; background: var(--cf-superficie-2); color: var(--cf-texto-suave); font-size: 10px; }
+.pm-quebra { display: flex; flex-direction: column; gap: 12px; }
+.pm-barra-topo { display: flex; justify-content: space-between; gap: 10px; font-size: 12.5px; font-weight: 800; color: var(--cf-texto-2); }
+.pm-ponto { display: inline-block; width: 9px; height: 9px; margin-right: 7px; border-radius: 3px; background: var(--tom); }
+.pm-barra-topo strong { white-space: nowrap; font-weight: 900; color: var(--cf-texto); }
+.pm-barra-topo em { margin-left: 4px; font-size: 11px; font-style: normal; font-weight: 800; color: var(--cf-texto-suave); }
+.pm-barra { height: 10px; margin-top: 6px; border-radius: 99px; background: var(--cf-superficie-3); overflow: hidden; }
+.pm-barra i { display: block; width: 0; height: 100%; border-radius: 99px; background: var(--tom); transition: width 1s cubic-bezier(.2, .8, .2, 1); }
+.pm-barra-linha small { display: block; margin-top: 4px; font-size: 10.5px; font-weight: 700; color: var(--cf-texto-suave); }
+.pm-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.pm-linha {
+    width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr) auto 10px; align-items: center; gap: 12px;
+    padding: 10px 12px; border-radius: 16px; text-align: left; color: inherit;
+    background: var(--cf-superficie-2); border: 1px solid transparent;
+    transition: transform .2s, border-color .2s, background .2s;
+}
+.pm-linha:hover { transform: translateX(3px); border-color: color-mix(in srgb, #f97316 40%, transparent); background: color-mix(in srgb, #f97316 6%, var(--cf-superficie-2)); }
+.pm-linha-num { font-size: 12px; font-weight: 950; color: var(--cf-texto-suave); }
+.pm-linha-meio { min-width: 0; }
+.pm-linha-meio strong, .pm-linha-meio small { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pm-linha-meio strong { font-size: 13.5px; font-weight: 900; color: var(--cf-texto); }
+.pm-linha-meio small { font-size: 11px; font-weight: 700; color: var(--cf-texto-suave); }
+.pm-linha-fim { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
+.pm-linha-fim strong { font-size: 13.5px; font-weight: 950; white-space: nowrap; color: var(--cf-texto); }
+.pm-linha-fim .pc-status { padding: 2px 7px; font-size: 8.5px; }
+.pm-linha > i { font-size: 10px; color: var(--cf-texto-suave); }
+.pm-nota { margin-top: 12px; font-size: 11px; font-weight: 700; color: var(--cf-texto-suave); }
+.pm-vazio { padding: 26px 10px; text-align: center; font-size: 13px; font-weight: 800; color: var(--cf-texto-suave); }
+.pm-vazio i { display: block; margin-bottom: 8px; font-size: 30px; opacity: .3; }
+
+/* pedido completo */
+.pm-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.pm-tag { padding: 4px 9px; border-radius: 9px; font-size: 10px; font-weight: 900; text-transform: uppercase; background: var(--cf-superficie-2); color: var(--cf-texto-2); }
+.pm-tag-alerta { background: #111; color: #fff; }
+html.cf-escuro .pm-tag-alerta { background: #f4f4f5; color: #111; }
+.pm-linha-tempo { position: relative; display: grid; grid-template-columns: repeat(4, 1fr); margin-top: 20px; }
+.pm-linha-tempo::before { content: ""; position: absolute; top: 19px; left: 12.5%; right: 12.5%; height: 4px; border-radius: 99px; background: var(--cf-superficie-3); }
+.pm-progresso { position: absolute; top: 19px; left: 12.5%; width: 0; height: 4px; border-radius: 99px; background: linear-gradient(90deg, #f59e0b, #10b981); transition: width 1.1s cubic-bezier(.2, .8, .2, 1) .25s; }
+.pm-etapa { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; font-size: 10.5px; font-weight: 800; color: var(--cf-texto-suave); }
+.pm-etapa b { position: relative; z-index: 1; width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; font-size: 15px; background: var(--cf-superficie-2); border: 3px solid var(--cf-superficie); color: var(--cf-texto-suave); }
+.pm-etapa.feita b { background: #10b981; color: #fff; }
+.pm-etapa.atual { color: var(--cf-texto); }
+.pm-etapa.atual b { background: #f97316; color: #fff; box-shadow: 0 0 0 6px color-mix(in srgb, #f97316 22%, transparent); animation: pm-pulso 1.8s ease-in-out infinite; }
+@keyframes pm-pulso { 50% { box-shadow: 0 0 0 11px color-mix(in srgb, #f97316 0%, transparent); } }
+.pm-cancelado { margin-top: 16px; padding: 12px 14px; border-radius: 16px; font-size: 13px; font-weight: 900; background: color-mix(in srgb, #ef4444 12%, transparent); color: #b91c1c; }
+html.cf-escuro .pm-cancelado { color: #fca5a5; }
+.pm-blocos { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-top: 18px; }
+.pm-bloco { min-width: 0; padding: 12px 14px; border-radius: 18px; background: var(--cf-superficie-2); }
+.pm-bloco h3 { margin-bottom: 4px; font-size: 9.5px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; color: var(--cf-texto-suave); }
+.pm-bloco h3 i { margin-right: 4px; color: #f97316; }
+.pm-bloco p { font-size: 12.5px; font-weight: 700; color: var(--cf-texto-2); overflow-wrap: anywhere; }
+.pm-bloco p + p { margin-top: 2px; }
+.pm-bloco .pm-forte { font-size: 15px; font-weight: 900; color: var(--cf-texto); }
+.pm-obs { grid-column: 1 / -1; background: color-mix(in srgb, #f59e0b 12%, transparent); }
+.pm-obs p { white-space: pre-line; }
+.pm-itens-pedido ul { list-style: none; margin: 0; padding: 0; }
+.pm-item { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--cf-borda); }
+.pm-item:last-child { border-bottom: 0; }
+.pm-item-qtd { width: 40px; height: 40px; border-radius: 13px; display: grid; place-items: center; font-size: 13px; font-weight: 950; background: color-mix(in srgb, #f97316 14%, transparent); color: #ea580c; }
+html.cf-escuro .pm-item-qtd { color: #fdba74; }
+.pm-item-nome { min-width: 0; }
+.pm-item-nome strong { display: block; font-size: 14px; font-weight: 900; color: var(--cf-texto); overflow-wrap: anywhere; }
+.pm-item-nome strong i { margin-right: 3px; font-size: 11px; color: var(--cf-texto-suave); }
+.pm-item-nome small { display: block; font-size: 11px; font-weight: 700; color: var(--cf-texto-suave); }
+.pm-adicionais { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0 2px; }
+.pm-adicionais span { padding: 2px 7px; border-radius: 7px; font-size: 10px; font-weight: 800; background: color-mix(in srgb, #f97316 12%, transparent); color: #c2410c; }
+html.cf-escuro .pm-adicionais span { color: #fdba74; }
+.pm-item-valor { font-size: 14px; font-weight: 950; white-space: nowrap; color: var(--cf-texto); }
+.pm-conta { display: flex; flex-direction: column; gap: 6px; margin-top: 14px; padding: 14px 16px; border-radius: 20px; background: var(--cf-superficie-2); }
+.pm-conta > div { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; font-weight: 700; color: var(--cf-texto-2); }
+.pm-conta .pm-desconto { color: #dc2626; }
+html.cf-escuro .pm-conta .pm-desconto { color: #fca5a5; }
+.pm-conta .pm-conta-final { align-items: baseline; margin-top: 6px; padding-top: 10px; border-top: 1px solid var(--cf-borda); }
+.pm-conta-final span { font-size: 11px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+.pm-conta-final strong { font-size: 28px; font-weight: 950; color: #16a34a; font-variant-numeric: tabular-nums; }
+html.cf-escuro .pm-conta-final strong { color: #4ade80; }
+.pm-btn {
+    flex: 1 1 auto; height: 46px; padding: 0 16px; border-radius: 15px;
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    font-size: 11.5px; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap;
+    background: var(--cf-superficie-2); color: var(--cf-texto);
+    transition: transform .2s, box-shadow .2s, background .2s;
+}
+.pm-btn:hover { transform: translateY(-2px); box-shadow: 0 10px 20px -12px rgba(0, 0, 0, .4); }
+.pm-btn-primario { background: linear-gradient(135deg, #22c55e, #16a34a); color: #fff; }
+.pm-btn-whats { background: #25d366; color: #fff; }
+.pm-esqueleto { display: flex; flex-direction: column; gap: 12px; padding-right: 48px; }
+.pm-esqueleto i { display: block; height: 16px; border-radius: 10px; background: linear-gradient(90deg, var(--cf-superficie-2) 25%, var(--cf-superficie-3) 50%, var(--cf-superficie-2) 75%); background-size: 200% 100%; animation: pm-brilho-cinza 1.1s linear infinite; }
+.pm-esqueleto i:first-child { width: 54px; height: 54px; border-radius: 18px; }
+.pm-esqueleto .alto { height: 76px; border-radius: 22px; }
+@keyframes pm-brilho-cinza { to { background-position: -200% 0; } }
+.pm-erro { padding: 34px 10px; text-align: center; font-weight: 800; color: var(--cf-texto-2); }
+.pm-erro i { display: block; margin-bottom: 10px; font-size: 32px; color: #ef4444; }
+.pm-erro button { margin-top: 14px; }
+
+@media (prefers-reduced-motion: reduce) {
+    .rel-tile, .pedido-card, .pm-anim > *, .pm-lista li, .pm-item, .pm-barra-linha, .pm-icone, .pm-hero::after,
+    .pm-rodape > *, .pm-etapa.atual b, .modal-pedido:not(.hidden) .modal-caixa { animation: none !important; }
+    .pm-fundo, .pm-caixa, .pm-barra i, .pm-progresso { transition: none !important; }
 }
 </style>
 
 <script src="{% static 'core/js/impressao.js' %}?v={{ versao_estaticos }}"></script>
+<script src="{% static 'core/js/pedidos.js' %}?v={{ versao_estaticos }}"></script>
 
 <script>
 (function () {
@@ -956,14 +1097,6 @@
         fechar(byId("modalStatus"));
     };
 
-    window.abrirModalBebidas = function () {
-        abrir(byId("modalBebidas"));
-    };
-
-    window.fecharModalBebidas = function () {
-        fechar(byId("modalBebidas"));
-    };
-
     window.validarConfirmacao = function () {
         const input = byId("inputConfirmacao");
         const btn = byId("btnConfirmarStatus");
@@ -1008,10 +1141,6 @@
 
         if (alvo.id === "modalPrint") {
             window.fecharModalPrint();
-        }
-
-        if (alvo.id === "modalBebidas") {
-            window.fecharModalBebidas();
         }
     });
 

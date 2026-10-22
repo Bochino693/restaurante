@@ -1,8 +1,10 @@
 import hmac
 import json
 import logging
+import re
 from datetime import datetime, time, timedelta
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+from urllib.parse import quote
 
 from django.conf import settings
 from django.contrib import messages
@@ -53,6 +55,8 @@ def _produto_para_cardapio(produto):
         "codigo": produto.codigo,
         "imagem": _url_imagem(produto.image_produto),
         "tem_adicionais": any(a.ativo for a in produto.adicionais_disponiveis.all()),
+        # Bebida mostra a lata/garrafa inteira na foto (sem corte).
+        "bebida": _eh_bebida(produto),
     }
 
 
@@ -64,7 +68,7 @@ CARDAPIO_CACHE_SEGUNDOS = 60
 
 def _dados_do_cardapio():
     dia_hoje = timezone.localdate().weekday()
-    chave = f"cardapio:v2:{dia_hoje}"
+    chave = f"cardapio:v3:{dia_hoje}"
     dados = cache.get(chave)
     if dados is not None:
         return dados
@@ -72,6 +76,7 @@ def _dados_do_cardapio():
     produtos_ativos = (
         Produtos.objects
         .filter(ativo=True)
+        .select_related("categoria")
         .order_by("nome_produto")
         .prefetch_related("adicionais_disponiveis")
     )
@@ -85,7 +90,7 @@ def _dados_do_cardapio():
     pratos = (
         PratoDoDia.objects
         .filter(dia_semana=dia_hoje, ativo=True, produto__ativo=True)
-        .select_related("produto")
+        .select_related("produto__categoria")
         .prefetch_related("produto__adicionais_disponiveis")
     )
     dados = {
@@ -105,7 +110,7 @@ def _dados_do_cardapio():
 
 
 def _limpar_cache_cardapio():
-    cache.delete_many([f"cardapio:v2:{d}" for d in range(7)])
+    cache.delete_many([f"cardapio:v3:{d}" for d in range(7)])
 
 
 class CardapioClienteView(View):
@@ -176,6 +181,12 @@ class CaixaView(LoginRequiredMixin, View):
             .prefetch_related("produto__adicionais_disponiveis")
             .order_by("produto__nome_produto")
         )
+
+        # Bebida mostra a lata/garrafa inteira na foto (sem corte).
+        for produto in produtos:
+            produto.eh_bebida = _eh_bebida(produto)
+        for prato in pratos_do_dia:
+            prato.produto.eh_bebida = _eh_bebida(prato.produto)
 
         return render(request, 'caixa.html', {
             'produtos': produtos,
@@ -807,7 +818,7 @@ def _filtrar_pedidos(request):
     pedidos = (
         Pedidos.objects
         .all()
-        .prefetch_related("itens", "itens__produto")
+        .prefetch_related("itens", "itens__produto", "itens__produto__categoria")
         .order_by("-criado_em")
     )
 
@@ -928,6 +939,20 @@ def _agregar_totais_pedidos(pedidos):
         soma_total=Sum("total"),
         soma_taxa=Sum("taxa_motoca"),
 
+        # Quantos pedidos formam cada valor (aparece embaixo de cada cartão).
+        qtd_total=Count("id"),
+        qtd_dinheiro=Count("id", filter=Q(forma_pagamento=Pedidos.FormaPagamento.DINHEIRO)),
+        qtd_pix=Count("id", filter=Q(forma_pagamento=Pedidos.FormaPagamento.PIX)),
+        qtd_cartao=Count("id", filter=Q(forma_pagamento=Pedidos.FormaPagamento.CARTAO)),
+        qtd_misto=Count("id", filter=Q(forma_pagamento=Pedidos.FormaPagamento.MISTO)),
+        qtd_entregas=Count("id", filter=Q(entrega=True)),
+        qtd_dinheiro_retirada=Count(
+            "id", filter=Q(forma_pagamento=Pedidos.FormaPagamento.DINHEIRO, entrega=False)
+        ),
+        qtd_dinheiro_entrega=Count(
+            "id", filter=Q(forma_pagamento=Pedidos.FormaPagamento.DINHEIRO, entrega=True)
+        ),
+
         soma_dinheiro=Sum(
             "total",
             filter=Q(forma_pagamento=Pedidos.FormaPagamento.DINHEIRO),
@@ -1022,22 +1047,36 @@ class PedidosView(LoginRequiredMixin, View):
             "pagamentos_atuais": pagamentos,
 
             "label_total": label,
-            "total_dia": _formatar_moeda(totais["soma_total"]),
-            "total_dinheiro": _formatar_moeda(totais["soma_dinheiro"]),
-            "total_pix": _formatar_moeda(totais["soma_pix"]),
-            "total_cartao": _formatar_moeda(totais["soma_cartao"]),
-            "total_misto": _formatar_moeda(totais["soma_misto"]),
-            "total_taxa_motoca": _formatar_moeda(totais["soma_taxa"]),
+            "total_dia": _reais(totais["soma_total"]),
+            "total_dinheiro": _reais(totais["soma_dinheiro"]),
+            "total_pix": _reais(totais["soma_pix"]),
+            "total_cartao": _reais(totais["soma_cartao"]),
+            "total_misto": _reais(totais["soma_misto"]),
+            "total_taxa_motoca": _reais(totais["soma_taxa"]),
+
+            # Quantos pedidos formam cada cartão.
+            "qtd_total": totais["qtd_total"],
+            "qtd_dinheiro": totais["qtd_dinheiro"],
+            "qtd_pix": totais["qtd_pix"],
+            "qtd_cartao": totais["qtd_cartao"],
+            "qtd_misto": totais["qtd_misto"],
+            "qtd_entregas": totais["qtd_entregas"],
+            "qtd_dinheiro_retirada": totais["qtd_dinheiro_retirada"],
+            "qtd_dinheiro_entrega": totais["qtd_dinheiro_entrega"],
 
             # Relatório de bebidas: valor, unidades e cada bebida vendida.
-            "total_bebidas": _formatar_moeda(bebidas["receita"]),
+            "total_bebidas": _reais(bebidas["receita"]),
             "qtd_bebidas": bebidas["unidades"],
             "bebidas_vendidas": bebidas["lista"],
 
             # Novos valores para conferência do caixa físico.
-            "dinheiro_retirada": _formatar_moeda(totais["dinheiro_retirada"]),
-            "dinheiro_entrega": _formatar_moeda(totais["dinheiro_entrega"]),
-            "dinheiro_caixa": _formatar_moeda(totais["dinheiro_caixa"]),
+            "dinheiro_retirada": _reais(totais["dinheiro_retirada"]),
+            "dinheiro_entrega": _reais(totais["dinheiro_entrega"]),
+            "dinheiro_caixa": _reais(totais["dinheiro_caixa"]),
+
+            # Os pedidos desta página, prontos para o modal de detalhes abrir
+            # na hora (sem ir ao servidor).
+            "pedidos_detalhes": {str(p.id): _detalhe_pedido(p) for p in page_obj},
 
             "status_options": Pedidos.StatusPedido.choices,
             "pagamento_options": Pedidos.FormaPagamento.choices,
@@ -1074,6 +1113,369 @@ class ResumoPedidosView(LoginRequiredMixin, View):
             "dinheiro_entrega": _formatar_moeda(totais["dinheiro_entrega"]),
             "dinheiro_caixa": _formatar_moeda(totais["dinheiro_caixa"]),
         })
+
+
+def _eh_bebida(produto):
+    """Mesma regra do relatório (_q_bebidas), para um produto já carregado."""
+    categoria = getattr(produto, "categoria", None) if produto else None
+    nome = (categoria.nome_categoria if categoria else "").casefold()
+    return any(palavra.casefold() in nome for palavra in settings.PALAVRAS_BEBIDAS)
+
+
+def _link_whatsapp(telefone):
+    digitos = re.sub(r"\D", "", telefone or "")
+    if len(digitos) in (10, 11):
+        digitos = "55" + digitos
+    return f"https://wa.me/{digitos}" if len(digitos) >= 12 else ""
+
+
+ETAPAS_PEDIDO = [
+    Pedidos.StatusPedido.PAGO,
+    Pedidos.StatusPedido.PREPARO,
+    Pedidos.StatusPedido.ENTREGA,
+    Pedidos.StatusPedido.FINALIZADO,
+]
+
+
+def _detalhe_pedido(pedido):
+    """Tudo do pedido para o modal de detalhes (usa os itens já buscados)."""
+    itens = []
+    bruto = Decimal("0.00")
+    unidades = 0
+    for item in pedido.itens.all():
+        adicionais = []
+        for adicional in item.adicionais or []:
+            if not isinstance(adicional, dict) or not str(adicional.get("nome") or "").strip():
+                continue
+            try:
+                preco = _reais(Decimal(str(adicional.get("preco") or 0)))
+            except (InvalidOperation, TypeError, ValueError):
+                preco = ""
+            adicionais.append({
+                "nome": str(adicional.get("nome")).strip(),
+                "qtd": adicional.get("qtd", 1),
+                "preco": preco,
+            })
+        itens.append({
+            "nome": item.produto.nome_produto if item.produto else "Produto removido",
+            "qtd": item.quantidade,
+            "unitario": _reais(item.preco_unitario),
+            "subtotal": _reais(item.subtotal),
+            "adicionais": adicionais,
+            "bebida": _eh_bebida(item.produto),
+        })
+        bruto += item.subtotal or Decimal("0.00")
+        unidades += item.quantidade or 0
+
+    total = pedido.total or Decimal("0.00")
+    taxa = pedido.taxa_motoca or Decimal("0.00")
+    desconto = bruto - total if bruto > total else Decimal("0.00")
+    criado = timezone.localtime(pedido.criado_em)
+    endereco = ", ".join(parte for parte in [pedido.rua or "", pedido.numero or ""] if parte)
+    proximo = pedido.proximo_status()
+
+    return {
+        "id": pedido.id,
+        "status": pedido.status,
+        "status_label": pedido.get_status_display(),
+        "etapa": ETAPAS_PEDIDO.index(pedido.status) if pedido.status in ETAPAS_PEDIDO else -1,
+        "proximo": proximo or "",
+        "proximo_label": Pedidos.StatusPedido(proximo).label if proximo else "",
+        "pagamento": pedido.forma_pagamento,
+        "pagamento_label": pedido.get_forma_pagamento_display(),
+        "data": criado.strftime("%d/%m/%Y"),
+        "hora": criado.strftime("%H:%M"),
+        "criado_iso": criado.isoformat(),
+        "cliente": pedido.nome_cliente or "",
+        "telefone": pedido.telefone or "",
+        "whatsapp": _link_whatsapp(pedido.telefone),
+        "entrega": pedido.entrega,
+        "endereco": endereco,
+        "cep": pedido.cep or "",
+        "mapa": (
+            "https://www.google.com/maps/search/?api=1&query="
+            + quote(" ".join(parte for parte in [endereco, pedido.cep or ""] if parte))
+        ) if pedido.entrega and endereco else "",
+        "descricao": pedido.descricao or "",
+        "impresso": pedido.impresso,
+        "itens": itens,
+        "unidades": unidades,
+        "bruto": _reais(bruto),
+        "desconto": _reais(desconto) if desconto > 0 else "",
+        "total": _reais(total),
+        "taxa": _reais(taxa) if taxa > 0 else "",
+        "total_final": _reais(total + taxa),
+    }
+
+
+class PedidoDetalheView(LoginRequiredMixin, View):
+    """Detalhes de um pedido para o modal (pedidos de fora da página atual,
+    abertos a partir das listas dos relatórios)."""
+    login_url = "login"
+
+    def get(self, request, pedido_id):
+        pedido = get_object_or_404(
+            Pedidos.objects.prefetch_related("itens__produto__categoria"), id=pedido_id
+        )
+        return JsonResponse(_detalhe_pedido(pedido))
+
+
+class RelatorioPedidosView(LoginRequiredMixin, View):
+    """O que está por trás de cada cartão do topo da tela de Pedidos: o valor,
+    os destaques, a divisão e a lista dos pedidos que formam aquele número.
+    Usa os mesmos filtros da tela (período e pagamento) e nunca os cancelados."""
+    login_url = "login"
+    LIMITE = 200
+
+    PAGAMENTOS = {
+        "dinheiro": (Pedidos.FormaPagamento.DINHEIRO, "Dinheiro", "fa-money-bill-wave"),
+        "pix": (Pedidos.FormaPagamento.PIX, "Pix", "fa-brands fa-pix"),
+        "cartao": (Pedidos.FormaPagamento.CARTAO, "Cartão", "fa-credit-card"),
+        "misto": (Pedidos.FormaPagamento.MISTO, "Misto", "fa-shuffle"),
+    }
+    TONS = {
+        Pedidos.FormaPagamento.DINHEIRO: "dinheiro",
+        Pedidos.FormaPagamento.PIX: "pix",
+        Pedidos.FormaPagamento.CARTAO: "cartao",
+        Pedidos.FormaPagamento.MISTO: "misto",
+    }
+
+    def get(self, request, tipo):
+        pedidos, _periodo, _pagamentos, label = _filtrar_pedidos(request)
+        pedidos = pedidos.prefetch_related(None)
+        validos = pedidos.exclude(status=Pedidos.StatusPedido.CANCELADO)
+        totais = _agregar_totais_pedidos(validos)
+
+        if tipo in self.PAGAMENTOS:
+            dados = self._pagamento(validos, totais, *self.PAGAMENTOS[tipo])
+        elif tipo in ("total", "taxa", "bebidas", "retirada_dinheiro", "entrega_dinheiro", "caixa_dinheiro"):
+            dados = getattr(self, f"_{tipo}")(pedidos, validos, totais)
+        else:
+            return JsonResponse({"erro": "Relatório não encontrado."}, status=404)
+
+        dados.update({"tipo": tipo, "periodo": label, "limite": self.LIMITE})
+        return JsonResponse(dados)
+
+    # ---------------------------------------------------------- utilitários
+    def _lista(self, selecao, valor=lambda p: p.total, detalhe=None):
+        linhas = []
+        for pedido in selecao[:self.LIMITE]:
+            criado = timezone.localtime(pedido.criado_em)
+            linhas.append({
+                "id": pedido.id,
+                "hora": criado.strftime("%H:%M"),
+                "data": criado.strftime("%d/%m"),
+                "cliente": pedido.nome_cliente or "Sem nome",
+                "valor": _reais(valor(pedido)),
+                "status": pedido.status,
+                "status_label": pedido.get_status_display(),
+                "detalhe": detalhe(pedido) if detalhe else (
+                    ("Entrega" if pedido.entrega else "Retirada") + " · " + pedido.get_forma_pagamento_display()
+                ),
+            })
+        return {"pedidos": linhas, "pedidos_total": selecao.count()}
+
+    @staticmethod
+    def _quebra(partes):
+        """[(rótulo, valor, tom, qtd)] -> barras com a porcentagem de cada parte."""
+        soma = sum((valor or Decimal("0.00") for _, valor, _, _ in partes), Decimal("0.00"))
+        return [
+            {
+                "rotulo": rotulo,
+                "valor": _reais(valor),
+                "pct": round(float((valor or 0) / soma * 100), 1) if soma else 0,
+                "tom": tom,
+                "qtd": qtd,
+            }
+            for rotulo, valor, tom, qtd in partes
+        ]
+
+    @staticmethod
+    def _media(valor, qtd):
+        return _reais((valor or Decimal("0.00")) / qtd) if qtd else _reais(0)
+
+    @staticmethod
+    def _plural(qtd, palavra):
+        return f"{qtd} {palavra}{'' if qtd == 1 else 's'}"
+
+    # -------------------------------------------------------------- tipos
+    def _total(self, pedidos, validos, totais):
+        cancelados = pedidos.filter(status=Pedidos.StatusPedido.CANCELADO).count()
+        soma = totais["soma_total"] or Decimal("0.00")
+        taxa = totais["soma_taxa"] or Decimal("0.00")
+        return {
+            "titulo": "Total do período", "icone": "fa-sack-dollar", "tom": "total",
+            "descricao": "Soma dos pedidos (sem a taxa do motoca), dividida por forma de pagamento.",
+            "valor": _reais(soma),
+            "destaques": [
+                {"rotulo": "Pedidos", "valor": str(totais["qtd_total"])},
+                {"rotulo": "Ticket médio", "valor": "R$ " + self._media(soma, totais["qtd_total"])},
+                {"rotulo": "Taxa motoca", "valor": "R$ " + _reais(taxa)},
+                {"rotulo": "Com as taxas", "valor": "R$ " + _reais(soma + taxa)},
+            ],
+            "quebra": self._quebra([
+                ("Dinheiro", totais["soma_dinheiro"], "dinheiro", self._plural(totais["qtd_dinheiro"], "pedido")),
+                ("Pix", totais["soma_pix"], "pix", self._plural(totais["qtd_pix"], "pedido")),
+                ("Cartão", totais["soma_cartao"], "cartao", self._plural(totais["qtd_cartao"], "pedido")),
+                ("Misto", totais["soma_misto"], "misto", self._plural(totais["qtd_misto"], "pedido")),
+            ]),
+            "nota": (
+                f"{self._plural(cancelados, 'pedido')} cancelado{'' if cancelados == 1 else 's'} "
+                "não entra" + ("" if cancelados == 1 else "m") + " na conta."
+            ) if cancelados else "",
+            **self._lista(validos),
+        }
+
+    def _pagamento(self, validos, totais, forma, nome, icone):
+        selecao = validos.filter(forma_pagamento=forma)
+        partes = selecao.aggregate(
+            soma_retirada=Sum("total", filter=Q(entrega=False)),
+            soma_entrega=Sum("total", filter=Q(entrega=True)),
+            qtd_retirada=Count("id", filter=Q(entrega=False)),
+            qtd_entrega=Count("id", filter=Q(entrega=True)),
+            taxas=Sum("taxa_motoca"),
+        )
+        chave = self.TONS[forma]
+        soma = totais[f"soma_{chave}"] or Decimal("0.00")
+        qtd = totais[f"qtd_{chave}"]
+        geral = totais["soma_total"] or Decimal("0.00")
+        return {
+            "titulo": nome, "icone": icone, "tom": chave,
+            "descricao": f"Pedidos pagos em {nome.lower()}, sem a taxa do motoca.",
+            "valor": _reais(soma),
+            "destaques": [
+                {"rotulo": "Pedidos", "valor": str(qtd)},
+                {"rotulo": "Ticket médio", "valor": "R$ " + self._media(soma, qtd)},
+                {"rotulo": "Do total", "valor": (f"{float(soma / geral * 100):.1f}%".replace(".", ",") if geral else "0%")},
+                {"rotulo": "Taxas nesses pedidos", "valor": "R$ " + _reais(partes["taxas"])},
+            ],
+            "quebra": self._quebra([
+                ("Retirada no balcão", partes["soma_retirada"], "retirada", self._plural(partes["qtd_retirada"], "pedido")),
+                ("Entrega", partes["soma_entrega"], "entrega", self._plural(partes["qtd_entrega"], "pedido")),
+            ]),
+            **self._lista(selecao),
+        }
+
+    def _taxa(self, pedidos, validos, totais):
+        entregas = validos.filter(entrega=True)
+        partes = entregas.aggregate(
+            com_taxa=Count("id", filter=Q(taxa_motoca__gt=0)),
+            **{
+                f"taxa_{chave}": Sum("taxa_motoca", filter=Q(forma_pagamento=forma))
+                for forma, chave in self.TONS.items()
+            },
+            **{
+                f"qtd_{chave}": Count("id", filter=Q(forma_pagamento=forma, taxa_motoca__gt=0))
+                for forma, chave in self.TONS.items()
+            },
+        )
+        soma = totais["soma_taxa"] or Decimal("0.00")
+        qtd = totais["qtd_entregas"]
+        return {
+            "titulo": "Taxa do motoca", "icone": "fa-motorcycle", "tom": "taxa",
+            "descricao": "Taxas de entrega do período e como cada entrega foi paga.",
+            "valor": _reais(soma),
+            "destaques": [
+                {"rotulo": "Entregas", "valor": str(qtd)},
+                {"rotulo": "Com taxa", "valor": str(partes["com_taxa"])},
+                {"rotulo": "Taxa média", "valor": "R$ " + self._media(soma, partes["com_taxa"])},
+                {"rotulo": "Sem taxa", "valor": str(qtd - partes["com_taxa"])},
+            ],
+            "quebra": self._quebra([
+                (nome, partes[f"taxa_{chave}"], chave, self._plural(partes[f"qtd_{chave}"], "entrega"))
+                for chave, (_forma, nome, _icone) in self.PAGAMENTOS.items()
+            ]),
+            **self._lista(
+                entregas,
+                valor=lambda p: p.taxa_motoca,
+                detalhe=lambda p: ", ".join(x for x in [p.rua or "", p.numero or ""] if x) or "Sem endereço",
+            ),
+        }
+
+    def _bebidas(self, pedidos, validos, totais):
+        lista = _ranking_bebidas(ItensPedido.objects.filter(pedidos__in=validos))
+        receita = sum((item["receita"] for item in lista), Decimal("0.00"))
+        unidades = sum(item["unidades"] for item in lista)
+        # Cada pedido aparece uma vez, com o valor só das bebidas dele.
+        com_bebida = validos.annotate(
+            valor_bebidas=Coalesce(
+                Sum("itens__subtotal", filter=_q_bebidas("itens__produto__categoria__nome_categoria")),
+                ZERO_REAIS, output_field=DINHEIRO_14,
+            )
+        ).filter(valor_bebidas__gt=0) if settings.PALAVRAS_BEBIDAS else validos.none()
+        return {
+            "titulo": "Bebidas", "icone": "fa-bottle-water", "tom": "bebidas",
+            "descricao": "Itens de bebida (preço × quantidade), sem os pedidos cancelados.",
+            "valor": _reais(receita),
+            "destaques": [
+                {"rotulo": "Unidades", "valor": str(unidades)},
+                {"rotulo": "Pedidos com bebida", "valor": str(com_bebida.count())},
+                {"rotulo": "Tipos de bebida", "valor": str(len(lista))},
+            ],
+            "itens": [
+                {
+                    "nome": item["produto__nome_produto"] or "Produto removido",
+                    "unidades": item["unidades"],
+                    "valor": _reais(item["receita"]),
+                    "pct": round(float(item["receita"] / receita * 100), 1) if receita else 0,
+                }
+                for item in lista
+            ],
+            **self._lista(com_bebida, valor=lambda p: p.valor_bebidas),
+        }
+
+    def _retirada_dinheiro(self, pedidos, validos, totais):
+        selecao = validos.filter(forma_pagamento=Pedidos.FormaPagamento.DINHEIRO, entrega=False)
+        qtd = totais["qtd_dinheiro_retirada"]
+        return {
+            "titulo": "Retirada em dinheiro", "icone": "fa-store", "tom": "retirada",
+            "descricao": "Dinheiro recebido no balcão, nos pedidos de retirada.",
+            "valor": _reais(totais["dinheiro_retirada"]),
+            "destaques": [
+                {"rotulo": "Pedidos", "valor": str(qtd)},
+                {"rotulo": "Ticket médio", "valor": "R$ " + self._media(totais["dinheiro_retirada"], qtd)},
+            ],
+            **self._lista(selecao),
+        }
+
+    def _entrega_dinheiro(self, pedidos, validos, totais):
+        selecao = validos.filter(forma_pagamento=Pedidos.FormaPagamento.DINHEIRO, entrega=True)
+        return {
+            "titulo": "Entrega em dinheiro", "icone": "fa-motorcycle", "tom": "entrega",
+            "descricao": "O que o motoca recebeu em dinheiro: o pedido mais a taxa de entrega.",
+            "valor": _reais(totais["dinheiro_entrega"]),
+            "destaques": [
+                {"rotulo": "Entregas", "valor": str(totais["qtd_dinheiro_entrega"])},
+                {"rotulo": "Pedidos", "valor": "R$ " + _reais(totais["soma_dinheiro_entrega_pedidos"])},
+                {"rotulo": "Taxas", "valor": "R$ " + _reais(totais["soma_dinheiro_entrega_taxas"])},
+            ],
+            **self._lista(
+                selecao,
+                valor=lambda p: p.total + p.taxa_motoca,
+                detalhe=lambda p: ", ".join(x for x in [p.rua or "", p.numero or ""] if x) or "Entrega",
+            ),
+        }
+
+    def _caixa_dinheiro(self, pedidos, validos, totais):
+        selecao = validos.filter(forma_pagamento=Pedidos.FormaPagamento.DINHEIRO)
+        return {
+            "titulo": "Dinheiro no caixa", "icone": "fa-cash-register", "tom": "caixa",
+            "descricao": "Valor físico esperado no caixa: retiradas + entregas pagas em dinheiro (com a taxa).",
+            "valor": _reais(totais["dinheiro_caixa"]),
+            "destaques": [
+                {"rotulo": "Pedidos em dinheiro", "valor": str(totais["qtd_dinheiro"])},
+                {"rotulo": "Retiradas", "valor": str(totais["qtd_dinheiro_retirada"])},
+                {"rotulo": "Entregas", "valor": str(totais["qtd_dinheiro_entrega"])},
+            ],
+            "quebra": self._quebra([
+                ("Retirada no balcão", totais["dinheiro_retirada"], "retirada",
+                 self._plural(totais["qtd_dinheiro_retirada"], "pedido")),
+                ("Pedidos entregues", totais["soma_dinheiro_entrega_pedidos"], "entrega",
+                 self._plural(totais["qtd_dinheiro_entrega"], "pedido")),
+                ("Taxas do motoca", totais["soma_dinheiro_entrega_taxas"], "taxa", ""),
+            ]),
+            **self._lista(selecao, valor=lambda p: p.total + p.taxa_motoca),
+        }
 
 
 class PedidoReimprimirView(LoginRequiredMixin, View):

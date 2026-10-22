@@ -1,3 +1,4 @@
+import re
 from datetime import datetime
 from decimal import Decimal
 from zoneinfo import ZoneInfo
@@ -130,9 +131,14 @@ class RelatorioBebidasTests(TestCase):
         suco = Produtos.objects.create(nome_produto="Suco de laranja", categoria=sucos, preco=Decimal("5.00"))
 
         # Pix com entrega: marmita + 2 cocas + 1 suco (duas bebidas no mesmo pedido).
-        self._pedido("PIX", [(marmita, 1), (coca, 2), (suco, 1)], taxa=Decimal("5.00"), entrega=True)
+        self.pedido_pix = self._pedido(
+            "PIX", [(marmita, 1), (coca, 2), (suco, 1)], taxa=Decimal("5.00"), entrega=True
+        )
+        Pedidos.objects.filter(pk=self.pedido_pix.pk).update(
+            rua="Rua das Flores", numero="12", cep="01234-000", telefone="(11) 98765-4321"
+        )
         # Dinheiro: só a marmita.
-        self._pedido("DINHEIRO", [(marmita, 1)])
+        self.pedido_dinheiro = self._pedido("DINHEIRO", [(marmita, 1)])
         # Cancelado: não entra em relatório nenhum.
         self._pedido("PIX", [(coca, 3)], status=Pedidos.StatusPedido.CANCELADO)
 
@@ -172,7 +178,7 @@ class RelatorioBebidasTests(TestCase):
         # O resto do relatório continua igual.
         self.assertEqual(resposta.context["total_pix"], "37,00")
         self.assertEqual(resposta.context["total_taxa_motoca"], "5,00")
-        self.assertContains(resposta, "Bebidas vendidas")
+        self.assertContains(resposta, 'data-relatorio="bebidas"')
 
     def test_bebidas_obedecem_ao_filtro_de_pagamento(self):
         self.client.force_login(self.usuario)
@@ -224,4 +230,131 @@ class RelatorioBebidasTests(TestCase):
         self.assertIsNone(dados["bebidas"]["ticket_diferenca"])
         resposta = self.client.get(reverse("pedidos"))
         self.assertEqual(resposta.context["total_bebidas"], "0,00")
-        self.assertContains(resposta, "Nenhuma bebida vendida neste período.")
+        self.assertContains(resposta, "Nenhum pedido encontrado.")
+        self.assertEqual(self.client.get(reverse("relatorio_pedidos", args=["bebidas"])).json()["itens"], [])
+
+
+class RelatoriosDosCartoesTests(RelatorioBebidasTests):
+    """Cada cartão do topo de Pedidos abre um relatório com os pedidos dele."""
+
+    # Os testes herdados já rodam na classe mãe.
+    test_relatorio_da_tela_de_pedidos = None
+    test_bebidas_obedecem_ao_filtro_de_pagamento = None
+    test_relatorio_grafico_de_bebidas_nas_estatisticas = None
+    test_sem_palavras_nada_e_bebida = None
+    test_estatisticas_e_pedidos_sem_nenhum_pedido = None
+
+    def _relatorio(self, tipo, filtros="?periodo=hoje"):
+        self.client.force_login(self.usuario)
+        resposta = self.client.get(reverse("relatorio_pedidos", args=[tipo]) + filtros)
+        self.assertEqual(resposta.status_code, 200, tipo)
+        return resposta.json()
+
+    def test_valor_de_cada_cartao(self):
+        esperado = {
+            "total": "57,00", "dinheiro": "20,00", "pix": "37,00", "cartao": "0,00", "misto": "0,00",
+            "taxa": "5,00", "bebidas": "17,00", "retirada_dinheiro": "20,00",
+            "entrega_dinheiro": "0,00", "caixa_dinheiro": "20,00",
+        }
+        for tipo, valor in esperado.items():
+            with self.subTest(tipo=tipo):
+                self.assertEqual(self._relatorio(tipo)["valor"], valor)
+
+    def test_total_divide_por_pagamento_e_avisa_cancelados(self):
+        dados = self._relatorio("total")
+        quebra = {parte["rotulo"]: parte for parte in dados["quebra"]}
+        self.assertEqual(quebra["Pix"]["valor"], "37,00")
+        self.assertEqual(quebra["Pix"]["pct"], 64.9)
+        self.assertEqual(quebra["Dinheiro"]["pct"], 35.1)
+        self.assertEqual(dados["pedidos_total"], 2)
+        self.assertIn("1 pedido cancelado", dados["nota"])
+
+    def test_lista_de_pedidos_de_cada_relatorio(self):
+        pix = self._relatorio("pix")
+        self.assertEqual([p["id"] for p in pix["pedidos"]], [self.pedido_pix.id])
+        taxa = self._relatorio("taxa")
+        self.assertEqual(taxa["pedidos"][0]["valor"], "5,00")
+        self.assertEqual(taxa["pedidos"][0]["detalhe"], "Rua das Flores, 12")
+        bebidas = self._relatorio("bebidas")
+        self.assertEqual([(p["id"], p["valor"]) for p in bebidas["pedidos"]], [(self.pedido_pix.id, "17,00")])
+        self.assertEqual([i["nome"] for i in bebidas["itens"]], ["Coca-Cola 2L", "Suco de laranja"])
+        self.assertEqual(self._relatorio("cartao")["pedidos"], [])
+
+    def test_relatorio_obedece_ao_filtro_de_pagamento(self):
+        self.assertEqual(self._relatorio("total", "?periodo=hoje&pagamento=DINHEIRO")["valor"], "20,00")
+
+    @override_settings(PALAVRAS_BEBIDAS=[])
+    def test_relatorio_de_bebidas_sem_palavras(self):
+        dados = self._relatorio("bebidas")
+        self.assertEqual(dados["valor"], "0,00")
+        self.assertEqual(dados["pedidos"], [])
+
+    def test_relatorio_desconhecido_e_login(self):
+        self.client.force_login(self.usuario)
+        self.assertEqual(self.client.get(reverse("relatorio_pedidos", args=["xyz"])).status_code, 404)
+        self.client.logout()
+        self.assertEqual(self.client.get(reverse("relatorio_pedidos", args=["pix"])).status_code, 302)
+        self.assertEqual(self.client.get(reverse("pedido_detalhes", args=[self.pedido_pix.id])).status_code, 302)
+
+    def test_detalhe_do_pedido(self):
+        self.client.force_login(self.usuario)
+        dados = self.client.get(reverse("pedido_detalhes", args=[self.pedido_pix.id])).json()
+        self.assertEqual([i["nome"] for i in dados["itens"]], ["Marmita", "Coca-Cola 2L", "Suco de laranja"])
+        self.assertEqual([i["bebida"] for i in dados["itens"]], [False, True, True])
+        self.assertEqual(dados["total"], "37,00")
+        self.assertEqual(dados["taxa"], "5,00")
+        self.assertEqual(dados["total_final"], "42,00")
+        self.assertEqual(dados["desconto"], "")
+        self.assertEqual(dados["unidades"], 4)
+        self.assertEqual(dados["whatsapp"], "https://wa.me/5511987654321")
+        self.assertIn("google.com/maps", dados["mapa"])
+        self.assertEqual((dados["etapa"], dados["proximo"]), (0, "PREPARO"))
+        self.assertEqual(self.client.get(reverse("pedido_detalhes", args=[999999])).status_code, 404)
+
+    def test_detalhe_mostra_o_desconto(self):
+        Pedidos.objects.filter(pk=self.pedido_dinheiro.pk).update(total=Decimal("18.00"))
+        self.client.force_login(self.usuario)
+        dados = self.client.get(reverse("pedido_detalhes", args=[self.pedido_dinheiro.id])).json()
+        self.assertEqual((dados["bruto"], dados["desconto"], dados["total"]), ("20,00", "2,00", "18,00"))
+        self.assertEqual(dados["whatsapp"], "")
+        self.assertEqual(dados["mapa"], "")
+
+    def test_pagina_de_pedidos_leva_os_detalhes_e_os_cartoes(self):
+        self.client.force_login(self.usuario)
+        resposta = self.client.get(reverse("pedidos") + "?periodo=hoje")
+        self.assertIn(str(self.pedido_pix.id), resposta.context["pedidos_detalhes"])
+        self.assertContains(resposta, 'id="pedidosPaginaJson"')
+        for tipo in ["total", "dinheiro", "pix", "cartao", "misto", "taxa", "bebidas",
+                     "retirada_dinheiro", "entrega_dinheiro", "caixa_dinheiro"]:
+            self.assertContains(resposta, f'data-relatorio="{tipo}"')
+
+
+class FotosDasBebidasTests(TestCase):
+    """Bebida aparece inteira na foto (classe foto-bebida); comida continua cobrindo o quadro."""
+
+    def setUp(self):
+        cache.clear()
+        self.usuario = User.objects.create_superuser("dono", "dono@x.com", "senha-segura-123")
+        for nome_categoria, nome_produto in [("Bebidas", "Guaraná Lata"), ("Marmitas", "Marmita")]:
+            categoria = CategoriaProdutos(nome_categoria=nome_categoria)
+            categoria.imagem_categoria.name = "x.png"
+            categoria.save()
+            produto = Produtos(nome_produto=nome_produto, categoria=categoria, preco=Decimal("6.00"))
+            produto.image_produto.name = f"produtos/{nome_produto}.png"
+            produto.save()
+
+    def _imagens(self, html):
+        return {
+            alt: "foto-bebida" in classes
+            for alt, classes in re.findall(r'<img[^>]*alt="([^"]+)"[^>]*class="([^"]*)"', html, re.S)
+            if alt in ("Guaraná Lata", "Marmita")
+        }
+
+    def test_cardapio(self):
+        imagens = self._imagens(self.client.get(reverse("cardapio")).content.decode())
+        self.assertEqual(imagens, {"Guaraná Lata": True, "Marmita": False})
+
+    def test_caixa(self):
+        self.client.force_login(self.usuario)
+        imagens = self._imagens(self.client.get(reverse("caixa")).content.decode())
+        self.assertEqual(imagens, {"Guaraná Lata": True, "Marmita": False})
