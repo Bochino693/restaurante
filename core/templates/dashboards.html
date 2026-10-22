@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load static %}
+{% load static l10n %}
 
 {% block title %}Estatísticas{% endblock %}
 
@@ -16,6 +16,7 @@
 {{ grafico_horarios|json_script:"graficoHorariosJson" }}
 {{ grafico_dia_semana|json_script:"graficoDiaSemanaJson" }}
 {{ grafico_categorias|json_script:"graficoCategoriasJson" }}
+{{ grafico_top_bebidas|json_script:"graficoTopBebidasJson" }}
 
 <!-- TELA DE CARREGAMENTO: fica até o último gráfico ser desenhado. -->
 <div id="telaCarregando" class="cf-carregando" role="status" aria-live="polite">
@@ -41,6 +42,7 @@
                     {{ data_inicio|date:"d/m/Y" }} a {{ data_fim|date:"d/m/Y" }} · {{ dias_periodo }} dia{{ dias_periodo|pluralize }}
                     <span class="comparacao">comparado com {{ periodo_anterior_inicio|date:"d/m" }}–{{ periodo_anterior_fim|date:"d/m" }}</span>
                 </p>
+                <a href="#bebidas" class="pular-bebidas"><i class="fas fa-bottle-water"></i> Relatório de bebidas <i class="fas fa-arrow-down"></i></a>
             </div>
 
             <div class="filters-wrap">
@@ -157,6 +159,16 @@
                 <div class="chart-box chart-large"><canvas id="chartVendasDiarias"></canvas></div>
             </article>
 
+            <article class="chart-card chart-wide">
+                <div class="card-heading">
+                    <div>
+                        <span>Fechamento do caixa</span>
+                        <h2>Recebido por dia: Dinheiro, Cartão, Pix, Misto e taxa do motoca</h2>
+                    </div>
+                </div>
+                <div class="chart-box chart-large"><canvas id="chartRecebimentos"></canvas></div>
+            </article>
+
             <article class="chart-card">
                 <div class="card-heading">
                     <div>
@@ -266,6 +278,144 @@
                 </div>
                 <div class="chart-box chart-tall"><canvas id="chartCliques"></canvas></div>
             </article>
+        </section>
+
+        <!-- RELATÓRIO DE BEBIDAS -->
+        <section id="bebidas" class="secao-bebidas">
+            <header class="secao-titulo">
+                <div class="secao-icone"><i class="fas fa-bottle-water"></i></div>
+                <div>
+                    <span>Relatório de bebidas</span>
+                    <h2>Bebidas no período</h2>
+                    <p>Produtos das categorias de bebida (refrigerantes, sucos…), sem os pedidos cancelados.</p>
+                </div>
+            </header>
+
+            <div class="kpi-grid">
+                <article class="kpi-card kpi-bebida">
+                    <div class="kpi-icon"><i class="fas fa-sack-dollar"></i></div>
+                    <div>
+                        <span>Faturamento em bebidas</span>
+                        <strong>R$ {{ bebidas.receita }}</strong>
+                        {% include "_variacao.html" with valor=bebidas.variacao_receita %}
+                    </div>
+                </article>
+
+                <article class="kpi-card">
+                    <div class="kpi-icon icone-bebida"><i class="fas fa-bottle-water"></i></div>
+                    <div>
+                        <span>Unidades vendidas</span>
+                        <strong>{{ bebidas.unidades }}</strong>
+                        <small>mais pedida: {{ bebidas.lider }}{% if bebidas.lider_unidades %} · {{ bebidas.lider_unidades }} un.{% endif %}</small>
+                    </div>
+                </article>
+
+                <article class="kpi-card">
+                    <div class="kpi-icon icone-bebida"><i class="fas fa-chart-pie"></i></div>
+                    <div class="kpi-medida">
+                        <span>Peso no faturamento</span>
+                        <strong>{{ bebidas.participacao }}%</strong>
+                        <div class="medidor" role="img" aria-label="{{ bebidas.participacao }}% das vendas de itens"><i style="width: {{ bebidas.participacao|unlocalize }}%"></i></div>
+                        <small>das vendas de itens</small>
+                    </div>
+                </article>
+
+                <article class="kpi-card">
+                    <div class="kpi-icon icone-bebida"><i class="fas fa-receipt"></i></div>
+                    <div class="kpi-medida">
+                        <span>Pedidos com bebida</span>
+                        <strong>{{ bebidas.pedidos_pct }}%</strong>
+                        <div class="medidor" role="img" aria-label="{{ bebidas.pedidos_pct }}% dos pedidos"><i style="width: {{ bebidas.pedidos_pct|unlocalize }}%"></i></div>
+                        <small>{{ bebidas.pedidos_com }} de {{ total_pedidos }} pedido{{ total_pedidos|pluralize }}</small>
+                    </div>
+                </article>
+            </div>
+
+            <div class="dashboard-grid">
+                <article class="chart-card chart-wide">
+                    <div class="card-heading">
+                        <div>
+                            <span>Evolução diária</span>
+                            <h2>Faturamento em bebidas por dia</h2>
+                        </div>
+                    </div>
+                    <div class="chart-box"><canvas id="chartBebidasDiarias"></canvas></div>
+                </article>
+
+                <article class="chart-card">
+                    <div class="card-heading">
+                        <div>
+                            <span>Campeãs de venda</span>
+                            <h2>Bebidas mais vendidas</h2>
+                        </div>
+                    </div>
+                    <div class="chart-box"><canvas id="chartTopBebidas"></canvas></div>
+                </article>
+
+                <article class="chart-card">
+                    <div class="card-heading">
+                        <div>
+                            <span>Vale a pena oferecer?</span>
+                            <h2>Ticket médio: com bebida x sem bebida</h2>
+                        </div>
+                    </div>
+                    <div class="comparativo">
+                        <div class="comparativo-linha">
+                            <div class="comparativo-rotulo">
+                                <span><i class="fas fa-bottle-water"></i> Pedidos com bebida</span>
+                                <strong>R$ {{ bebidas.ticket_com }}</strong>
+                            </div>
+                            <div class="medidor medidor-grande"><i style="width: {{ bebidas.ticket_com_pct|unlocalize }}%"></i></div>
+                        </div>
+                        <div class="comparativo-linha comparativo-neutro">
+                            <div class="comparativo-rotulo">
+                                <span><i class="fas fa-utensils"></i> Pedidos sem bebida</span>
+                                <strong>R$ {{ bebidas.ticket_sem }}</strong>
+                            </div>
+                            <div class="medidor medidor-grande"><i style="width: {{ bebidas.ticket_sem_pct|unlocalize }}%"></i></div>
+                        </div>
+                        <p class="comparativo-resumo">
+                            {% if bebidas.ticket_diferenca is None %}
+                                Ainda não há pedidos com e sem bebida suficientes para comparar neste período.
+                            {% elif bebidas.ticket_diferenca > 0 %}
+                                <i class="fas fa-arrow-trend-up"></i> O pedido com bebida deixa <b>{{ bebidas.ticket_diferenca_abs }}% a mais</b> no caixa. Oferecer bebida no balcão compensa.
+                            {% elif bebidas.ticket_diferenca < 0 %}
+                                <i class="fas fa-arrow-trend-down"></i> O pedido com bebida está saindo <b>{{ bebidas.ticket_diferenca_abs }}% abaixo</b> do pedido sem bebida.
+                            {% else %}
+                                O ticket médio é igual com e sem bebida.
+                            {% endif %}
+                        </p>
+                    </div>
+                </article>
+
+                <article class="ranking-card chart-wide">
+                    <div class="card-heading">
+                        <div>
+                            <span>Ranking completo</span>
+                            <h2>Todas as bebidas vendidas</h2>
+                        </div>
+                        <div class="counter-pill pill-bebida">{{ bebidas.ranking|length }} bebida{{ bebidas.ranking|length|pluralize }}</div>
+                    </div>
+                    <div class="ranking-table ranking-bebidas">
+                        <div class="ranking-head">
+                            <span>#</span><span>Bebida</span><span>Unidades</span><span>Faturamento</span>
+                        </div>
+                        {% for item in bebidas.ranking %}
+                            <div class="ranking-row">
+                                <span class="position">{{ forloop.counter }}</span>
+                                <span class="product-name">
+                                    {{ item.nome }}
+                                    <span class="medidor medidor-fino" title="{{ item.pct }}% do faturamento em bebidas"><i style="width: {{ item.pct|unlocalize }}%"></i></span>
+                                </span>
+                                <span class="value-pill pill-bebida">{{ item.unidades }}</span>
+                                <span class="money-value">R$ {{ item.receita }} <em>{{ item.pct }}%</em></span>
+                            </div>
+                        {% empty %}
+                            <div class="empty-state">Nenhuma bebida vendida neste período.</div>
+                        {% endfor %}
+                    </div>
+                </article>
+            </div>
         </section>
 
         <section class="lists-grid">
@@ -528,6 +678,59 @@
     html.cf-escuro .money-value { color: #6ee7b7; }
     .empty-state { padding: 36px 12px; color: var(--cf-texto-suave); text-align: center; font-size: 12px; font-weight: 700; }
 
+    /* ------------------------------------------- relatório de bebidas */
+    html { --cf-bebida: #0284c7; --cf-bebida-suave: rgba(2, 132, 199, .12); }
+    html.cf-escuro { --cf-bebida: #38bdf8; --cf-bebida-suave: rgba(56, 189, 248, .14); }
+    .pular-bebidas {
+        display: inline-flex; align-items: center; gap: 6px; margin-top: 10px;
+        padding: 6px 12px; border-radius: 999px;
+        background: var(--cf-bebida-suave); color: var(--cf-bebida);
+        font-size: 10px; font-weight: 900; letter-spacing: .06em; text-transform: uppercase;
+        transition: transform .15s ease;
+    }
+    .pular-bebidas:hover { transform: translateY(-1px); }
+    .secao-bebidas { display: flex; flex-direction: column; gap: 18px; scroll-margin-top: 84px; }
+    .secao-titulo {
+        display: flex; align-items: center; gap: 16px;
+        padding: 20px 24px; border-radius: 28px;
+        background: var(--cf-superficie); border: 1px solid var(--cf-borda); box-shadow: var(--cf-sombra);
+        border-left: 6px solid var(--cf-bebida);
+    }
+    .secao-icone {
+        width: 52px; height: 52px; flex: 0 0 52px; border-radius: 17px;
+        display: grid; place-items: center; font-size: 22px;
+        background: var(--cf-bebida-suave); color: var(--cf-bebida);
+    }
+    .secao-titulo span { color: var(--cf-bebida); font-size: 10px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
+    .secao-titulo h2 { margin-top: 2px; color: var(--cf-texto); font-size: clamp(20px, 2.2vw, 28px); font-weight: 950; line-height: 1.1; }
+    .secao-titulo p { margin-top: 4px; color: var(--cf-texto-suave); font-size: 12px; font-weight: 700; }
+    .secao-bebidas .card-heading span { color: var(--cf-bebida); }
+    .kpi-bebida { background: linear-gradient(135deg, #0284c7, #0369a1); border-color: transparent; }
+    .kpi-bebida span, .kpi-bebida strong, .kpi-bebida small { color: #fff !important; }
+    .kpi-bebida .kpi-icon { background: rgba(255, 255, 255, .18); color: #fff; }
+    .kpi-bebida .variacao { background: rgba(255, 255, 255, .2) !important; color: #fff !important; }
+    .icone-bebida { background: var(--cf-bebida-suave); color: var(--cf-bebida); }
+    .kpi-medida { flex: 1; }
+    .medidor { display: block; height: 6px; margin-top: 8px; border-radius: 99px; background: var(--cf-superficie-3); overflow: hidden; }
+    .medidor i { display: block; height: 100%; max-width: 100%; border-radius: 99px; background: var(--cf-bebida); transition: width .6s ease; }
+    .medidor-grande { height: 14px; margin-top: 8px; }
+    .medidor-fino { height: 4px; margin-top: 6px; max-width: 220px; }
+    .comparativo { display: flex; flex-direction: column; gap: 18px; padding-top: 6px; }
+    .comparativo-rotulo { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+    .comparativo-rotulo span { color: var(--cf-texto-2); font-size: 12px; font-weight: 800; }
+    .comparativo-rotulo span i { color: var(--cf-bebida); margin-right: 4px; }
+    .comparativo-rotulo strong { color: var(--cf-texto); font-size: 22px; font-weight: 950; }
+    .comparativo-neutro .medidor i { background: var(--cf-texto-suave); }
+    .comparativo-neutro .comparativo-rotulo span i { color: var(--cf-texto-suave); }
+    .comparativo-resumo {
+        padding: 12px 14px; border-radius: 16px;
+        background: var(--cf-bebida-suave); color: var(--cf-texto-2);
+        font-size: 12px; font-weight: 700; line-height: 1.45;
+    }
+    .comparativo-resumo b, .comparativo-resumo i { color: var(--cf-bebida); }
+    .pill-bebida { background: var(--cf-bebida-suave) !important; color: var(--cf-bebida) !important; }
+    .ranking-bebidas .money-value em { display: block; font-style: normal; font-size: 9px; font-weight: 800; color: var(--cf-texto-suave); }
+
     @media (max-width: 1180px) {
         .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .lists-grid { grid-template-columns: 1fr; }
@@ -546,6 +749,8 @@
         .ranking-head span:last-child, .ranking-row .money-value { display: none; }
         .ranking-clicks .ranking-head, .ranking-clicks .ranking-row { grid-template-columns: 34px minmax(0, 1fr) 70px; }
         .chart-card, .ranking-card { padding: 16px; }
+        .secao-titulo { padding: 16px; }
+        .comparativo-rotulo strong { font-size: 18px; }
     }
 </style>
 {% endblock %}

@@ -166,6 +166,15 @@ LOJA_DIAS = (0, 1, 2, 3, 4)
 LOJA_ABRE = int(os.environ.get("LOJA_ABRE", "11"))
 LOJA_FECHA = int(os.environ.get("LOJA_FECHA", "16"))
 
+# Relatório de bebidas (Pedidos e Estatísticas): conta como bebida todo
+# produto cuja CATEGORIA tem no nome uma destas palavras (maiúscula ou
+# minúscula tanto faz): "Bebidas", "Refrigerantes", "Sucos naturais"...
+PALAVRAS_BEBIDAS = [
+    palavra.strip()
+    for palavra in os.environ.get("PALAVRAS_BEBIDAS", "bebida,refri,suco,cerveja,drink").split(",")
+    if palavra.strip()
+]
+
 # WhatsApp que recebe os pedidos do cardápio (só dígitos, com DDI e DDD).
 WHATSAPP_LOJA = os.environ.get("WHATSAPP_LOJA", "5511999999999")
 

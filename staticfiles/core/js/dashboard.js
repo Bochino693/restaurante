@@ -50,13 +50,25 @@
     function paleta() {
         const css = getComputedStyle(document.documentElement);
         const v = n => css.getPropertyValue(n).trim();
+        const escuro = document.documentElement.classList.contains("cf-escuro");
         return {
             marca: v("--cf-marca") || "#e3353d",
             texto: v("--cf-texto-suave") || "#64748b",
             grade: v("--cf-grafico-grade") || "rgba(148,163,184,.18)",
             superficie: v("--cf-superficie") || "#fff",
-            tooltip: document.documentElement.classList.contains("cf-escuro") ? "#000" : "#1f1b18",
-            serie: ["#e3353d", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#ec4899", "#14b8a6", "#64748b"]
+            tooltip: escuro ? "#000" : "#1f1b18",
+            serie: ["#e3353d", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#ec4899", "#14b8a6", "#64748b"],
+            bebida: escuro ? "#38bdf8" : "#0284c7",
+            // Cada forma de pagamento tem a SUA cor (a mesma do cartão da tela
+            // de Pedidos), nesta ordem na pilha. Conferidas para daltonismo
+            // no fundo claro e no escuro.
+            pagamentos: [
+                { chave: "DINHEIRO", nome: "Dinheiro", cor: escuro ? "#059669" : "#10b981" },
+                { chave: "CARTAO", nome: "Cartão", cor: "#3b82f6" },
+                { chave: "PIX", nome: "Pix", cor: escuro ? "#0d9488" : "#14b8a6" },
+                { chave: "MISTO", nome: "Misto", cor: escuro ? "#d97706" : "#f59e0b" },
+                { chave: "TAXA", nome: "Taxa do motoca", cor: "#8b5cf6" }
+            ]
         };
     }
 
@@ -137,6 +149,41 @@
             },
             options: opVendas
         }, vendas.receita);
+
+        /* RECEBIDO POR DIA: o relatório da tela de Pedidos (Dinheiro, Pix,
+           Cartão, taxa do motoca), dia a dia, em barras empilhadas — a
+           altura da barra é tudo o que entrou no dia. */
+        const porPagamento = vendas.por_pagamento || {};
+        const camadas = c.pagamentos
+            .map(p => ({ ...p, valores: p.chave === "TAXA" ? (vendas.taxas || []) : (porPagamento[p.chave] || []) }))
+            .filter(p => p.valores.some(v => Number(v) > 0));
+        const opReceb = base(c);
+        opReceb.scales.x.stacked = true;
+        opReceb.scales.y.stacked = true;
+        opReceb.scales.y.ticks.callback = v => brlCurto(v);
+        opReceb.plugins.tooltip.callbacks = {
+            label: ctx => ` ${ctx.dataset.label}: ${brl.format(ctx.parsed.y)}`,
+            footer: itens => `Total do dia: ${brl.format(itens.reduce((soma, i) => soma + i.parsed.y, 0))}`
+        };
+        opReceb.plugins.tooltip.itemSort = (a, b) => b.datasetIndex - a.datasetIndex;
+        opReceb.plugins.tooltip.filter = item => item.parsed.y > 0;
+        criar("chartRecebimentos", {
+            type: "bar",
+            data: {
+                labels: vendas.labels || [],
+                datasets: camadas.map(p => ({
+                    label: p.nome,
+                    data: p.valores,
+                    backgroundColor: p.cor,
+                    borderColor: c.superficie,
+                    borderWidth: { top: 2 },
+                    borderSkipped: false,
+                    borderRadius: 4,
+                    maxBarThickness: 46
+                }))
+            },
+            options: opReceb
+        }, camadas.flatMap(p => p.valores));
 
         const opAcum = base(c);
         opAcum.plugins.legend.display = false;
@@ -351,6 +398,33 @@
         barrasDeitadas("chartTopProdutos", "graficoTopProdutosJson", false, c.marca);
         barrasDeitadas("chartTopReceita", "graficoTopReceitaJson", true, "#10b981");
         barrasDeitadas("chartCliques", "graficoCliquesJson", false, "#f59e0b");
+
+        /* ------------------------------------------- relatório de bebidas */
+        const unidadesBebidas = vendas.bebidas_unidades || [];
+        const opBebidas = base(c);
+        opBebidas.plugins.legend.display = false;
+        opBebidas.scales.y.ticks.callback = v => brlCurto(v);
+        opBebidas.plugins.tooltip.callbacks = {
+            label: ctx => ` Bebidas: ${brl.format(ctx.parsed.y)}`,
+            afterLabel: ctx => {
+                const un = unidadesBebidas[ctx.dataIndex] || 0;
+                return ` ${un} unidade${un === 1 ? "" : "s"}`;
+            }
+        };
+        criar("chartBebidasDiarias", {
+            type: "bar",
+            data: {
+                labels: vendas.labels || [],
+                datasets: [{
+                    label: "Bebidas", data: vendas.bebidas || [],
+                    backgroundColor: transparente(c.bebida, .8), hoverBackgroundColor: c.bebida,
+                    borderRadius: 4, borderSkipped: "start", maxBarThickness: 38
+                }]
+            },
+            options: opBebidas
+        }, vendas.bebidas);
+
+        barrasDeitadas("chartTopBebidas", "graficoTopBebidasJson", false, c.bebida);
     }
 
     function redesenhar() {
@@ -364,7 +438,13 @@
         .then(() => {
             desenhar();
             // Espera o navegador pintar os gráficos antes de tirar a tela.
-            requestAnimationFrame(() => requestAnimationFrame(esconderTela));
+            requestAnimationFrame(() => requestAnimationFrame(() => {
+                esconderTela();
+                // Veio do link "Ver relatório gráfico" (#bebidas): os rankings
+                // mudam de altura ao desenhar, então rola de novo para o lugar.
+                const ancora = location.hash ? document.getElementById(location.hash.slice(1)) : null;
+                if (ancora) ancora.scrollIntoView({ block: "start" });
+            }));
         })
         .catch(erro => {
             console.error(erro);

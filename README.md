@@ -21,6 +21,22 @@ para o servidor, o cardápio do cliente e o painel.
 | `IMPRESSAO_API_KEY` | chave do agente de impressão externo | a chave antiga, para não parar o agente |
 | `LOJA_ABRE` / `LOJA_FECHA` | horário (hora cheia) | `11` / `16` |
 | `DB_CONN_MAX_AGE` | segundos que a função reaproveita a conexão | `60` |
+| `PALAVRAS_BEBIDAS` | palavras que fazem uma categoria contar como bebida nos relatórios (separadas por vírgula) | `bebida,refri,suco,cerveja,drink` |
+
+## Relatórios
+
+- **Pedidos**: no topo, Dinheiro, Pix, Cartão, Taxa do motoca, **Bebidas** e o
+  total do período, obedecendo aos filtros de período e de pagamento. Clicar
+  em "Bebidas" abre a lista de cada bebida vendida (unidades e valor).
+- **Estatísticas**: além dos gráficos de vendas, o "Recebido por dia"
+  (Dinheiro, Cartão, Pix, Misto e taxa do motoca empilhados) e a seção
+  **Relatório de bebidas**: faturamento, unidades, peso no faturamento,
+  pedidos com bebida, bebidas por dia, as mais vendidas e o ticket médio do
+  pedido com bebida x sem bebida.
+
+Bebida é todo produto cuja categoria tem no nome uma das `PALAVRAS_BEBIDAS`
+("Bebidas", "Refrigerantes", "Sucos"...). O valor das bebidas é preço ×
+quantidade dos itens; o desconto do pedido inteiro não é rateado.
 
 ## Impressão das notinhas
 

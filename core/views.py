@@ -842,6 +842,50 @@ def _formatar_moeda(valor):
     return f"{valor:.2f}".replace(".", ",")
 
 
+def _q_bebidas(campo="produto__categoria__nome_categoria"):
+    """Filtro dos itens que são bebida: a categoria do produto tem no nome
+    uma das PALAVRAS_BEBIDAS (settings). Sem palavras, nada é bebida."""
+    filtro = Q()
+    for palavra in settings.PALAVRAS_BEBIDAS:
+        filtro |= Q(**{f"{campo}__icontains": palavra})
+    return filtro or Q(pk__in=[])
+
+
+def _ranking_bebidas(itens):
+    """Bebidas vendidas, da mais pedida para a menos: uma consulta só."""
+    return list(
+        itens
+        .filter(_q_bebidas())
+        .values("produto__nome_produto")
+        .annotate(
+            unidades=Coalesce(Sum("quantidade"), Value(0), output_field=IntegerField()),
+            receita=Coalesce(Sum("subtotal"), ZERO_REAIS, output_field=DINHEIRO_14),
+        )
+        .order_by("-unidades", "-receita", "produto__nome_produto")
+    )
+
+
+def _resumo_bebidas(pedidos):
+    """Relatório de bebidas dos pedidos (já sem os cancelados).
+
+    O valor é a soma dos itens de bebida (preço x quantidade), igual ao que
+    aparece em cada pedido; o desconto do pedido inteiro não é rateado.
+    """
+    ranking = _ranking_bebidas(ItensPedido.objects.filter(pedidos__in=pedidos))
+    return {
+        "receita": sum((item["receita"] for item in ranking), Decimal("0.00")),
+        "unidades": sum(item["unidades"] for item in ranking),
+        "lista": [
+            {
+                "nome": item["produto__nome_produto"] or "Produto removido",
+                "unidades": item["unidades"],
+                "receita": _formatar_moeda(item["receita"]),
+            }
+            for item in ranking
+        ],
+    }
+
+
 def _montar_range_paginacao(page_obj, janela=2):
     paginator = page_obj.paginator
     pagina_atual = page_obj.number
@@ -955,6 +999,7 @@ class PedidosView(LoginRequiredMixin, View):
         )
 
         totais = _agregar_totais_pedidos(pedidos_totais)
+        bebidas = _resumo_bebidas(pedidos_totais)
 
         por_pagina = 12
         paginator = Paginator(pedidos_filtrados, por_pagina)
@@ -984,6 +1029,11 @@ class PedidosView(LoginRequiredMixin, View):
             "total_misto": _formatar_moeda(totais["soma_misto"]),
             "total_taxa_motoca": _formatar_moeda(totais["soma_taxa"]),
 
+            # Relatório de bebidas: valor, unidades e cada bebida vendida.
+            "total_bebidas": _formatar_moeda(bebidas["receita"]),
+            "qtd_bebidas": bebidas["unidades"],
+            "bebidas_vendidas": bebidas["lista"],
+
             # Novos valores para conferência do caixa físico.
             "dinheiro_retirada": _formatar_moeda(totais["dinheiro_retirada"]),
             "dinheiro_entrega": _formatar_moeda(totais["dinheiro_entrega"]),
@@ -1005,6 +1055,7 @@ class ResumoPedidosView(LoginRequiredMixin, View):
         )
 
         totais = _agregar_totais_pedidos(pedidos_totais)
+        bebidas = _resumo_bebidas(pedidos_totais)
 
         return JsonResponse({
             "label": label,
@@ -1014,6 +1065,9 @@ class ResumoPedidosView(LoginRequiredMixin, View):
             "total_pix": _formatar_moeda(totais["soma_pix"]),
             "total_cartao": _formatar_moeda(totais["soma_cartao"]),
             "total_misto": _formatar_moeda(totais["soma_misto"]),
+            "total_bebidas": _formatar_moeda(bebidas["receita"]),
+            "qtd_bebidas": bebidas["unidades"],
+            "bebidas_vendidas": bebidas["lista"],
 
             # Novos valores, também obedecendo aos filtros atuais.
             "dinheiro_retirada": _formatar_moeda(totais["dinheiro_retirada"]),
@@ -1393,20 +1447,34 @@ class DashboardAnalyticsView(LoginRequiredMixin, TemplateView):
             "atalho": atalho,
         }
 
-    def _serie_datas_completa(self, data_inicio, data_fim, vendas_por_data):
+    def _serie_datas_completa(self, data_inicio, data_fim, vendas_por_data,
+                              pagamentos_por_data=(), bebidas_por_data=()):
         mapa = {
             item["data"]: {
                 "pedidos": item["pedidos"],
                 "receita": float(item["receita"] or 0),
+                "taxa": float(item.get("taxa") or 0),
             }
             for item in vendas_por_data
         }
+        # Recebido por forma de pagamento em cada dia (o relatório da tela de
+        # Pedidos, dia a dia) e as bebidas vendidas em cada dia.
+        formas = [valor for valor, _ in Pedidos.FormaPagamento.choices]
+        mapa_pagamentos = {}
+        for item in pagamentos_por_data:
+            mapa_pagamentos.setdefault(item["data"], {})[item["forma_pagamento"]] = float(item["receita"] or 0)
+        mapa_bebidas = {
+            item["data"]: (float(item["receita"] or 0), item["unidades"] or 0)
+            for item in bebidas_por_data
+        }
 
-        labels, pedidos, receita, ticket, acumulado = [], [], [], [], []
+        labels, pedidos, receita, ticket, acumulado, taxas = [], [], [], [], [], []
+        por_pagamento = {forma: [] for forma in formas}
+        bebidas, bebidas_unidades = [], []
         soma = 0.0
         dia = data_inicio
         while dia <= data_fim:
-            valores = mapa.get(dia, {"pedidos": 0, "receita": 0})
+            valores = mapa.get(dia, {"pedidos": 0, "receita": 0, "taxa": 0})
             # Fim de semana sem venda não entra (a loja não abre): a linha
             # não despenca a zero todo sábado e domingo.
             if dia.weekday() > 4 and not valores["pedidos"]:
@@ -1418,6 +1486,13 @@ class DashboardAnalyticsView(LoginRequiredMixin, TemplateView):
             ticket.append(round(valores["receita"] / valores["pedidos"], 2) if valores["pedidos"] else 0)
             soma += valores["receita"]
             acumulado.append(round(soma, 2))
+            taxas.append(round(valores["taxa"], 2))
+            do_dia = mapa_pagamentos.get(dia, {})
+            for forma in formas:
+                por_pagamento[forma].append(round(do_dia.get(forma, 0), 2))
+            receita_bebidas, unidades_bebidas = mapa_bebidas.get(dia, (0, 0))
+            bebidas.append(round(receita_bebidas, 2))
+            bebidas_unidades.append(unidades_bebidas)
             dia += timedelta(days=1)
 
         return {
@@ -1426,6 +1501,10 @@ class DashboardAnalyticsView(LoginRequiredMixin, TemplateView):
             "receita": receita,
             "ticket": ticket,
             "acumulado": acumulado,
+            "taxas": taxas,
+            "por_pagamento": por_pagamento,
+            "bebidas": bebidas,
+            "bebidas_unidades": bebidas_unidades,
         }
 
     def _resumo(self, pedidos_validos):
@@ -1435,6 +1514,79 @@ class DashboardAnalyticsView(LoginRequiredMixin, TemplateView):
             pedidos=Count("id"),
             entregas=Count("id", filter=Q(entrega=True)),
         )
+
+    def _bebidas(self, itens_validos, pedidos_validos, pedidos_anteriores, resumo, categorias_qs):
+        """Relatório de bebidas do período: quanto vendem, quanto pesam no
+        faturamento e se o pedido com bebida deixa mais dinheiro no caixa."""
+        itens_bebidas = itens_validos.filter(_q_bebidas())
+        ranking = _ranking_bebidas(itens_validos)
+        receita = sum((item["receita"] for item in ranking), Decimal("0.00"))
+        unidades = sum(item["unidades"] for item in ranking)
+
+        receita_anterior = (
+            ItensPedido.objects
+            .filter(pedidos__in=pedidos_anteriores)
+            .filter(_q_bebidas())
+            .aggregate(receita=Coalesce(Sum("subtotal"), ZERO_REAIS, output_field=DINHEIRO_14))["receita"]
+        )
+
+        # Participação nas vendas de itens (comida + bebida, antes do desconto).
+        receita_itens = sum((item["receita"] for item in categorias_qs), Decimal("0.00"))
+
+        # Pedidos com pelo menos uma bebida: o subselect evita contar duas
+        # vezes o pedido que levou duas bebidas.
+        com_bebida = self._resumo(
+            pedidos_validos.filter(pk__in=ItensPedido.objects.filter(_q_bebidas()).values("pedidos"))
+        )
+        sem_pedidos = resumo["pedidos"] - com_bebida["pedidos"]
+        sem_receita = resumo["receita"] - com_bebida["receita"]
+        ticket_com = com_bebida["receita"] / com_bebida["pedidos"] if com_bebida["pedidos"] else Decimal("0.00")
+        ticket_sem = sem_receita / sem_pedidos if sem_pedidos else Decimal("0.00")
+        maior_ticket = max(ticket_com, ticket_sem) or Decimal("1")
+
+        por_dia = list(
+            itens_bebidas
+            .annotate(data=TruncDate("pedidos__criado_em"))
+            .values("data")
+            .annotate(
+                unidades=Coalesce(Sum("quantidade"), Value(0), output_field=IntegerField()),
+                receita=Coalesce(Sum("subtotal"), ZERO_REAIS, output_field=DINHEIRO_14),
+            )
+            .order_by("data")
+        )
+
+        top = ranking[:10]
+        return {
+            "receita": self._format_money(receita),
+            "unidades": unidades,
+            "variacao_receita": _variacao(receita, receita_anterior),
+            "participacao": round(float(receita) / float(receita_itens) * 100, 1) if receita_itens else 0,
+            "lider": (ranking[0]["produto__nome_produto"] or "Produto removido") if ranking else "Sem vendas",
+            "lider_unidades": ranking[0]["unidades"] if ranking else 0,
+            "pedidos_com": com_bebida["pedidos"],
+            "pedidos_pct": round(com_bebida["pedidos"] / resumo["pedidos"] * 100, 1) if resumo["pedidos"] else 0,
+            "ticket_com": self._format_money(ticket_com),
+            "ticket_sem": self._format_money(ticket_sem),
+            "ticket_com_pct": round(float(ticket_com / maior_ticket) * 100),
+            "ticket_sem_pct": round(float(ticket_sem / maior_ticket) * 100),
+            "ticket_diferenca": _variacao(ticket_com, ticket_sem) if com_bebida["pedidos"] else None,
+            "ticket_diferenca_abs": abs(_variacao(ticket_com, ticket_sem) or 0),
+            "ranking": [
+                {
+                    "nome": item["produto__nome_produto"] or "Produto removido",
+                    "unidades": item["unidades"],
+                    "receita": self._format_money(item["receita"]),
+                    "pct": round(float(item["receita"]) / float(receita) * 100, 1) if receita else 0,
+                }
+                for item in ranking
+            ],
+            "por_dia": por_dia,
+            "grafico_top": {
+                "titulo": "Unidades",
+                "labels": [item["produto__nome_produto"] or "Produto removido" for item in reversed(top)],
+                "valores": [item["unidades"] for item in reversed(top)],
+            },
+        }
 
     def _get_dashboard_data(self):
         datas = self._get_datas()
@@ -1465,11 +1617,12 @@ class DashboardAnalyticsView(LoginRequiredMixin, TemplateView):
         dias = (data_fim - data_inicio).days + 1
         anterior_fim = data_inicio - timedelta(days=1)
         anterior_inicio = anterior_fim - timedelta(days=dias - 1)
-        resumo_anterior = self._resumo(
+        pedidos_anteriores = (
             Pedidos.objects
             .filter(criado_em__date__range=(anterior_inicio, anterior_fim))
             .exclude(status=Pedidos.StatusPedido.CANCELADO)
         )
+        resumo_anterior = self._resumo(pedidos_anteriores)
         ticket_anterior = (
             resumo_anterior["receita"] / resumo_anterior["pedidos"]
             if resumo_anterior["pedidos"] else Decimal("0.00")
@@ -1511,9 +1664,24 @@ class DashboardAnalyticsView(LoginRequiredMixin, TemplateView):
             .annotate(
                 pedidos=Count("id"),
                 receita=Coalesce(Sum("total"), ZERO_REAIS, output_field=DINHEIRO_14),
+                taxa=Coalesce(Sum("taxa_motoca"), ZERO_REAIS, output_field=DINHEIRO_14),
             )
             .order_by("data")
         )
+
+        pagamentos_diarios_qs = list(
+            pedidos_validos
+            .annotate(data=TruncDate("criado_em"))
+            .values("data", "forma_pagamento")
+            .annotate(receita=Coalesce(Sum("total"), ZERO_REAIS, output_field=DINHEIRO_14))
+            .order_by("data")
+        )
+
+        bebidas = self._bebidas(
+            itens_validos, pedidos_validos, pedidos_anteriores, resumo, categorias_qs
+        )
+        bebidas_por_dia = bebidas.pop("por_dia")
+        grafico_top_bebidas = bebidas.pop("grafico_top")
 
         status_qs = list(
             pedidos_periodo.values("status").annotate(total=Count("id")).order_by("status")
@@ -1625,7 +1793,11 @@ class DashboardAnalyticsView(LoginRequiredMixin, TemplateView):
             "produtos_click": produtos_click_todos[:5],
             "produtos_click_todos": produtos_click_todos,
 
-            "grafico_vendas_diarias": self._serie_datas_completa(data_inicio, data_fim, vendas_diarias_qs),
+            "grafico_vendas_diarias": self._serie_datas_completa(
+                data_inicio, data_fim, vendas_diarias_qs, pagamentos_diarios_qs, bebidas_por_dia
+            ),
+            "bebidas": bebidas,
+            "grafico_top_bebidas": grafico_top_bebidas,
             "grafico_status": {
                 "labels": [self.STATUS_LABELS.get(item["status"], item["status"]) for item in status_qs],
                 "valores": [item["total"] for item in status_qs],
