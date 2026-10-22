@@ -57,7 +57,7 @@
                              data-categoria="{{ prato.produto.categoria.id|default:'' }}">
 
                             <div class="aspect-video bg-orange-100 flex items-center justify-center relative cursor-pointer"
-                                 onclick="{% if prato.produto.adicionais_disponiveis.exists %}abrirModalAdicionais('{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}'){% else %}addProduto('{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}'){% endif %}">
+                                 onclick="{% if prato.produto.adicionais_disponiveis.exists %}abrirModalAdicionais('{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}'){% elif prato.produto.eh_bebida %}abrirQtdBebida(this, '{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}'){% else %}addProduto('{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}'){% endif %}">
 
                                 {% if prato.produto.image_produto %}
                                 <img src="{{ prato.produto.image_produto.url }}"
@@ -81,7 +81,7 @@
                             </div>
 
                             <div class="p-4 cursor-pointer"
-                                 onclick="{% if prato.produto.adicionais_disponiveis.exists %}abrirModalAdicionais('{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}'){% else %}addProduto('{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}'){% endif %}">
+                                 onclick="{% if prato.produto.adicionais_disponiveis.exists %}abrirModalAdicionais('{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}'){% elif prato.produto.eh_bebida %}abrirQtdBebida(this, '{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}'){% else %}addProduto('{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}'){% endif %}">
                                 <div class="flex justify-between items-start mb-1 gap-2">
                                     <h3 class="text-sm font-black text-gray-800 leading-tight">
                                         {{ prato.produto.nome_produto }}
@@ -113,7 +113,7 @@
                              data-categoria="{{ produto.categoria.id|default:'' }}">
 
                             <div class="aspect-video bg-gray-50 flex items-center justify-center relative cursor-pointer"
-                                 onclick="{% if produto.adicionais_disponiveis.exists %}abrirModalAdicionais('{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}'){% else %}addProduto('{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}'){% endif %}">
+                                 onclick="{% if produto.adicionais_disponiveis.exists %}abrirModalAdicionais('{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}'){% elif produto.eh_bebida %}abrirQtdBebida(this, '{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}'){% else %}addProduto('{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}'){% endif %}">
 
                                 {% if produto.image_produto %}
                                 <img src="{{ produto.image_produto.url }}"
@@ -133,7 +133,7 @@
                             </div>
 
                             <div class="p-4 cursor-pointer"
-                                 onclick="{% if produto.adicionais_disponiveis.exists %}abrirModalAdicionais('{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}'){% else %}addProduto('{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}'){% endif %}">
+                                 onclick="{% if produto.adicionais_disponiveis.exists %}abrirModalAdicionais('{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}'){% elif produto.eh_bebida %}abrirQtdBebida(this, '{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}'){% else %}addProduto('{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}'){% endif %}">
                                 <div class="flex justify-between items-start mb-1 gap-2">
                                     <h3 class="text-sm font-bold text-gray-800 leading-tight">
                                         {{ produto.nome_produto }}
@@ -558,6 +558,17 @@
         box-shadow: 0 4px 10px rgba(227, 53, 61, 0.18);
     }
 
+    /* O item que acabou de entrar (bebida pelo modal de quantidade). */
+    .cart-item-novo { position: relative; animation: item-entrou .55s cubic-bezier(.2, 1.2, .4, 1); }
+    .cart-item-novo::after {
+        content: ""; position: absolute; inset: -1px; border-radius: inherit; pointer-events: none;
+        background: rgba(34, 197, 94, .18); box-shadow: 0 0 0 3px rgba(34, 197, 94, .7);
+        animation: item-brilho 1.4s ease-out forwards;
+    }
+    @keyframes item-entrou { from { opacity: .4; transform: translateX(28px) scale(.95); } }
+    @keyframes item-brilho { 60% { opacity: 1; } to { opacity: 0; } }
+    @media (prefers-reduced-motion: reduce) { .cart-item-novo, .cart-item-novo::after { animation: none; } }
+
     #carrinhoItens .cart-item-compact:last-child {
         margin-bottom: 0;
     }
@@ -592,6 +603,7 @@
 </style>
 
 <script src="{% static 'core/js/impressao.js' %}?v={{ versao_estaticos }}"></script>
+<script src="{% static 'core/js/quantidade.js' %}?v={{ versao_estaticos }}"></script>
 
 <script>
 /* =========================================================
@@ -806,7 +818,8 @@ function calcularPrecoAdicionais(adicionais) {
     }, 0);
 }
 
-function addProduto(id, nome, preco, adicionais = []) {
+function addProduto(id, nome, preco, adicionais = [], qtd = 1) {
+    const quantidade = Math.max(1, parseInt(qtd, 10) || 1);
     const adicionaisNormalizados = (adicionais || []).map(adicional => ({
         nome: String(adicional.nome || '').trim(),
         preco: Number(adicional.preco || 0),
@@ -822,7 +835,7 @@ function addProduto(id, nome, preco, adicionais = []) {
     const itemExistente = carrinho.find(item => item.key === uniqueKey);
 
     if (itemExistente) {
-        itemExistente.qtd++;
+        itemExistente.qtd += quantidade;
     } else {
         carrinho.push({
             key: uniqueKey,
@@ -830,11 +843,43 @@ function addProduto(id, nome, preco, adicionais = []) {
             nome: String(nome || '').trim(),
             precoBase: Number(preco || 0),
             adicionais: adicionaisNormalizados,
-            qtd: 1
+            qtd: quantidade
         });
     }
 
     renderCarrinho();
+    return uniqueKey;
+}
+
+/* Bebida: a quantidade é escolhida num modal (core/js/quantidade.js); ao
+   confirmar, a foto voa até o carrinho e o item chega destacado na lista. */
+function abrirQtdBebida(elemento, id, nome, preco) {
+    if (!window.Quantidade) {
+        addProduto(id, nome, preco);
+        return;
+    }
+    const card = elemento.closest('.produto-card, .prato-dia-card');
+    const img = card ? card.querySelector('img') : null;
+    Quantidade.abrir({
+        nome: nome,
+        preco: Number(preco),
+        imagem: img && img.style.display !== 'none' ? (img.currentSrc || img.src) : '',
+        max: 99,
+        origem: card || elemento,
+        destino: [document.getElementById('cartCount')],
+        aoConfirmar: qtd => destacarItemCarrinho(addProduto(id, nome, preco, [], qtd))
+    });
+}
+
+function destacarItemCarrinho(chave) {
+    const linha = Array.from(document.querySelectorAll('#carrinhoItens [data-key]'))
+        .find(item => item.dataset.key === chave);
+    if (!linha) return;
+    linha.classList.remove('cart-item-novo');
+    void linha.offsetWidth;
+    linha.classList.add('cart-item-novo');
+    linha.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    setTimeout(() => linha.classList.remove('cart-item-novo'), 1500);
 }
 
 function alterQtd(index, delta) {
@@ -955,7 +1000,7 @@ function renderCarrinho() {
         const subtotalItem = precoUnitarioFinal * Number(item.qtd || 0);
 
         return `
-            <div class="cart-item-compact bg-white px-3 py-3 rounded-[1.1rem] border border-gray-100 shadow-sm">
+            <div class="cart-item-compact bg-white px-3 py-3 rounded-[1.1rem] border border-gray-100 shadow-sm" data-key="${escaparHtml(item.key)}">
                 <div class="flex items-start justify-between gap-2">
                     <div class="flex-1 min-w-0">
                         <div class="flex items-start justify-between gap-2">
