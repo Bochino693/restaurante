@@ -118,7 +118,7 @@ html.qtd-travado, html.qtd-travado body { overflow: hidden; }
 }
 html.cf-escuro .qtd-foto { background: radial-gradient(circle at 50% 62%, #ffffff 0%, #e2e8f0 75%); }
 .qtd-foto img { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; object-fit: contain; padding: 14px; }
-.qtd-foto i { display: none; font-size: 64px; color: #0284c7; opacity: .7; }
+.qtd-foto i { display: none; font-size: 64px; color: var(--qtd-tom, #0284c7); opacity: .75; }
 .qtd-foto.sem-foto img { display: none; }
 .qtd-foto.sem-foto i { display: block; }
 .qtd-fundo.aberto .qtd-foto img, .qtd-fundo.aberto .qtd-foto i { animation: qtd-flutuar .7s cubic-bezier(.2, 1.3, .4, 1) backwards .12s; }
@@ -132,7 +132,7 @@ html.cf-escuro .qtd-foto { background: radial-gradient(circle at 50% 62%, #fffff
     font-size: 18px; color: var(--cf-texto); background: var(--cf-superficie-2); border: 1px solid var(--cf-borda);
     transition: transform .15s ease, background .2s, color .2s;
 }
-.qtd-passo:hover:not(:disabled) { background: var(--cf-marca); color: #fff; border-color: transparent; }
+.qtd-passo:hover:not(:disabled) { background: var(--qtd-tom, var(--cf-marca)); color: #fff; border-color: transparent; }
 .qtd-passo:active:not(:disabled) { transform: scale(.88); }
 .qtd-passo:disabled { opacity: .35; cursor: not-allowed; }
 .qtd-numero { display: block; min-width: 76px; font-size: 52px; font-weight: 950; line-height: 1; color: var(--cf-texto); font-variant-numeric: tabular-nums; }
@@ -148,13 +148,16 @@ html.cf-escuro .qtd-foto { background: radial-gradient(circle at 50% 62%, #fffff
     transition: transform .15s ease, background .2s, color .2s;
 }
 .qtd-atalho:hover { transform: translateY(-2px); }
-.qtd-atalho.ativo { background: var(--cf-marca-suave); color: var(--cf-marca); border-color: var(--cf-marca); }
+.qtd-atalho.ativo {
+    background: color-mix(in srgb, var(--qtd-tom, var(--cf-marca)) 14%, transparent);
+    color: var(--qtd-tom, var(--cf-marca)); border-color: var(--qtd-tom, var(--cf-marca));
+}
 .qtd-atalho[hidden] { display: none; }
 .qtd-confirmar {
     position: relative; width: 100%; height: 56px; border-radius: 18px; overflow: hidden;
     color: #fff; font-size: 15px; font-weight: 900;
-    background: linear-gradient(135deg, var(--cf-marca), var(--cf-marca-forte));
-    box-shadow: 0 14px 28px -12px var(--cf-marca);
+    background: linear-gradient(135deg, var(--qtd-tom, var(--cf-marca)), color-mix(in srgb, var(--qtd-tom, var(--cf-marca-forte)) 72%, #000));
+    box-shadow: 0 14px 28px -12px var(--qtd-tom, var(--cf-marca));
     transition: transform .15s ease, background .3s ease, box-shadow .3s ease;
 }
 .qtd-confirmar:hover { transform: translateY(-2px); }
@@ -177,15 +180,16 @@ html.cf-escuro .qtd-foto { background: radial-gradient(circle at 50% 62%, #fffff
 .qtd-voo {
     position: fixed; z-index: 3000; pointer-events: none;
     display: grid; place-items: center; border-radius: 22px;
-    background: #fff; box-shadow: 0 18px 40px -10px rgba(0, 0, 0, .45);
+    background: #fff; box-shadow: 0 18px 40px -10px rgba(0, 0, 0, .45), 0 0 0 3px color-mix(in srgb, var(--qtd-tom, #16a34a) 55%, transparent);
 }
 .qtd-voo img { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; object-fit: contain; padding: 12px; border-radius: inherit; }
-.qtd-voo i { font-size: 54px; color: #0284c7; }
+.qtd-voo i { font-size: 54px; color: var(--qtd-tom, #f97316); }
 .qtd-voo b {
     position: absolute; top: -12px; right: -12px; min-width: 46px; height: 46px; padding: 0 10px;
     border-radius: 999px; display: grid; place-items: center;
-    background: #16a34a; color: #fff; font-size: 20px; font-weight: 950;
-    box-shadow: 0 8px 20px -6px #16a34a;
+    background: var(--qtd-tom, #16a34a); color: #fff; font-size: 20px; font-weight: 950;
+    border: 3px solid #fff;
+    box-shadow: 0 8px 20px -6px var(--qtd-tom, #16a34a);
 }
 /* O carrinho dá um pulo quando a bebida chega. */
 .qtd-chegou { animation: qtd-chegou .6s cubic-bezier(.2, 1.6, .4, 1); }
@@ -200,6 +204,21 @@ html.cf-escuro .qtd-foto { background: radial-gradient(circle at 50% 62%, #fffff
     .qtd-caixa, .qtd-fundo, .qtd-confirmar-texto, .qtd-feito { transition: none !important; }
     .qtd-numero.sobe, .qtd-numero.desce, .qtd-chegou, .qtd-fundo.aberto .qtd-foto img, .qtd-fundo.confirmado .qtd-feito i { animation: none !important; }
 }
+
+/* ------------------------------------------------ barras de rolagem
+   Um padrão só no sistema todo: a página, a lista de produtos e o
+   carrinho do caixa, os modais, o estoque e os rankings. Finas,
+   arredondadas e na cor do tema; no Safari ficam na cor da marca ao
+   passar o mouse. Listas que deslizam de lado (filtros, categorias)
+   escondem a barra com .no-scrollbar. */
+:root { --cf-rolagem: color-mix(in srgb, var(--cf-texto-suave) 45%, transparent); }
+* { scrollbar-width: thin; scrollbar-color: var(--cf-rolagem) transparent; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background-color: var(--cf-rolagem); border: 2px solid transparent; border-radius: 999px; background-clip: content-box; }
+::-webkit-scrollbar-thumb:hover { background-color: var(--cf-marca); }
+.no-scrollbar, .categoria-scroll { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar, .categoria-scroll::-webkit-scrollbar { display: none; }
 
 /* ------------------------------------------------------------- logo */
 .cf-logo { display: block; height: 100%; width: auto; }
@@ -569,7 +588,6 @@ html.cf-escuro .text-sky-500, html.cf-escuro .text-sky-600 { color: #7dd3fc !imp
 
 html.cf-escuro .shadow-sm, html.cf-escuro .shadow, html.cf-escuro .shadow-lg,
 html.cf-escuro .shadow-xl, html.cf-escuro .shadow-2xl { --tw-shadow-color: rgba(0, 0, 0, .45); }
-html.cf-escuro ::-webkit-scrollbar-thumb { background: var(--cf-superficie-3) !important; }
 
 /* Classes próprias das telas (pedidos, caixa, estoque). */
 html.cf-escuro .modal-caixa { background: var(--cf-superficie) !important; color: var(--cf-texto); }

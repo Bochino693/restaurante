@@ -1,17 +1,23 @@
 /* =========================================================================
-   QUANTIDADE — modal para escolher quantas unidades adicionar (bebidas).
-
-   Usado no Caixa e no cardápio do cliente:
+   QUANTIDADE — o modal de quantidade (bebidas) e o efeito de "entrar no
+   carrinho" de todos os itens. Usado no Caixa e no cardápio do cliente.
 
        Quantidade.abrir({
            nome, preco, imagem,          // o que aparece no modal
+           cor: "#0284c7",               // cor do tipo de item
            max: 99,                      // limite do seletor
            origem: elemento,             // de onde o modal "nasce" (o card)
            destino: [el1, el2],          // para onde a foto voa (o 1º visível)
-           aoConfirmar: qtd => {...}     // chamado quando a foto chega
+           aoConfirmar: qtd => {...},    // na hora do clique: põe no carrinho
+           aoChegar: () => {...}         // quando a foto chega: destaca o item
        });
 
-   Teclado: números digitam a quantidade, + e − (ou setas) mudam,
+       Quantidade.voar({ de, imagem, icone, rotulo: "+1", cor, destino, aoChegar });
+
+   O item entra no carrinho NA HORA do clique; a foto voando é só o
+   efeito. Assim quem finaliza o pedido logo em seguida não perde nada.
+
+   Teclado no modal: números digitam a quantidade, + e − (ou setas) mudam,
    Enter confirma, Esc fecha.
    ========================================================================= */
 (function () {
@@ -37,7 +43,7 @@
         raiz.innerHTML = `
             <div class="qtd-caixa" role="dialog" aria-modal="true" aria-labelledby="qtdNome">
                 <button type="button" class="qtd-fechar" data-qtd="fechar" aria-label="Fechar"><i class="fas fa-xmark"></i></button>
-                <div class="qtd-foto"><img alt="" decoding="async"><i class="fas fa-bottle-water"></i></div>
+                <div class="qtd-foto"><img alt="" decoding="async"><i class="fas fa-bottle-water qtd-icone"></i></div>
                 <div class="qtd-corpo">
                     <h2 id="qtdNome" class="qtd-nome"></h2>
                     <p class="qtd-preco"></p>
@@ -130,8 +136,11 @@
             nome: opcoes.nome || "",
             preco: Number(opcoes.preco || 0),
             max: Math.max(1, Number(opcoes.max || 99)),
+            cor: opcoes.cor || "",
+            icone: opcoes.icone || "fa-bottle-water",
             destino: [].concat(opcoes.destino || []),
             aoConfirmar: opcoes.aoConfirmar || function () {},
+            aoChegar: opcoes.aoChegar || function () {},
             qtd: 1,
             anterior: 1,
             confirmando: false,
@@ -145,6 +154,10 @@
         const img = foto.querySelector("img");
         foto.classList.toggle("sem-foto", !opcoes.imagem);
         if (opcoes.imagem) img.src = opcoes.imagem; else img.removeAttribute("src");
+        foto.querySelector(".qtd-icone").className = `fas ${estado.icone} qtd-icone`;
+        // a cor do tipo de item tinge o modal (botão, atalho escolhido, +N)
+        if (estado.cor) raiz.style.setProperty("--qtd-tom", estado.cor);
+        else raiz.style.removeProperty("--qtd-tom");
         raiz.classList.remove("confirmado", "aberto");
         mudar(1);
         el(".qtd-numero").classList.remove("sobe", "desce");
@@ -183,59 +196,82 @@
         return null;
     }
 
-    /* A foto (com o "+N") voa num arco até o carrinho; quando chega, o item
-       entra na lista e o carrinho dá um pulo. */
+    function pular(destino) {
+        if (!destino) return;
+        destino.classList.remove("qtd-chegou");
+        void destino.offsetWidth;
+        destino.classList.add("qtd-chegou");
+        setTimeout(() => destino.classList.remove("qtd-chegou"), 700);
+    }
+
+    /* A foto (com o "+N") voa num arco até o carrinho, que dá um pulo quando
+       ela chega. `de` é o elemento de onde ela sai (a foto do card ou do
+       modal). Sem destino visível ou com "menos movimento" ligado no
+       sistema, só chama aoChegar. */
+    function voar(opcoes) {
+        const destino = alvoVisivel([].concat(opcoes.destino || []));
+        const aoChegar = () => {
+            pular(destino);
+            try { (opcoes.aoChegar || function () {})(); } catch (erro) { console.error(erro); }
+        };
+        const origem = opcoes.de && opcoes.de.getBoundingClientRect ? opcoes.de : null;
+        const de = origem ? origem.getBoundingClientRect() : null;
+        if (semAnimacao() || !destino || !de || !de.width || !document.body.animate) {
+            aoChegar();
+            return;
+        }
+        // no máximo 150 px de lado: a foto de um card grande não cobre a tela
+        const lado = Math.min(150, Math.max(de.width, de.height));
+        const largura = de.width >= de.height ? lado : lado * de.width / de.height;
+        const altura = de.height > de.width ? lado : lado * de.height / de.width;
+        const x0 = de.left + de.width / 2 - largura / 2;
+        const y0 = de.top + de.height / 2 - altura / 2;
+
+        const voo = document.createElement("div");
+        voo.className = "qtd-voo";
+        if (opcoes.cor) voo.style.setProperty("--qtd-tom", opcoes.cor);
+        Object.assign(voo.style, { left: x0 + "px", top: y0 + "px", width: largura + "px", height: altura + "px" });
+        const foto = document.createElement(opcoes.imagem ? "img" : "i");
+        if (opcoes.imagem) { foto.src = opcoes.imagem; foto.alt = ""; }
+        else foto.className = `fas ${opcoes.icone || "fa-utensils"}`;
+        const rotulo = document.createElement("b");
+        rotulo.textContent = opcoes.rotulo || "+1";
+        voo.append(foto, rotulo);
+        document.body.appendChild(voo);
+
+        const para = destino.getBoundingClientRect();
+        const dx = para.left + para.width / 2 - (x0 + largura / 2);
+        const dy = para.top + para.height / 2 - (y0 + altura / 2);
+        // o arco passa acima dos dois pontos, mas nunca sai pelo topo da tela
+        const alto = Math.max(Math.min(dy, 0) - 90, 16 - y0);
+        voo.animate([
+            { transform: "translate(0, 0) scale(.9) rotate(0deg)", opacity: 0 },
+            { transform: "translate(0, -10px) scale(1.05) rotate(-2deg)", opacity: 1, offset: 0.12 },
+            { transform: `translate(${dx * 0.45}px, ${alto}px) scale(.62) rotate(-8deg)`, opacity: 1, offset: 0.5 },
+            { transform: `translate(${dx}px, ${dy}px) scale(.12) rotate(6deg)`, opacity: .35 }
+        ], { duration: opcoes.duracao || 820, delay: opcoes.atraso || 0, easing: "cubic-bezier(.45, 0, .25, 1)", fill: "both" })
+            .finished.then(() => { voo.remove(); aoChegar(); }, () => { voo.remove(); aoChegar(); });
+    }
+
     function confirmar() {
         if (!estado || estado.confirmando) return;
         estado.confirmando = true;
-        const { qtd, aoConfirmar } = estado;
+        const { qtd, aoChegar, cor, icone } = estado;
         raiz.classList.add("confirmado");
-        const destino = alvoVisivel(estado.destino);
+        try { estado.aoConfirmar(qtd); } catch (erro) { console.error(erro); }
         const foto = el(".qtd-foto");
-
-        const chegar = () => {
-            try { aoConfirmar(qtd); } catch (erro) { console.error(erro); }
-            if (destino) {
-                destino.classList.remove("qtd-chegou");
-                void destino.offsetWidth;
-                destino.classList.add("qtd-chegou");
-                setTimeout(() => destino.classList.remove("qtd-chegou"), 700);
-            }
-        };
-
-        if (semAnimacao() || !destino || !foto.animate) {
-            chegar();
-            setTimeout(fechar, semAnimacao() ? 400 : 650);
-            return;
-        }
-
-        const de = foto.getBoundingClientRect();
-        const para = destino.getBoundingClientRect();
-        const voo = document.createElement("div");
-        voo.className = "qtd-voo";
-        voo.style.left = de.left + "px";
-        voo.style.top = de.top + "px";
-        voo.style.width = de.width + "px";
-        voo.style.height = de.height + "px";
-        voo.innerHTML = (foto.classList.contains("sem-foto")
-            ? '<i class="fas fa-bottle-water"></i>'
-            : `<img src="${foto.querySelector("img").src}" alt="">`) + `<b>+${qtd}</b>`;
-        document.body.appendChild(voo);
-
-        const dx = para.left + para.width / 2 - (de.left + de.width / 2);
-        const dy = para.top + para.height / 2 - (de.top + de.height / 2);
-        const alto = Math.min(dy, 0) - 90;   // o arco passa acima dos dois pontos
-        const duracao = 720;
-        setTimeout(() => {
-            voo.animate([
-                { transform: "translate(0, 0) scale(1) rotate(0deg)", opacity: 1 },
-                { transform: `translate(${dx * 0.45}px, ${alto}px) scale(.62) rotate(-8deg)`, opacity: 1, offset: 0.45 },
-                { transform: `translate(${dx}px, ${dy}px) scale(.12) rotate(6deg)`, opacity: .35 }
-            ], { duration: duracao, easing: "cubic-bezier(.45, 0, .25, 1)", fill: "forwards" })
-                .finished.then(() => { voo.remove(); chegar(); }, () => { voo.remove(); chegar(); });
-        }, 260);   // primeiro o botão vira "Adicionado!"
-        setTimeout(fechar, 420);
+        voar({
+            de: foto,
+            imagem: foto.classList.contains("sem-foto") ? "" : foto.querySelector("img").src,
+            icone,
+            rotulo: "+" + qtd,
+            cor,
+            destino: estado.destino,
+            atraso: 240,   // primeiro o botão vira "Adicionado!"
+            aoChegar,
+        });
+        setTimeout(fechar, semAnimacao() ? 400 : 420);
     }
 
-    window.Quantidade = { abrir, fechar };
+    window.Quantidade = { abrir, fechar, voar };
 })();

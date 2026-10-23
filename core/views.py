@@ -47,7 +47,27 @@ def _url_imagem(campo):
         return ""
 
 
-def _produto_para_cardapio(produto):
+# Cor de cada categoria no efeito de "entrar no carrinho" (a bolha do +N e
+# a faixa do item na lista): bebida é sempre azul; as outras categorias
+# recebem as cores abaixo, na ordem em que foram criadas.
+COR_BEBIDA = "#0284c7"
+PALETA_CATEGORIAS = ["#f97316", "#16a34a", "#8b5cf6", "#e11d48", "#0d9488", "#ca8a04"]
+
+
+def _cores_das_categorias():
+    cores = {}
+    proxima = 0
+    for categoria in CategoriaProdutos.objects.order_by("id").only("id", "nome_categoria"):
+        nome = categoria.nome_categoria.casefold()
+        if any(palavra.casefold() in nome for palavra in settings.PALAVRAS_BEBIDAS):
+            cores[categoria.id] = COR_BEBIDA
+        else:
+            cores[categoria.id] = PALETA_CATEGORIAS[proxima % len(PALETA_CATEGORIAS)]
+            proxima += 1
+    return cores
+
+
+def _produto_para_cardapio(produto, cores=None):
     return {
         "id": produto.id,
         "nome": produto.nome_produto,
@@ -57,6 +77,7 @@ def _produto_para_cardapio(produto):
         "tem_adicionais": any(a.ativo for a in produto.adicionais_disponiveis.all()),
         # Bebida mostra a lata/garrafa inteira na foto (sem corte).
         "bebida": _eh_bebida(produto),
+        "cor": (cores or {}).get(produto.categoria_id, PALETA_CATEGORIAS[0]),
     }
 
 
@@ -68,7 +89,7 @@ CARDAPIO_CACHE_SEGUNDOS = 60
 
 def _dados_do_cardapio():
     dia_hoje = timezone.localdate().weekday()
-    chave = f"cardapio:v3:{dia_hoje}"
+    chave = f"cardapio:v4:{dia_hoje}"
     dados = cache.get(chave)
     if dados is not None:
         return dados
@@ -93,16 +114,17 @@ def _dados_do_cardapio():
         .select_related("produto__categoria")
         .prefetch_related("produto__adicionais_disponiveis")
     )
+    cores = _cores_das_categorias()
     dados = {
         "categorias": [
             {
                 "id": categoria.id,
                 "nome": categoria.nome_categoria,
-                "produtos": [_produto_para_cardapio(p) for p in categoria.produtos.all()],
+                "produtos": [_produto_para_cardapio(p, cores) for p in categoria.produtos.all()],
             }
             for categoria in categorias
         ],
-        "pratos_do_dia": [_produto_para_cardapio(prato.produto) for prato in pratos],
+        "pratos_do_dia": [_produto_para_cardapio(prato.produto, cores) for prato in pratos],
     }
     dados["categorias"] = [c for c in dados["categorias"] if c["produtos"]]
     cache.set(chave, dados, CARDAPIO_CACHE_SEGUNDOS)
@@ -110,7 +132,7 @@ def _dados_do_cardapio():
 
 
 def _limpar_cache_cardapio():
-    cache.delete_many([f"cardapio:v3:{d}" for d in range(7)])
+    cache.delete_many([f"cardapio:v4:{d}" for d in range(7)])
 
 
 class CardapioClienteView(View):
@@ -182,11 +204,12 @@ class CaixaView(LoginRequiredMixin, View):
             .order_by("produto__nome_produto")
         )
 
-        # Bebida mostra a lata/garrafa inteira na foto (sem corte).
-        for produto in produtos:
+        # Bebida mostra a lata/garrafa inteira na foto (sem corte) e cada
+        # categoria tem a sua cor no efeito de entrar no carrinho.
+        cores = _cores_das_categorias()
+        for produto in list(produtos) + [prato.produto for prato in pratos_do_dia]:
             produto.eh_bebida = _eh_bebida(produto)
-        for prato in pratos_do_dia:
-            prato.produto.eh_bebida = _eh_bebida(prato.produto)
+            produto.cor = cores.get(produto.categoria_id, PALETA_CATEGORIAS[0])
 
         return render(request, 'caixa.html', {
             'produtos': produtos,
