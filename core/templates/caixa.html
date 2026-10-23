@@ -51,13 +51,13 @@
 
                     <div id="pratosDiaGrid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                         {% for prato in pratos_do_dia %}
-                        <div class="prato-dia-card bg-gradient-to-br from-orange-50 to-amber-50 rounded-3xl shadow-sm border border-orange-200 hover:border-orange-300 transition-all group overflow-hidden"
+                        <div data-cor="{{ prato.produto.cor }}" class="prato-dia-card bg-gradient-to-br from-orange-50 to-amber-50 rounded-3xl shadow-sm border border-orange-200 hover:border-orange-300 transition-all group overflow-hidden"
                              data-name="{{ prato.produto.nome_produto|lower }}"
                              data-code="{{ prato.produto.codigo|default:''|lower }}"
                              data-categoria="{{ prato.produto.categoria.id|default:'' }}">
 
                             <div class="aspect-video bg-orange-100 flex items-center justify-center relative cursor-pointer"
-                                 onclick="{% if prato.produto.adicionais_disponiveis.exists %}abrirModalAdicionais('{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}'){% elif prato.produto.eh_bebida %}abrirQtdBebida(this, '{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}'){% else %}addProduto('{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}'){% endif %}">
+                                 onclick="{% if prato.produto.adicionais_disponiveis.exists %}abrirModalAdicionais('{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}', this){% elif prato.produto.eh_bebida %}abrirQtdBebida(this, '{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}'){% else %}adicionarComEfeito(this, '{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}'){% endif %}">
 
                                 {% if prato.produto.image_produto %}
                                 <img src="{{ prato.produto.image_produto.url }}"
@@ -73,7 +73,7 @@
 
                                 {% if prato.produto.adicionais_disponiveis.exists %}
                                 <button type="button"
-                                        onclick="event.stopPropagation(); abrirModalAdicionais('{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}')"
+                                        onclick="event.stopPropagation(); abrirModalAdicionais('{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}', this)"
                                         class="absolute top-2 right-2 bg-white/90 backdrop-blur p-2 rounded-full shadow-md text-orange-500 hover:scale-110 transition-transform z-10">
                                     <i class="fas fa-plus-circle"></i>
                                 </button>
@@ -81,7 +81,7 @@
                             </div>
 
                             <div class="p-4 cursor-pointer"
-                                 onclick="{% if prato.produto.adicionais_disponiveis.exists %}abrirModalAdicionais('{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}'){% elif prato.produto.eh_bebida %}abrirQtdBebida(this, '{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}'){% else %}addProduto('{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}'){% endif %}">
+                                 onclick="{% if prato.produto.adicionais_disponiveis.exists %}abrirModalAdicionais('{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}', this){% elif prato.produto.eh_bebida %}abrirQtdBebida(this, '{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}'){% else %}adicionarComEfeito(this, '{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}'){% endif %}">
                                 <div class="flex justify-between items-start mb-1 gap-2">
                                     <h3 class="text-sm font-black text-gray-800 leading-tight">
                                         {{ prato.produto.nome_produto }}
@@ -107,13 +107,13 @@
 
                     <div id="produtosGrid" class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
                         {% for produto in produtos %}
-                        <div class="produto-card bg-white rounded-3xl shadow-sm border border-transparent hover:border-blue-50 transition-all group overflow-hidden"
+                        <div data-cor="{{ produto.cor }}" class="produto-card bg-white rounded-3xl shadow-sm border border-transparent hover:border-blue-50 transition-all group overflow-hidden"
                              data-name="{{ produto.nome_produto|lower }}"
                              data-code="{{ produto.codigo|default:''|lower }}"
                              data-categoria="{{ produto.categoria.id|default:'' }}">
 
                             <div class="aspect-video bg-gray-50 flex items-center justify-center relative cursor-pointer"
-                                 onclick="{% if produto.adicionais_disponiveis.exists %}abrirModalAdicionais('{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}'){% elif produto.eh_bebida %}abrirQtdBebida(this, '{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}'){% else %}addProduto('{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}'){% endif %}">
+                                 onclick="{% if produto.adicionais_disponiveis.exists %}abrirModalAdicionais('{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}', this){% elif produto.eh_bebida %}abrirQtdBebida(this, '{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}'){% else %}adicionarComEfeito(this, '{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}'){% endif %}">
 
                                 {% if produto.image_produto %}
                                 <img src="{{ produto.image_produto.url }}"
@@ -125,7 +125,7 @@
 
                                 {% if produto.adicionais_disponiveis.exists %}
                                 <button type="button"
-                                        onclick="event.stopPropagation(); abrirModalAdicionais('{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}')"
+                                        onclick="event.stopPropagation(); abrirModalAdicionais('{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}', this)"
                                         class="absolute top-2 right-2 bg-white/90 backdrop-blur p-2 rounded-full shadow-md text-orange-500 hover:scale-110 transition-transform z-10">
                                     <i class="fas fa-plus-circle"></i>
                                 </button>
@@ -133,7 +133,7 @@
                             </div>
 
                             <div class="p-4 cursor-pointer"
-                                 onclick="{% if produto.adicionais_disponiveis.exists %}abrirModalAdicionais('{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}'){% elif produto.eh_bebida %}abrirQtdBebida(this, '{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}'){% else %}addProduto('{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}'){% endif %}">
+                                 onclick="{% if produto.adicionais_disponiveis.exists %}abrirModalAdicionais('{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}', this){% elif produto.eh_bebida %}abrirQtdBebida(this, '{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}'){% else %}adicionarComEfeito(this, '{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}'){% endif %}">
                                 <div class="flex justify-between items-start mb-1 gap-2">
                                     <h3 class="text-sm font-bold text-gray-800 leading-tight">
                                         {{ produto.nome_produto }}
@@ -353,27 +353,37 @@
 </div>
 
 <!-- MODAL ADICIONAIS -->
-<div id="modalAdicionais" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-    <div class="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl overflow-hidden">
-        <div class="p-6 border-b flex justify-between items-center">
-            <div>
-                <h3 id="modalProdNome" class="text-lg font-black text-gray-800 uppercase leading-none">
-                    Nome do Produto
-                </h3>
-                <span class="text-xs text-gray-400">Escolha seus adicionais</span>
+<div id="modalAdicionais" class="hidden add-fundo" aria-hidden="true">
+    <div class="add-caixa" role="dialog" aria-modal="true" aria-labelledby="modalProdNome">
+        <button type="button" onclick="fecharModalAdicionais()" class="qtd-fechar" aria-label="Fechar">
+            <i class="fas fa-xmark"></i>
+        </button>
+
+        <div class="add-topo">
+            <div id="modalProdFoto" class="add-foto sem-foto"><img alt="" decoding="async"><i class="fas fa-utensils"></i></div>
+            <div class="add-titulo">
+                <span class="add-eyebrow">Monte o pedido</span>
+                <h3 id="modalProdNome">Nome do Produto</h3>
+                <p id="modalProdPreco"></p>
             </div>
-            <button type="button" onclick="fecharModalAdicionais()" class="text-gray-400 hover:text-red-500 transition-colors">
-                <i class="fas fa-times-circle text-2xl"></i>
-            </button>
         </div>
 
-        <div id="listaAdicionais" class="p-6 space-y-4 max-h-[50vh] overflow-y-auto custom-scrollbar"></div>
+        <div class="add-secao">
+            <span>Adicionais</span>
+            <small id="modalAddEscolhidos">Toque no item ou no + para incluir</small>
+        </div>
 
-        <div class="p-6 bg-gray-50">
-            <button id="btnConfirmarAdicional"
-                    type="button"
-                    class="w-full text-white font-black py-4 rounded-2xl shadow-lg uppercase tracking-tighter" style="background: var(--cf-marca)">
-                Adicionar ao Carrinho
+        <div id="listaAdicionais" class="add-lista"></div>
+
+        <div class="add-rodape">
+            <div class="add-qtd" role="group" aria-label="Quantidade do item">
+                <button type="button" onclick="alterQtdItemAdicional(-1)" aria-label="Menos um"><i class="fas fa-minus"></i></button>
+                <output id="modalAddQtd" aria-live="polite">1</output>
+                <button type="button" onclick="alterQtdItemAdicional(1)" aria-label="Mais um"><i class="fas fa-plus"></i></button>
+            </div>
+            <button id="btnConfirmarAdicional" type="button" class="add-confirmar">
+                <span class="add-confirmar-texto"><span id="modalAddRotulo">Adicionar</span><b id="modalAddTotal">R$ 0,00</b></span>
+                <span class="add-feito"><i class="fas fa-check"></i> Adicionado!</span>
             </button>
         </div>
     </div>
@@ -448,25 +458,12 @@
         display: none;
     }
 
-    .custom-scrollbar::-webkit-scrollbar {
-        width: 6px;
-    }
-
-    .custom-scrollbar::-webkit-scrollbar-thumb {
-        background: #cbd5e1;
-        border-radius: 999px;
-    }
-
-    .custom-scrollbar::-webkit-scrollbar-track {
-        background: transparent;
-    }
-
     #carrinhoItens {
         scrollbar-gutter: stable;
     }
 
     /* TELA BAIXA (notebook, monitor pequeno): o carrinho inteiro rola —
-       itens e dados do pedido — com uma barra de rolagem larga e visível.
+       itens e dados do pedido — com a barra de rolagem padrão do sistema.
        O botão Finalizar fica fora da rolagem, sempre à mão. */
     .dica-rolar {
         display: none;
@@ -487,29 +484,6 @@
 
         .carrinho-corpo #carrinhoRodape {
             box-shadow: none;
-        }
-
-        .carrinho-corpo::-webkit-scrollbar {
-            width: 10px;
-        }
-
-        .carrinho-corpo::-webkit-scrollbar-thumb {
-            background: #94a3b8;
-            border-radius: 999px;
-            border: 2px solid #fff;
-        }
-
-        .carrinho-corpo::-webkit-scrollbar-thumb:hover {
-            background: #64748b;
-        }
-
-        .carrinho-corpo::-webkit-scrollbar-track {
-            background: #f1f5f9;
-        }
-
-        .carrinho-corpo {
-            scrollbar-width: auto;
-            scrollbar-color: #94a3b8 #f1f5f9;
         }
 
         .dica-rolar.visivel {
@@ -558,12 +532,122 @@
         box-shadow: 0 4px 10px rgba(227, 53, 61, 0.18);
     }
 
-    /* O item que acabou de entrar (bebida pelo modal de quantidade). */
+    /* Cada item do carrinho tem a faixa da cor da categoria (bebida azul,
+       marmita laranja...). O que acabou de entrar pisca nessa cor. */
+    #carrinhoItens .cart-item-compact { border-left: 4px solid var(--tom, #f97316) !important; }
     .cart-item-novo { position: relative; animation: item-entrou .55s cubic-bezier(.2, 1.2, .4, 1); }
     .cart-item-novo::after {
         content: ""; position: absolute; inset: -1px; border-radius: inherit; pointer-events: none;
-        background: rgba(34, 197, 94, .18); box-shadow: 0 0 0 3px rgba(34, 197, 94, .7);
+        background: color-mix(in srgb, var(--tom, #22c55e) 18%, transparent);
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--tom, #22c55e) 75%, transparent);
         animation: item-brilho 1.4s ease-out forwards;
+    }
+
+    /* ------------------------------------------- modal de adicionais */
+    .add-fundo {
+        position: fixed; inset: 0; z-index: 100;
+        display: flex; align-items: center; justify-content: center; padding: 18px;
+        background: rgba(12, 10, 9, .5); -webkit-backdrop-filter: blur(7px); backdrop-filter: blur(7px);
+        opacity: 0; transition: opacity .25s ease;
+    }
+    .add-fundo.hidden { display: none !important; }
+    .add-fundo.aberto { opacity: 1; }
+    .add-caixa {
+        --tom: #f97316;
+        position: relative; width: min(100%, 460px); max-height: min(92vh, 760px);
+        display: flex; flex-direction: column; overflow: hidden;
+        background: var(--cf-superficie); color: var(--cf-texto);
+        border: 1px solid var(--cf-borda); border-radius: 30px;
+        box-shadow: 0 40px 90px -20px rgba(0, 0, 0, .5);
+        transform: translateY(30px) scale(.92); opacity: 0;
+        transition: transform .5s cubic-bezier(.2, 1.25, .35, 1), opacity .25s ease;
+    }
+    .add-fundo.aberto .add-caixa { transform: none; opacity: 1; }
+    .add-topo {
+        position: relative; flex: none; display: flex; align-items: flex-end; gap: 14px;
+        padding: 18px 18px 16px;
+        background: linear-gradient(135deg, color-mix(in srgb, var(--tom) 16%, var(--cf-superficie)), var(--cf-superficie) 70%);
+        border-bottom: 1px solid var(--cf-borda);
+    }
+    .add-foto {
+        position: relative; flex: 0 0 92px; width: 92px; height: 92px; border-radius: 22px; overflow: hidden;
+        display: grid; place-items: center; background: #fff;
+        box-shadow: 0 12px 26px -12px color-mix(in srgb, var(--tom) 70%, #000), 0 0 0 3px color-mix(in srgb, var(--tom) 35%, transparent);
+        animation: add-pop .6s cubic-bezier(.2, 1.4, .4, 1) backwards .08s;
+    }
+    .add-foto img { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; object-fit: cover; }
+    .add-foto.foto-bebida-modal img { object-fit: contain; padding: 8px; }
+    .add-foto i { display: none; font-size: 34px; color: var(--tom); }
+    .add-foto.sem-foto { background: color-mix(in srgb, var(--tom) 14%, var(--cf-superficie)); }
+    .add-foto.sem-foto img { display: none; }
+    .add-foto.sem-foto i { display: block; }
+    @keyframes add-pop { from { opacity: 0; transform: scale(.5) rotate(-10deg); } }
+    .add-titulo { min-width: 0; padding-right: 40px; }
+    .add-eyebrow { display: block; font-size: 10px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; color: var(--tom); }
+    .add-titulo h3 { margin: 2px 0; font-size: 21px; font-weight: 950; line-height: 1.12; color: var(--cf-texto); overflow-wrap: anywhere; }
+    .add-titulo p { font-size: 13px; font-weight: 800; color: var(--cf-texto-suave); }
+    .add-secao { flex: none; display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 14px 18px 8px; }
+    .add-secao span { font-size: 11px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; color: var(--cf-texto-2); }
+    .add-secao small { font-size: 10.5px; font-weight: 700; color: var(--cf-texto-suave); transition: color .2s; }
+    .add-secao small.tem { padding: 3px 9px; border-radius: 99px; font-weight: 900; color: #fff; background: var(--tom); }
+    .add-lista { flex: 1 1 auto; min-height: 80px; overflow-y: auto; overscroll-behavior: contain; padding: 2px 18px 12px; display: flex; flex-direction: column; gap: 8px; }
+    .add-carregando { padding: 28px 0; text-align: center; font-weight: 800; color: var(--cf-texto-suave); }
+    .add-item {
+        display: flex; align-items: center; justify-content: space-between; gap: 12px;
+        padding: 11px 12px 11px 14px; border-radius: 18px; cursor: pointer;
+        background: var(--cf-superficie-2); border: 2px solid transparent;
+        transition: border-color .2s, background .2s, transform .15s;
+        animation: add-entrar .45s cubic-bezier(.2, .8, .2, 1) backwards;
+        animation-delay: calc(min(var(--i, 0), 10) * 40ms + 120ms);
+    }
+    .add-item:hover { transform: translateX(2px); }
+    .add-item.ativo { border-color: var(--tom); background: color-mix(in srgb, var(--tom) 10%, var(--cf-superficie)); }
+    @keyframes add-entrar { from { opacity: 0; transform: translateY(10px); } }
+    .add-item-info { min-width: 0; }
+    .add-item-info strong { display: block; font-size: 14px; font-weight: 900; color: var(--cf-texto); overflow-wrap: anywhere; }
+    .add-item-info span { font-size: 12px; font-weight: 800; color: var(--tom); }
+    .add-passos { display: flex; align-items: center; gap: 6px; flex: none; }
+    .add-passos button, .add-qtd button {
+        width: 36px; height: 36px; border-radius: 12px; display: grid; place-items: center; font-size: 12px;
+        background: var(--cf-superficie); color: var(--cf-texto); border: 1px solid var(--cf-borda);
+        transition: background .2s, color .2s, transform .12s;
+    }
+    .add-passos button:hover, .add-qtd button:hover { background: var(--tom); color: #fff; border-color: transparent; }
+    .add-passos button:active, .add-qtd button:active { transform: scale(.88); }
+    .add-passos .qtd-add { min-width: 22px; text-align: center; font-size: 15px; font-weight: 950; color: var(--cf-texto); font-variant-numeric: tabular-nums; }
+    .add-item:not(.ativo) .qtd-add { color: var(--cf-texto-suave); }
+    .pulou { display: inline-block; animation: add-pulo .3s cubic-bezier(.2, 1.5, .4, 1); }
+    @keyframes add-pulo { from { transform: scale(.6); opacity: .4; } }
+    .add-rodape { flex: none; display: flex; align-items: center; gap: 10px; padding: 12px 18px 18px; border-top: 1px solid var(--cf-borda); background: var(--cf-superficie); }
+    .add-qtd { display: flex; align-items: center; gap: 6px; padding: 5px; border-radius: 16px; background: var(--cf-superficie-2); }
+    .add-qtd output { min-width: 28px; text-align: center; font-size: 18px; font-weight: 950; font-variant-numeric: tabular-nums; }
+    .add-confirmar {
+        position: relative; flex: 1 1 auto; height: 52px; border-radius: 17px; overflow: hidden;
+        color: #fff; font-size: 14px; font-weight: 900;
+        background: linear-gradient(135deg, var(--tom), color-mix(in srgb, var(--tom) 70%, #000));
+        box-shadow: 0 14px 26px -12px var(--tom);
+        transition: transform .15s ease, background .3s ease, opacity .2s;
+    }
+    .add-confirmar:hover:not(:disabled) { transform: translateY(-2px); }
+    .add-confirmar:disabled { opacity: .7; cursor: progress; }
+    .add-confirmar-texto, .add-feito {
+        position: absolute; inset: 0; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 16px;
+        transition: transform .3s cubic-bezier(.2, 1.2, .4, 1), opacity .2s ease;
+    }
+    .add-confirmar-texto span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .add-feito { justify-content: center; transform: translateY(100%); opacity: 0; }
+    #modalAdicionais.confirmado .add-confirmar { background: linear-gradient(135deg, #22c55e, #16a34a); box-shadow: 0 14px 26px -12px #16a34a; opacity: 1; }
+    #modalAdicionais.confirmado .add-confirmar-texto { transform: translateY(-100%); opacity: 0; }
+    #modalAdicionais.confirmado .add-feito { transform: none; opacity: 1; }
+    #modalAdicionais.confirmado .add-feito i { animation: add-pop .45s cubic-bezier(.2, 1.6, .4, 1); }
+    @media (max-width: 520px) {
+        .add-fundo { align-items: flex-end; padding: 0; }
+        .add-caixa { width: 100%; border-radius: 28px 28px 0 0; transform: translateY(100%); }
+        .add-rodape { padding-bottom: calc(18px + env(safe-area-inset-bottom)); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+        .add-fundo, .add-caixa, .add-confirmar-texto, .add-feito { transition: none !important; }
+        .add-foto, .add-item, .pulou { animation: none !important; }
     }
     @keyframes item-entrou { from { opacity: .4; transform: translateX(28px) scale(.95); } }
     @keyframes item-brilho { 60% { opacity: 1; } to { opacity: 0; } }
@@ -818,7 +902,7 @@ function calcularPrecoAdicionais(adicionais) {
     }, 0);
 }
 
-function addProduto(id, nome, preco, adicionais = [], qtd = 1) {
+function addProduto(id, nome, preco, adicionais = [], qtd = 1, cor = '') {
     const quantidade = Math.max(1, parseInt(qtd, 10) || 1);
     const adicionaisNormalizados = (adicionais || []).map(adicional => ({
         nome: String(adicional.nome || '').trim(),
@@ -836,6 +920,7 @@ function addProduto(id, nome, preco, adicionais = [], qtd = 1) {
 
     if (itemExistente) {
         itemExistente.qtd += quantidade;
+        if (cor && !itemExistente.cor) itemExistente.cor = cor;
     } else {
         carrinho.push({
             key: uniqueKey,
@@ -843,7 +928,8 @@ function addProduto(id, nome, preco, adicionais = [], qtd = 1) {
             nome: String(nome || '').trim(),
             precoBase: Number(preco || 0),
             adicionais: adicionaisNormalizados,
-            qtd: quantidade
+            qtd: quantidade,
+            cor: cor || ''
         });
     }
 
@@ -851,27 +937,80 @@ function addProduto(id, nome, preco, adicionais = [], qtd = 1) {
     return uniqueKey;
 }
 
-/* Bebida: a quantidade é escolhida num modal (core/js/quantidade.js); ao
-   confirmar, a foto voa até o carrinho e o item chega destacado na lista. */
-function abrirQtdBebida(elemento, id, nome, preco) {
-    if (!window.Quantidade) {
-        addProduto(id, nome, preco);
+/* =========================================================
+   EFEITO DE ENTRAR NO CARRINHO (core/js/quantidade.js)
+   O item entra no carrinho na hora do clique; a foto voando até o
+   carrinho, com a cor da categoria, é só o efeito. Quando ela chega, o
+   item pisca na lista.
+========================================================= */
+const COR_PADRAO_ITEM = '#f97316';
+
+function cardDoProduto(elemento) {
+    return elemento && elemento.closest ? elemento.closest('.produto-card, .prato-dia-card') : null;
+}
+
+function fotoDoCard(card) {
+    const img = card ? card.querySelector('img') : null;
+    return img && img.style.display !== 'none' && img.complete && img.naturalWidth ? img : null;
+}
+
+function efeitoEntrou(origem, { imagem, rotulo, cor, chave, icone }) {
+    const aoChegar = () => destacarItemCarrinho(chave);
+    if (!window.Quantidade || !Quantidade.voar) {
+        aoChegar();
         return;
     }
-    const card = elemento.closest('.produto-card, .prato-dia-card');
-    const img = card ? card.querySelector('img') : null;
+    Quantidade.voar({
+        de: origem,
+        imagem: imagem || '',
+        icone: icone || 'fa-utensils',
+        rotulo: rotulo,
+        cor: cor,
+        destino: [document.getElementById('cartCount')],
+        aoChegar: aoChegar
+    });
+}
+
+/* Marmitas, pratos e demais itens sem adicionais: um clique, uma unidade. */
+function adicionarComEfeito(elemento, id, nome, preco) {
+    const card = cardDoProduto(elemento);
+    const foto = fotoDoCard(card);
+    const cor = (card && card.dataset.cor) || COR_PADRAO_ITEM;
+    const chave = addProduto(id, nome, preco, [], 1, cor);
+    efeitoEntrou(foto || card || elemento, {
+        imagem: foto ? (foto.currentSrc || foto.src) : '',
+        rotulo: '+1',
+        cor: cor,
+        chave: chave
+    });
+}
+
+/* Bebida: a quantidade é escolhida num modal; ao confirmar, a foto voa
+   até o carrinho e o item chega destacado na lista. */
+function abrirQtdBebida(elemento, id, nome, preco) {
+    const card = cardDoProduto(elemento);
+    const cor = (card && card.dataset.cor) || '#0284c7';
+    if (!window.Quantidade) {
+        addProduto(id, nome, preco, [], 1, cor);
+        return;
+    }
+    const foto = fotoDoCard(card);
+    let chave = null;
     Quantidade.abrir({
         nome: nome,
         preco: Number(preco),
-        imagem: img && img.style.display !== 'none' ? (img.currentSrc || img.src) : '',
+        imagem: foto ? (foto.currentSrc || foto.src) : '',
+        cor: cor,
         max: 99,
         origem: card || elemento,
         destino: [document.getElementById('cartCount')],
-        aoConfirmar: qtd => destacarItemCarrinho(addProduto(id, nome, preco, [], qtd))
+        aoConfirmar: qtd => { chave = addProduto(id, nome, preco, [], qtd, cor); },
+        aoChegar: () => destacarItemCarrinho(chave)
     });
 }
 
 function destacarItemCarrinho(chave) {
+    if (!chave) return;
     const linha = Array.from(document.querySelectorAll('#carrinhoItens [data-key]'))
         .find(item => item.dataset.key === chave);
     if (!linha) return;
@@ -909,7 +1048,64 @@ function alterQtdAdicional(btn, delta) {
     qtd += delta;
 
     if (qtd < 0) qtd = 0;
+    if (qtd > 20) qtd = 20;
     qtdEl.innerText = qtd;
+
+    // escolhido fica destacado; o número dá um pulinho
+    const linha = btn.closest('.add-item');
+    if (linha) linha.classList.toggle('ativo', qtd > 0);
+    qtdEl.classList.remove('pulou');
+    void qtdEl.offsetWidth;
+    qtdEl.classList.add('pulou');
+    atualizarTotalAdicional();
+}
+
+/* Quantidade do item (a marmita inteira) no modal de adicionais. */
+let qtdItemAdicional = 1;
+
+function alterQtdItemAdicional(delta) {
+    qtdItemAdicional = Math.max(1, Math.min(99, qtdItemAdicional + delta));
+    const saida = document.getElementById('modalAddQtd');
+    if (saida) {
+        saida.textContent = qtdItemAdicional;
+        saida.classList.remove('pulou');
+        void saida.offsetWidth;
+        saida.classList.add('pulou');
+    }
+    atualizarTotalAdicional();
+}
+
+function adicionaisEscolhidos() {
+    const escolhidos = [];
+    document.querySelectorAll('#listaAdicionais .qtd-add').forEach(el => {
+        const qtd = Number.parseInt(el.innerText || '0', 10);
+        if (Number.isInteger(qtd) && qtd > 0) {
+            escolhidos.push({
+                nome: String(el.dataset.nome || '').trim(),
+                preco: Number(el.dataset.preco || 0),
+                qtd
+            });
+        }
+    });
+    return escolhidos;
+}
+
+function atualizarTotalAdicional() {
+    if (!produtoAdicionalAtual) return;
+    const escolhidos = adicionaisEscolhidos();
+    const extras = calcularPrecoAdicionais(escolhidos);
+    const total = (produtoAdicionalAtual.preco + extras) * qtdItemAdicional;
+    const totalEl = document.getElementById('modalAddTotal');
+    const rotulo = document.getElementById('modalAddRotulo');
+    if (totalEl) totalEl.textContent = formatar(total);
+    if (rotulo) rotulo.textContent = `Adicionar${qtdItemAdicional > 1 ? ' ' + qtdItemAdicional + 'x' : ''}`;
+    // quantos adicionais escolhidos fica no título da lista
+    const contagem = document.getElementById('modalAddEscolhidos');
+    if (contagem) {
+        const n = escolhidos.reduce((soma, a) => soma + a.qtd, 0);
+        contagem.textContent = n ? `${n} escolhido${n > 1 ? 's' : ''}` : 'Toque no item ou no + para incluir';
+        contagem.classList.toggle('tem', n > 0);
+    }
 }
 
 function atualizarTotais() {
@@ -1000,7 +1196,7 @@ function renderCarrinho() {
         const subtotalItem = precoUnitarioFinal * Number(item.qtd || 0);
 
         return `
-            <div class="cart-item-compact bg-white px-3 py-3 rounded-[1.1rem] border border-gray-100 shadow-sm" data-key="${escaparHtml(item.key)}">
+            <div class="cart-item-compact bg-white px-3 py-3 rounded-[1.1rem] border border-gray-100 shadow-sm" data-key="${escaparHtml(item.key)}" style="--tom: ${/^#[0-9a-f]{6}$/i.test(item.cor || '') ? item.cor : COR_PADRAO_ITEM}">
                 <div class="flex items-start justify-between gap-2">
                     <div class="flex-1 min-w-0">
                         <div class="flex items-start justify-between gap-2">
@@ -1069,7 +1265,24 @@ function renderCarrinho() {
    MODAL ADICIONAIS
 ========================================================= */
 
-async function abrirModalAdicionais(id, nome, preco) {
+let timerFecharAdicionais = null;
+
+function botaoAdicional(texto) {
+    // texto = carregando; null = pronto para adicionar
+    const btn = document.getElementById('btnConfirmarAdicional');
+    const rotulo = document.getElementById('modalAddRotulo');
+    const totalEl = document.getElementById('modalAddTotal');
+    if (!btn) return;
+    btn.disabled = !!texto;
+    if (texto) {
+        if (rotulo) rotulo.textContent = texto;
+        if (totalEl) totalEl.textContent = '';
+    } else {
+        atualizarTotalAdicional();
+    }
+}
+
+async function abrirModalAdicionais(id, nome, preco, origem) {
     const modal = document.getElementById('modalAdicionais');
     const container = document.getElementById('listaAdicionais');
     const btnConfirmar = document.getElementById('btnConfirmarAdicional');
@@ -1095,29 +1308,43 @@ async function abrirModalAdicionais(id, nome, preco) {
     modalAdicionaisAbortController = new AbortController();
     const controllerAtual = modalAdicionaisAbortController;
 
+    const card = cardDoProduto(origem);
+    const foto = fotoDoCard(card);
     produtoAdicionalAtual = {
         id: String(id),
         nome: String(nome || '').trim(),
-        preco: Number(preco || 0)
+        preco: Number(preco || 0),
+        cor: (card && card.dataset.cor) || COR_PADRAO_ITEM,
+        origem: card || origem || null
     };
 
     modalAdicionaisAberto = true;
     confirmandoAdicional = false;
+    qtdItemAdicional = 1;
 
     titulo.innerText = produtoAdicionalAtual.nome;
+    document.getElementById('modalProdPreco').innerText = formatar(produtoAdicionalAtual.preco);
+    document.getElementById('modalAddQtd').textContent = '1';
+    const caixaFoto = document.getElementById('modalProdFoto');
+    const imgFoto = caixaFoto.querySelector('img');
+    caixaFoto.classList.toggle('sem-foto', !foto);
+    caixaFoto.classList.toggle('foto-bebida-modal', !!(card && card.querySelector('.foto-bebida')));
+    if (foto) imgFoto.src = foto.currentSrc || foto.src; else imgFoto.removeAttribute('src');
+    modal.querySelector('.add-caixa').style.setProperty('--tom', produtoAdicionalAtual.cor);
+
     container.innerHTML = `
-        <div class="text-center py-8 text-gray-400 font-bold">
+        <div class="add-carregando">
             <span class="spinner-print"></span> Carregando adicionais...
         </div>
     `;
-
-    btnConfirmar.disabled = true;
+    botaoAdicional('Carregando...');
     btnConfirmar.onclick = null;
-    btnConfirmar.innerText = 'Carregando...';
 
-    modal.classList.remove('hidden');
+    clearTimeout(timerFecharAdicionais);
+    modal.classList.remove('hidden', 'confirmado');
     modal.setAttribute('aria-hidden', 'false');
     document.body.classList.add('overflow-hidden');
+    requestAnimationFrame(() => requestAnimationFrame(() => modal.classList.add('aberto')));
 
     try {
         const response = await fetch(`/produto/${encodeURIComponent(id)}/adicionais/`, {
@@ -1141,46 +1368,41 @@ async function abrirModalAdicionais(id, nome, preco) {
         if (!aberturaAindaValida) return;
 
         if (!Array.isArray(data) || data.length === 0) {
-            addProduto(id, nome, preco, []);
+            const origemDoItem = produtoAdicionalAtual.origem;
             fecharModalAdicionais();
+            adicionarComEfeito(origemDoItem || document.body, id, nome, preco);
             return;
         }
 
-        container.innerHTML = data.map(add => `
-            <div class="flex justify-between items-center p-3 bg-gray-50 rounded-2xl hover:bg-blue-50 transition-colors border border-gray-100">
-                <div class="flex-1 min-w-0 pr-3">
-                    <span class="text-sm font-bold text-gray-700 break-words">
-                        ${escaparHtml(add.nome)}
-                    </span>
-                    <div class="text-xs font-mono font-bold text-blue-600">
-                        + R$ ${moeda(add.preco)}
-                    </div>
+        container.innerHTML = data.map((add, i) => `
+            <div class="add-item" style="--i:${i}">
+                <div class="add-item-info">
+                    <strong>${escaparHtml(add.nome)}</strong>
+                    <span>+ R$ ${moeda(add.preco)}</span>
                 </div>
 
-                <div class="add-qtd-box flex items-center gap-2 shrink-0">
+                <div class="add-qtd-box add-passos">
                     <button type="button"
                             onclick="alterQtdAdicional(this, -1)"
-                            class="w-8 h-8 rounded-lg bg-white border border-gray-200 text-red-500 font-black">
-                        -
+                            aria-label="Menos ${escaparHtml(add.nome)}">
+                        <i class="fas fa-minus"></i>
                     </button>
 
-                    <span class="qtd-add min-w-[24px] text-center font-mono font-black"
+                    <span class="qtd-add"
                           data-nome="${escaparHtml(add.nome)}"
-                          data-preco="${Number(add.preco || 0)}">
-                        0
-                    </span>
+                          data-preco="${Number(add.preco || 0)}">0</span>
 
                     <button type="button"
                             onclick="alterQtdAdicional(this, 1)"
-                            class="w-8 h-8 rounded-lg bg-white border border-gray-200 text-green-600 font-black">
-                        +
+                            aria-label="Mais ${escaparHtml(add.nome)}">
+                        <i class="fas fa-plus"></i>
                     </button>
                 </div>
             </div>
         `).join('');
 
-        btnConfirmar.disabled = false;
-        btnConfirmar.innerText = 'Adicionar ao Carrinho';
+        botaoAdicional(null);
+        btnConfirmar.focus({ preventScroll: true });
 
         btnConfirmar.onclick = () => {
             if (
@@ -1194,26 +1416,22 @@ async function abrirModalAdicionais(id, nome, preco) {
             confirmandoAdicional = true;
             btnConfirmar.disabled = true;
 
-            try {
-                const selecionados = [];
+            const atual = produtoAdicionalAtual;
+            const selecionados = adicionaisEscolhidos();
+            const qtd = qtdItemAdicional;
 
-                container.querySelectorAll('.qtd-add').forEach(el => {
-                    const qtd = Number.parseInt(el.innerText || '0', 10);
-
-                    if (Number.isInteger(qtd) && qtd > 0) {
-                        selecionados.push({
-                            nome: String(el.dataset.nome || '').trim(),
-                            preco: Number(el.dataset.preco || 0),
-                            qtd
-                        });
-                    }
-                });
-
-                addProduto(id, nome, preco, selecionados);
-                fecharModalAdicionais();
-            } finally {
-                confirmandoAdicional = false;
-            }
+            // Entra no carrinho na hora; o botão vira "Adicionado!" e a foto
+            // voa até o carrinho com a cor da categoria.
+            const chave = addProduto(id, nome, preco, selecionados, qtd, atual.cor);
+            modal.classList.add('confirmado');
+            const fotoModal = document.querySelector('#modalProdFoto:not(.sem-foto)');
+            efeitoEntrou(fotoModal || document.getElementById('modalProdFoto'), {
+                imagem: fotoModal ? fotoModal.querySelector('img').src : '',
+                rotulo: '+' + qtd,
+                cor: atual.cor,
+                chave: chave
+            });
+            setTimeout(fecharModalAdicionais, 420);
         };
     } catch (erro) {
         const requisicaoAindaAtual = requestId === modalAdicionaisRequestId;
@@ -1252,26 +1470,54 @@ function fecharModalAdicionais() {
     const lista = document.getElementById('listaAdicionais');
     const btn = document.getElementById('btnConfirmarAdicional');
 
-    if (modal) {
-        modal.classList.add('hidden');
-        modal.setAttribute('aria-hidden', 'true');
-    }
-
-    if (lista) lista.innerHTML = '';
-
     if (btn) {
         btn.onclick = null;
         btn.disabled = false;
-        btn.innerText = 'Adicionar ao Carrinho';
+    }
+
+    if (modal) {
+        modal.classList.remove('aberto');
+        modal.setAttribute('aria-hidden', 'true');
+        // espera a animação de saída para esconder e limpar
+        clearTimeout(timerFecharAdicionais);
+        timerFecharAdicionais = setTimeout(() => {
+            if (modalAdicionaisAberto) return;
+            modal.classList.add('hidden');
+            modal.classList.remove('confirmado');
+            if (lista) lista.innerHTML = '';
+        }, 240);
     }
 
     document.body.classList.remove('overflow-hidden');
 }
 
 document.addEventListener('keydown', function (event) {
-    if (event.key === 'Escape' && modalAdicionaisAberto) {
+    if (!modalAdicionaisAberto) return;
+    if (event.key === 'Escape') {
         event.preventDefault();
         fecharModalAdicionais();
+    }
+    if (event.key === 'Enter') {
+        const btn = document.getElementById('btnConfirmarAdicional');
+        if (btn && !btn.disabled && btn.onclick) {
+            event.preventDefault();
+            btn.onclick();
+        }
+    }
+});
+
+// Tocar na linha do adicional também inclui (ou tira) uma unidade.
+document.addEventListener('click', function (event) {
+    const linha = event.target.closest && event.target.closest('#listaAdicionais .add-item');
+    if (!linha || event.target.closest('button')) return;
+    const ativo = linha.classList.contains('ativo');
+    const botao = linha.querySelector(`.add-passos button:${ativo ? 'first' : 'last'}-child`);
+    if (!botao) return;
+    if (ativo) {
+        const qtd = parseInt(linha.querySelector('.qtd-add').innerText || '0', 10);
+        alterQtdAdicional(botao, -qtd);
+    } else {
+        alterQtdAdicional(botao, 1);
     }
 });
 

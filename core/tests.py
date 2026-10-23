@@ -381,7 +381,8 @@ class QuantidadeDasBebidasTests(TestCase):
         guarana, marmita = self.produtos["Guaraná Lata"].id, self.produtos["Marmita"].id
         self.assertEqual(html.count(f"abrirQtdBebida(this, '{guarana}'"), 2)   # foto e nome do card
         self.assertNotIn(f"addProduto('{guarana}'", html)
-        self.assertEqual(html.count(f"addProduto('{marmita}'"), 2)
+        # comida sem adicionais: um clique, com o efeito de entrar no carrinho
+        self.assertEqual(html.count(f"adicionarComEfeito(this, '{marmita}'"), 2)
         self.assertIn("core/js/quantidade.js", html)
 
     def test_bebida_com_adicionais_continua_no_modal_de_adicionais(self):
@@ -391,7 +392,8 @@ class QuantidadeDasBebidasTests(TestCase):
         html = self.client.get(reverse("caixa")).content.decode()
         guarana = self.produtos["Guaraná Lata"].id
         self.assertNotIn(f"abrirQtdBebida(this, '{guarana}'", html)
-        self.assertIn(f"abrirModalAdicionais('{guarana}'", html)
+        # o modal de adicionais recebe o card (foto e cor do efeito)
+        self.assertEqual(html.count(f"abrirModalAdicionais('{guarana}', 'Guaraná Lata', '6.00', this)"), 3)
 
     def test_cardapio(self):
         html = self.client.get(reverse("cardapio")).content.decode()
@@ -399,3 +401,37 @@ class QuantidadeDasBebidasTests(TestCase):
         self.assertEqual(cards[str(self.produtos["Guaraná Lata"].id)], 'data-bebida="1"')
         self.assertEqual(cards[str(self.produtos["Marmita"].id)], "")
         self.assertIn("core/js/quantidade.js", html)
+
+
+class CoresDasCategoriasTests(TestCase):
+    """Cada categoria tem a sua cor no efeito de entrar no carrinho; bebida é sempre azul."""
+
+    def setUp(self):
+        cache.clear()
+        self.usuario = User.objects.create_superuser("dono", "dono@x.com", "senha-segura-123")
+        self.produtos = {}
+        for nome_categoria, nome_produto in [("Marmitas", "Marmita"), ("Bebidas", "Guaraná Lata"), ("Pratos", "Feijoada")]:
+            categoria = CategoriaProdutos(nome_categoria=nome_categoria)
+            categoria.imagem_categoria.name = "x.png"
+            categoria.save()
+            self.produtos[nome_produto] = Produtos.objects.create(
+                nome_produto=nome_produto, categoria=categoria, preco=Decimal("10.00")
+            )
+
+    def test_cores(self):
+        from .views import COR_BEBIDA, PALETA_CATEGORIAS, _cores_das_categorias
+        cores = _cores_das_categorias()
+        p = self.produtos
+        self.assertEqual(cores[p["Marmita"].categoria_id], PALETA_CATEGORIAS[0])
+        self.assertEqual(cores[p["Guaraná Lata"].categoria_id], COR_BEBIDA)
+        self.assertEqual(cores[p["Feijoada"].categoria_id], PALETA_CATEGORIAS[1])
+
+    def test_caixa_e_cardapio_levam_a_cor(self):
+        from .views import COR_BEBIDA, PALETA_CATEGORIAS
+        self.client.force_login(self.usuario)
+        html = self.client.get(reverse("caixa")).content.decode()
+        self.assertEqual(html.count(f'data-cor="{COR_BEBIDA}"'), 1)
+        self.assertEqual(html.count(f'data-cor="{PALETA_CATEGORIAS[0]}"'), 1)
+        catalogo = self.client.get(reverse("cardapio")).context["catalogo"]
+        self.assertEqual(catalogo[str(self.produtos["Guaraná Lata"].id)]["cor"], COR_BEBIDA)
+        self.assertEqual(catalogo[str(self.produtos["Feijoada"].id)]["cor"], PALETA_CATEGORIAS[1])

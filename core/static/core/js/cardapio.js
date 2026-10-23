@@ -50,7 +50,7 @@
     const totalItens = () => carrinho.reduce((s, i) => s + precoItem(i) * i.qtd, 0);
     const unidades = () => carrinho.reduce((s, i) => s + i.qtd, 0);
 
-    function adicionar(id, adicionais = [], qtd = 1) {
+    function adicionar(id, adicionais = [], qtd = 1, { avisar = true } = {}) {
         const p = catalogo[id];
         if (!p) return;
         const extras = adicionais.map(a => ({ nome: a.nome, preco: Number(a.preco) }))
@@ -63,12 +63,39 @@
             carrinho.push({ chave, id: String(id), nome: p.nome, precoBase: Number(p.preco), adicionais: extras, qtd });
         }
         salvar();
+        if (avisar) avisarChegada(id, qtd);
+        registrarClique(id);
+    }
+
+    function avisarChegada(id, qtd) {
+        const p = catalogo[id];
+        if (!p) return;
         toast(`${qtd > 1 ? qtd + "x " : ""}${p.nome} no carrinho!`);
         const contador = $("cart-count");
         contador.classList.remove("cf-pulo");
         void contador.offsetWidth;
         contador.classList.add("cf-pulo");
-        registrarClique(id);
+    }
+
+    /* EFEITO DE ENTRAR NA CESTA (core/js/quantidade.js): o item já entrou;
+       a foto voa até a cesta com a cor da categoria e, quando chega, vem o
+       aviso. */
+    const destinosCesta = () => [$("cart-count"), $("barra-carrinho"), document.querySelector('[aria-label="Abrir carrinho"]')];
+
+    function voarParaCesta(card, id, qtd) {
+        const p = catalogo[id];
+        const img = card && card.querySelector("img");
+        const temFoto = !!(img && img.style.display !== "none" && img.complete && img.naturalWidth);
+        if (!p || !window.Quantidade || !window.Quantidade.voar) { avisarChegada(id, qtd); return; }
+        window.Quantidade.voar({
+            de: temFoto ? img : (card || document.body),
+            imagem: temFoto ? (img.currentSrc || img.src) : "",
+            icone: p.bebida ? "fa-bottle-water" : "fa-utensils",
+            rotulo: "+" + qtd,
+            cor: p.cor,
+            destino: destinosCesta(),
+            aoChegar: () => avisarChegada(id, qtd)
+        });
     }
 
     function mudarQtd(chave, delta) {
@@ -139,11 +166,11 @@
     }
 
     /* ------------------------------------------------------ adicionais */
-    let modal = { id: null, lista: [], qtd: 1 };
+    let modal = { id: null, lista: [], qtd: 1, card: null };
 
-    async function abrirAdicionais(id) {
+    async function abrirAdicionais(id, card) {
         const p = catalogo[id];
-        modal = { id, lista: [], qtd: 1 };
+        modal = { id, lista: [], qtd: 1, card: card || null };
         $("modal-produto-nome").textContent = p.nome;
         $("modal-qtd").textContent = "1";
         const lista = $("lista-adicionais");
@@ -192,14 +219,17 @@
         const p = catalogo[id];
         const card = elemento.closest(".produto-card");
         const img = card && card.querySelector("img");
+        let quantas = 1;
         window.Quantidade.abrir({
             nome: p.nome,
             preco: Number(p.preco),
             imagem: img && img.style.display !== "none" ? (img.currentSrc || img.src) : (p.imagem || ""),
+            cor: p.cor,
             max: 20,
             origem: card || elemento,
-            destino: [$("cart-count"), $("barra-carrinho"), document.querySelector('[aria-label="Abrir carrinho"]')],
-            aoConfirmar: qtd => adicionar(id, [], qtd)
+            destino: destinosCesta(),
+            aoConfirmar: qtd => { quantas = qtd; adicionar(id, [], qtd, { avisar: false }); },
+            aoChegar: () => avisarChegada(id, quantas)
         });
     }
 
@@ -307,10 +337,15 @@
     document.addEventListener("click", e => {
         const add = e.target.closest(".btn-add");
         if (add) {
-            const id = add.closest(".produto-card").dataset.id;
-            if (catalogo[id] && catalogo[id].tem_adicionais) abrirAdicionais(id);
+            const card = add.closest(".produto-card");
+            const id = card.dataset.id;
+            if (catalogo[id] && catalogo[id].tem_adicionais) abrirAdicionais(id, card);
             else if (ehBebidaSimples(id)) abrirQuantidade(id, add);
-            else adicionar(id);
+            else {
+                // marmitas e demais itens: entra na hora e a foto voa até a cesta
+                adicionar(id, [], 1, { avisar: false });
+                voarParaCesta(card, id, 1);
+            }
             return;
         }
         // Tocar em qualquer parte do card de uma bebida também abre o modal.
@@ -358,8 +393,10 @@
             atualizarTotalModal();
         },
         confirmarAdicionais() {
-            adicionar(modal.id, selecionados(), modal.qtd);
+            const { id, qtd, card } = modal;
+            adicionar(id, selecionados(), qtd, { avisar: false });
             fecharAdicionais();
+            voarParaCesta(card, id, qtd);
         }
     };
 
