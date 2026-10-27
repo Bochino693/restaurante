@@ -3,3 +3,6 @@ __pycache__/
 .env
 media/
 node_modules/
+qz/private-key.pem
+qz/digital-certificate.txt
+qz/COLAR-NA-VERCEL.txt

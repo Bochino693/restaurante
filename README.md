@@ -53,6 +53,28 @@ depois de recarregar a página. No caixa, a engrenagem ao lado do status da
 impressora escolhe a impressora, o papel (80 mm ou 58 mm) e as vias, e faz
 uma impressão de teste.
 
+## QZ Tray sem pedir permissão toda hora (grátis)
+
+O QZ Tray só lembra a permissão de um site que se identifica com certificado.
+Usamos um certificado **próprio e gratuito**; o servidor assina as requisições
+(`core/qz_seguranca.py`) e o `impressao.js` usa isso sozinho.
+
+**Uma vez só (no computador de desenvolvimento):**
+
+1. `python qz\gerar_certificado.py` cria `qz/digital-certificate.txt`,
+   `qz/private-key.pem` e `qz/COLAR-NA-VERCEL.txt`.
+2. Na Vercel, crie as variáveis `QZ_CERTIFICADO` e `QZ_CHAVE_PRIVADA` com os
+   valores de `COLAR-NA-VERCEL.txt` e faça um novo deploy (`git push`).
+3. Guarde uma cópia de `private-key.pem` fora do GitHub. Se perder, gere de
+   novo e repita os passos 2 e 4.
+
+**No PC do caixa (sempre que instalar/reinstalar o QZ Tray):**
+
+4. Dê dois cliques em `qz/configurar_caixa.bat` (instala o certificado no QZ e reinicia).
+5. Abra o `/caixa/`; na janela do QZ marque **Remember this decision** e **Allow**.
+
+Dica: no menu do ícone do QZ, ative *Launch at startup*.
+
 ## Temas
 
 Sol (claro), Lua (noite), Eclipse (preto com a coroa vermelha da marca) e

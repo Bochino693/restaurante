@@ -364,13 +364,42 @@
     }
 
     /* ------------------------------------------------------- QZ Tray */
+    /* Identifica o site para o QZ Tray (certificado próprio + assinatura feita
+       no servidor). É isso que permite ao QZ LEMBRAR a permissão: sem isso ele
+       pergunta "Permitir?" a cada conexão. A chave privada nunca sai do servidor. */
+    let segurancaPronta = false;
+    function configurarSeguranca() {
+        if (segurancaPronta || !window.qz) return;
+        segurancaPronta = true;
+        try { qz.security.setSignatureAlgorithm("SHA512"); } catch (_) { /* QZ antigo */ }
+        qz.security.setCertificatePromise((resolve, reject) => {
+            fetch("/api/qz/certificado/", { credentials: "same-origin", cache: "no-store" })
+                .then(r => r.ok ? r.text() : Promise.reject(new Error("certificado " + r.status)))
+                .then(resolve, reject);
+        });
+        qz.security.setSignaturePromise(paraAssinar => (resolve, reject) => {
+            fetch("/api/qz/assinar/", {
+                method: "POST",
+                credentials: "same-origin",
+                headers: { "X-CSRFToken": cookie("csrftoken"), "Content-Type": "text/plain" },
+                body: paraAssinar
+            })
+                .then(r => r.ok ? r.text() : Promise.reject(new Error("assinatura " + r.status)))
+                .then(resolve, reject);
+        });
+    }
+
     function carregarQZ() {
-        if (window.qz) return Promise.resolve();
+        if (window.qz) { configurarSeguranca(); return Promise.resolve(); }
         if (qzCarregando) return qzCarregando;
         qzCarregando = new Promise((resolve, reject) => {
             const s = document.createElement("script");
             s.src = QZ_URL;
-            s.onload = () => (window.qz ? resolve() : reject(new Error("QZ Tray não disponível.")));
+            s.onload = () => {
+                if (!window.qz) return reject(new Error("QZ Tray não disponível."));
+                configurarSeguranca();
+                resolve();
+            };
             s.onerror = () => {
                 qzCarregando = null;
                 reject(new Error("Não foi possível baixar o componente do QZ Tray (sem internet?)."));

@@ -435,3 +435,47 @@ class CoresDasCategoriasTests(TestCase):
         catalogo = self.client.get(reverse("cardapio")).context["catalogo"]
         self.assertEqual(catalogo[str(self.produtos["Guaraná Lata"].id)]["cor"], COR_BEBIDA)
         self.assertEqual(catalogo[str(self.produtos["Feijoada"].id)]["cor"], PALETA_CATEGORIAS[1])
+
+
+class QZAssinaturaTests(TestCase):
+    """Certificado e assinatura do QZ Tray (precisam de login e conferem)."""
+
+    def test_certificado_e_assinatura(self):
+        import base64
+        import tempfile
+        from pathlib import Path
+        from unittest import mock
+
+        from cryptography import x509
+        from cryptography.hazmat.primitives import hashes, serialization
+        from cryptography.hazmat.primitives.asymmetric import padding, rsa
+        from django.contrib.auth.models import User
+        from django.test import Client, override_settings
+
+        chave = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        import datetime
+        nome = x509.Name([x509.NameAttribute(x509.oid.NameOID.COMMON_NAME, "teste")])
+        agora = datetime.datetime.now(datetime.timezone.utc)
+        cert = (x509.CertificateBuilder().subject_name(nome).issuer_name(nome)
+                .public_key(chave.public_key()).serial_number(1)
+                .not_valid_before(agora - datetime.timedelta(days=1))
+                .not_valid_after(agora + datetime.timedelta(days=30))
+                .sign(chave, hashes.SHA512()))
+        cert_pem = cert.public_bytes(serialization.Encoding.PEM).decode()
+        chave_pem = chave.private_bytes(
+            serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8,
+            serialization.NoEncryption()).decode()
+
+        with override_settings(QZ_CERTIFICADO=cert_pem, QZ_CHAVE_PRIVADA=chave_pem):
+            c = Client(enforce_csrf_checks=True)
+            self.assertEqual(c.get("/api/qz/certificado/").status_code, 401)
+            User.objects.create_user("caixa", password="x")
+            c.login(username="caixa", password="x")
+            r = c.get("/api/qz/certificado/")
+            self.assertEqual(r.status_code, 200)
+            texto = b'{"call":"printers.find","timestamp":1}'
+            r = c.post("/api/qz/assinar/", data=texto, content_type="text/plain",
+                       HTTP_X_CSRFTOKEN=c.cookies["csrftoken"].value)
+            self.assertEqual(r.status_code, 200)
+            cert.public_key().verify(base64.b64decode(r.content), texto,
+                                     padding.PKCS1v15(), hashes.SHA512())

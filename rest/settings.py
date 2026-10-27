@@ -182,6 +182,11 @@ WHATSAPP_LOJA = os.environ.get("WHATSAPP_LOJA", "5511999999999")
 # para não derrubar o agente que já está instalado).
 IMPRESSAO_API_KEY = os.environ.get("IMPRESSAO_API_KEY", "chave-secreta-restaurante-2026")
 
+# QZ Tray: certificado próprio (grátis) e chave privada, para o QZ lembrar a
+# permissão do site. Gere com `python qz/gerar_certificado.py`.
+QZ_CERTIFICADO = os.environ.get("QZ_CERTIFICADO", "")
+QZ_CHAVE_PRIVADA = os.environ.get("QZ_CHAVE_PRIVADA", "")
+
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,

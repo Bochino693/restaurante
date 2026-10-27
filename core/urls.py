@@ -1,4 +1,5 @@
 from django.urls import path
+from .qz_seguranca import qz_assinar, qz_certificado
 from .views import (CaixaView, EstoqueView,
                     PedidosView, CardapioClienteView,
                     adicionais_produto, VendasView, DashboardAnalyticsView,
@@ -23,6 +24,8 @@ urlpatterns = [
     path('admin-cardapio/pratos-do-dia/remover/<int:pk>/', RemoverPratoDiaView.as_view(), name='remover_prato_dia'),
 
 
+    path('api/qz/certificado/', qz_certificado, name='qz_certificado'),
+    path('api/qz/assinar/', qz_assinar, name='qz_assinar'),
     path('api/pedidos-impressao/', pedidos_pendentes_impressao),
     path('api/clique/<int:produto_id>/', registrar_clique, name='registrar_clique'),
     path('api/confirmar-impressao/<int:pedido_id>/', confirmar_impressao),
