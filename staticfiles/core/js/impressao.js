@@ -364,41 +364,57 @@
     }
 
     /* ------------------------------------------------------- QZ Tray */
-    /* Identifica o site para o QZ Tray (certificado próprio + assinatura feita
-       no servidor). É isso que permite ao QZ LEMBRAR a permissão: sem isso ele
-       pergunta "Permitir?" a cada conexão. A chave privada nunca sai do servidor. */
-    let segurancaPronta = false;
+    /* SEGURANÇA (certificado próprio + assinatura feita no servidor): é o que
+       permite ao QZ LEMBRAR a permissão do site. Mas ela NUNCA pode impedir a
+       impressão: se o servidor não tem certificado, ou se uma assinatura
+       falhar, a chamada segue sem assinatura (o QZ pergunta "Permitir?") e a
+       notinha sai. Antes, uma assinatura recusada cancelava até a lista de
+       impressoras ("Failed to sign request") e nada mais funcionava. */
+    let seguranca = null;          // promessa de { modo, detalhe }
+    let falhaAssinatura = "";      // última falha de assinatura (diagnóstico)
+    let avisoImpressora = "";      // impressora salva que sumiu (diagnóstico)
+
     function configurarSeguranca() {
-        if (segurancaPronta || !window.qz) return;
-        segurancaPronta = true;
-        try { qz.security.setSignatureAlgorithm("SHA512"); } catch (_) { /* QZ antigo */ }
-        qz.security.setCertificatePromise((resolve, reject) => {
-            fetch("/api/qz/certificado/", { credentials: "same-origin", cache: "no-store" })
-                .then(r => r.ok ? r.text() : Promise.reject(new Error("certificado " + r.status)))
-                .then(resolve, reject);
-        });
-        qz.security.setSignaturePromise(paraAssinar => (resolve, reject) => {
-            fetch("/api/qz/assinar/", {
-                method: "POST",
-                credentials: "same-origin",
-                headers: { "X-CSRFToken": cookie("csrftoken"), "Content-Type": "text/plain" },
-                body: paraAssinar
+        if (seguranca) return seguranca;
+        seguranca = fetch("/api/qz/certificado/", { credentials: "same-origin", cache: "no-store" })
+            .then(r => r.ok ? r.text() : Promise.reject(new Error(`o servidor respondeu ${r.status}`)))
+            .then(pem => {
+                if (!/BEGIN CERTIFICATE/.test(pem)) throw new Error("a resposta não é um certificado");
+                try { qz.security.setSignatureAlgorithm("SHA512"); } catch (_) { /* QZ antigo */ }
+                qz.security.setCertificatePromise(resolve => resolve(pem));
+                qz.security.setSignaturePromise(paraAssinar => resolve => {
+                    fetch("/api/qz/assinar/", {
+                        method: "POST",
+                        credentials: "same-origin",
+                        headers: { "X-CSRFToken": cookie("csrftoken"), "Content-Type": "text/plain" },
+                        body: paraAssinar
+                    })
+                        .then(r => r.ok ? r.text() : Promise.reject(new Error(`assinatura recusada (${r.status})`)))
+                        .then(assinatura => { falhaAssinatura = ""; resolve(assinatura); })
+                        .catch(erro => {
+                            falhaAssinatura = erro.message;
+                            console.warn("QZ: seguindo sem assinatura:", erro.message);
+                            resolve("");   // sem assinatura o QZ pergunta, mas imprime
+                        });
+                });
+                return { modo: "assinado" };
             })
-                .then(r => r.ok ? r.text() : Promise.reject(new Error("assinatura " + r.status)))
-                .then(resolve, reject);
-        });
+            .catch(erro => {
+                console.warn("QZ: sem certificado do site, o QZ vai pedir permissão:", erro.message);
+                return { modo: "sem-certificado", detalhe: erro.message };
+            });
+        return seguranca;
     }
 
     function carregarQZ() {
-        if (window.qz) { configurarSeguranca(); return Promise.resolve(); }
+        if (window.qz) return configurarSeguranca().then(() => undefined);
         if (qzCarregando) return qzCarregando;
         qzCarregando = new Promise((resolve, reject) => {
             const s = document.createElement("script");
             s.src = QZ_URL;
             s.onload = () => {
                 if (!window.qz) return reject(new Error("QZ Tray não disponível."));
-                configurarSeguranca();
-                resolve();
+                configurarSeguranca().then(() => resolve());
             };
             s.onerror = () => {
                 qzCarregando = null;
@@ -409,22 +425,70 @@
         return qzCarregando;
     }
 
+    /* Desde o Chrome 147 (abril de 2026), um site só fala com o QZ Tray
+       (localhost) com a permissão "Acesso à rede local" / "Apps neste
+       dispositivo". Ignorar o aviso 3 vezes conta como "Bloquear". */
+    async function estadoRedeLocal() {
+        if (!navigator.permissions || !navigator.permissions.query) return "sem-suporte";
+        for (const nome of ["loopback-network", "local-network-access"]) {
+            try { return (await navigator.permissions.query({ name: nome })).state; } catch (_) { /* nome não existe neste navegador */ }
+        }
+        return "sem-suporte";
+    }
+
+    const COMO_LIBERAR_CHROME =
+        "No Chrome, clique no ícone à esquerda do endereço do site → Configurações do site → " +
+        "\"Acesso à rede local\" (ou \"Apps neste dispositivo\") → Permitir. Depois recarregue a página.";
+    const COMO_DESBLOQUEAR_QZ =
+        "No ícone do QZ Tray (perto do relógio): Advanced → Site Manager → aba Blocked → " +
+        "selecione o site → Remove. Depois recarregue a página e clique em Allow.";
+
+    function erroCom(codigo, mensagem) {
+        const e = new Error(mensagem);
+        e.codigo = codigo;
+        return e;
+    }
+
+    /* Transforma o erro do QZ/Chrome numa instrução do que fazer. */
+    async function explicar(erro, conectando) {
+        const texto = String((erro && erro.message) || erro || "");
+        if (/block/i.test(texto)) {
+            return erroCom("qz-bloqueado", "O QZ Tray bloqueou este site. " + COMO_DESBLOQUEAR_QZ);
+        }
+        if (/printer.*(not|could not).*found|cannot find printer|no printer/i.test(texto)) {
+            return erroCom("impressora-sumiu",
+                "A impressora escolhida não existe mais neste computador. Abra a engrenagem da impressora e escolha a certa.");
+        }
+        if (!conectando) return erro instanceof Error ? erro : new Error(texto || "Falha ao imprimir.");
+        const permissao = await estadoRedeLocal();
+        if (permissao === "denied") {
+            return erroCom("chrome-bloqueou", "O Chrome bloqueou o acesso ao QZ Tray. " + COMO_LIBERAR_CHROME);
+        }
+        if (permissao === "prompt") {
+            return erroCom("chrome-perguntando",
+                "O Chrome está pedindo permissão para o site acessar este computador: clique em Permitir no aviso " +
+                "perto da barra de endereço (se ele sumiu, recarregue a página).");
+        }
+        return erroCom("qz-fechado",
+            "O QZ Tray não respondeu. Abra o QZ Tray no computador do caixa (ícone perto do relógio) e tente de novo. " +
+            "Se ele já estiver aberto, confira a permissão de rede local do Chrome: " + COMO_LIBERAR_CHROME);
+    }
+
     async function conectar() {
         await carregarQZ();
         if (qz.websocket.isActive()) return;
         if (conectando) return conectando;
         conectando = (async () => {
             try {
+                // Se o certificado não veio antes (rede, deploy), tenta de novo.
+                if ((await seguranca).modo !== "assinado") { seguranca = null; await configurarSeguranca(); }
                 qz.websocket.setClosedCallbacks(() => {
                     impressoraCache = null;
                     avisar("desconectado");
                 });
                 await qz.websocket.connect({ retries: 3, delay: 1 });
             } catch (erro) {
-                throw new Error(
-                    "O QZ Tray não respondeu. Abra o QZ Tray no computador do caixa " +
-                    "(ícone perto do relógio) e tente de novo."
-                );
+                throw await explicar(erro, true);
             } finally {
                 conectando = null;
             }
@@ -447,6 +511,12 @@
         }
         const desejada = config().impressora;
         let achada = desejada && lista.find(n => n.toUpperCase() === desejada.toUpperCase());
+        avisoImpressora = "";
+        if (desejada && !achada) {
+            // Ex.: depois de trocar a placa-mãe o Windows recria a impressora
+            // como "MP-4200 TH (Cópia 1)" e a antiga fica offline.
+            avisoImpressora = `A impressora salva "${desejada}" não existe mais neste computador.`;
+        }
         if (!achada) {
             for (const termo of PREFERIDAS) {
                 achada = lista.find(n => n.toUpperCase().includes(termo));
@@ -460,6 +530,7 @@
             } catch (_) { /* segue para a primeira */ }
         }
         impressoraCache = achada || lista[0];
+        if (avisoImpressora) avisoImpressora += ` Usando "${impressoraCache}". Escolha a certa na engrenagem.`;
         return impressoraCache;
     }
 
@@ -483,7 +554,7 @@
                 }
             }
         }
-        throw ultimoErro || new Error("Falha ao imprimir.");
+        throw await explicar(ultimoErro || new Error("Falha ao imprimir."), false);
     }
 
     async function imprimirAgora(pedido, vias) {
@@ -612,6 +683,170 @@
         return imprimirTexto(t);
     }
 
+    /* ------------------------------------------------- diagnóstico
+       Confere, na ordem, tudo o que precisa estar certo para a notinha sair
+       e diz o que fazer em cada item que falhar. */
+    const STATUS_IMPRESSORA = {
+        OK: "pronta", OFFLINE: "OFFLINE (desligada ou desconectada)", NOT_AVAILABLE: "indisponível",
+        PAPER_OUT: "sem papel", PAPER_JAM: "papel enroscado", PAUSED: "pausada no Windows",
+        ERROR: "com erro", DOOR_OPEN: "tampa aberta", BUSY: "ocupada", PRINTING: "imprimindo",
+        PENDING_DELETION: "sendo removida", USER_INTERVENTION: "precisa de atenção", TONER_LOW: "pouca tinta"
+    };
+
+    async function detalhesImpressoras() {
+        await conectar();
+        try {
+            const d = await qz.printers.details();
+            if (Array.isArray(d) && d.length) {
+                return d.map(x => ({ nome: String(x.name), driver: x.driver || "", porta: x.connection || "", padrao: !!x.default }));
+            }
+        } catch (_) { /* QZ antigo: só os nomes */ }
+        return (await listarImpressoras()).map(nome => ({ nome, driver: "", porta: "", padrao: false }));
+    }
+
+    async function statusImpressoras(nomes) {
+        const status = {};
+        if (!nomes.length || !qz.printers.startListening) return status;
+        try {
+            qz.printers.setPrinterCallbacks(evento => {
+                [].concat(evento || []).forEach(e => {
+                    if (!e || !e.printerName || (e.eventType && e.eventType !== "PRINTER")) return;
+                    const codigo = String(e.statusText || e.statusCode || "").toUpperCase();
+                    // guarda o pior estado de cada impressora
+                    if (!status[e.printerName] || codigo !== "OK") {
+                        status[e.printerName] = STATUS_IMPRESSORA[codigo] || codigo.toLowerCase();
+                    }
+                });
+            });
+            await qz.printers.startListening(nomes);
+            await qz.printers.getStatus();
+            await esperar(1500);
+        } catch (_) {
+            /* sem status neste QZ/sistema: segue só com a lista */
+        } finally {
+            try { await qz.printers.stopListening(); } catch (_) { /* ok */ }
+            try { qz.printers.setPrinterCallbacks(() => {}); } catch (_) { /* ok */ }
+        }
+        return status;
+    }
+
+    async function diagnosticar() {
+        const passos = [];
+        const passo = (ok, titulo, detalhe, dica) => passos.push({ ok, titulo, detalhe: detalhe || "", dica: dica || "" });
+        const data = iso => iso ? iso.split("-").reverse().join("/") : "";
+
+        const rede = await estadoRedeLocal();
+        let conectado = false;
+        let erroConexao = null;
+        try {
+            await conectar();
+            conectado = true;
+        } catch (erro) {
+            erroConexao = erro;
+        }
+
+        // 1. Chrome
+        if (rede === "denied") passo(false, "Chrome: acesso à rede local", "Bloqueado para este site.", COMO_LIBERAR_CHROME);
+        else if (rede === "granted") passo(true, "Chrome: acesso à rede local", "Permitido para este site.");
+        else if (conectado) passo(true, "Chrome: acesso à rede local", "Liberado: o site conversa com o QZ Tray.");
+        else if (rede === "prompt") passo(null, "Chrome: acesso à rede local", "Ainda não foi respondido.", "Quando o Chrome perguntar se o site pode acessar este computador, clique em Permitir.");
+        else passo(true, "Chrome: acesso à rede local", "Este navegador não pede essa permissão.");
+
+        // 2. Servidor
+        try {
+            const r = await fetch("/api/qz/diagnostico/", { credentials: "same-origin", cache: "no-store" });
+            if (!r.ok) throw new Error(`o servidor respondeu ${r.status}`);
+            const srv = await r.json();
+            const certo = srv.certificado === "ok" && srv.chave === "ok" && srv.par_confere === true && !srv.vencido;
+            passo(certo, "Servidor: certificado e chave do QZ",
+                certo ? `Certificado "${srv.titular}", válido até ${data(srv.valido_ate)}. A chave confere com ele.`
+                      : "Com problema: o QZ não vai lembrar a permissão.",
+                certo ? `Impressão digital SHA-1: ${srv.sha1}` : (srv.problemas || []).join(" "));
+        } catch (erro) {
+            passo(false, "Servidor: certificado e chave do QZ", "Não consegui consultar (" + erro.message + ").",
+                "Confira se está logado e recarregue a página.");
+        }
+
+        // 3. QZ Tray
+        if (conectado) {
+            let versao = "";
+            try { versao = await qz.api.getVersion(); } catch (_) { /* ok */ }
+            passo(true, "QZ Tray", `Conectado${versao ? " (versão " + versao + ")" : ""}.`);
+        } else {
+            passo(false, "QZ Tray", "Não conectou.", erroConexao.message);
+        }
+
+        // 4. Permissão lembrada
+        const seg = seguranca ? await seguranca : null;
+        if (seg && seg.modo === "assinado") {
+            passo(!falhaAssinatura, "Permissão lembrada (certificado do site)",
+                falhaAssinatura ? "A última assinatura falhou: " + falhaAssinatura + ". O QZ vai perguntar, mas imprime."
+                                : "O site se identifica para o QZ. Marcando \"Remember this decision\" + Allow, ele não pergunta mais.",
+                falhaAssinatura ? "Recarregue a página (o login pode ter expirado). Se continuar, veja o item do servidor."
+                                : "Se o QZ continuar perguntando toda hora, o certificado instalado nele (override.crt) não é o deste site: baixe o certificado abaixo, instale e reinicie o QZ.");
+        } else {
+            passo(null, "Permissão lembrada (certificado do site)",
+                "O site está sem certificado: o QZ pergunta \"Permitir?\" a cada conexão (mas imprime).",
+                seg && seg.detalhe ? "Detalhe: " + seg.detalhe + "." : "");
+        }
+
+        // 5. Impressoras
+        if (conectado) {
+            try {
+                const lista = await detalhesImpressoras();
+                if (!lista.length) {
+                    passo(false, "Impressoras", "Nenhuma impressora no Windows.",
+                        "Instale o driver da Bematech MP-4200 TH e confira se ela aparece em Configurações → Bluetooth e dispositivos → Impressoras e scanners.");
+                } else {
+                    const status = await statusImpressoras(lista.map(d => d.nome));
+                    const usada = await escolherImpressora(true).catch(() => "");
+                    const copias = lista.filter(d => /\((c[oó]pia|copy)\b/i.test(d.nome));
+                    const ruim = /offline|indispon|erro|sem papel|enroscado|pausada|tampa|aten/i.test(status[usada] || "");
+                    passo(ruim || avisoImpressora ? false : (copias.length ? null : true), "Impressoras",
+                        lista.map(d => [d.nome, d.driver, d.porta, status[d.nome], d.padrao ? "padrão do Windows" : "", d.nome === usada ? "← usada nas notinhas" : ""]
+                            .filter(Boolean).join(" · ")).join("\n"),
+                        [avisoImpressora,
+                         ruim ? `A impressora usada está ${status[usada]}: ligue/reconecte ou escolha outra acima.` : "",
+                         copias.length ? "Há impressoras \"(Cópia)\": depois de trocar a placa-mãe o Windows cria uma nova e a antiga para de funcionar. Imprima o teste em cada uma, fique com a que imprime e remova a outra no Windows." : ""]
+                            .filter(Boolean).join(" "));
+                }
+            } catch (erro) {
+                passo(false, "Impressoras", "Não consegui listar.", (await explicar(erro, false)).message);
+            }
+        }
+
+        // 6. Fila
+        const pendentes = fila().length;
+        passo(pendentes ? null : true, "Fila de notinhas",
+            pendentes ? `${pendentes} esperando a impressora.` : "Nenhuma pendente.",
+            pendentes ? "Elas saem sozinhas assim que a impressora responder." : "");
+        return passos;
+    }
+
+    function escaparHtml(t) {
+        return String(t ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    }
+
+    async function mostrarDiagnostico(lista) {
+        lista.innerHTML = '<li class="text-gray-400 font-semibold">Verificando...</li>';
+        const passos = await diagnosticar();
+        const icone = ok => ok === true
+            ? '<span class="w-5 h-5 shrink-0 rounded-full grid place-items-center text-[10px] text-white" style="background:#16a34a"><i class="fas fa-check"></i></span>'
+            : ok === false
+                ? '<span class="w-5 h-5 shrink-0 rounded-full grid place-items-center text-[10px] text-white" style="background:#dc2626"><i class="fas fa-xmark"></i></span>'
+                : '<span class="w-5 h-5 shrink-0 rounded-full grid place-items-center text-[10px] text-white" style="background:#d97706"><i class="fas fa-exclamation"></i></span>';
+        lista.innerHTML = passos.map(p => `
+            <li class="flex gap-2 items-start">
+                ${icone(p.ok)}
+                <div class="min-w-0">
+                    <b class="block">${escaparHtml(p.titulo)}</b>
+                    <span class="block whitespace-pre-line break-words">${escaparHtml(p.detalhe)}</span>
+                    ${p.dica ? `<span class="block mt-0.5 text-gray-500 break-words">${escaparHtml(p.dica)}</span>` : ""}
+                </div>
+            </li>`).join("");
+        return passos;
+    }
+
     /* ------------------------------------- janela de configuração */
     async function abrirConfiguracao() {
         document.getElementById("cf-config-impressora")?.remove();
@@ -620,7 +855,7 @@
         fundo.id = "cf-config-impressora";
         fundo.className = "fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm";
         fundo.innerHTML = `
-            <div class="w-full max-w-md rounded-[2rem] shadow-2xl p-6 space-y-4" style="background: var(--cf-superficie, #fff); color: var(--cf-texto, #111)">
+            <div class="w-full max-w-lg max-h-[92vh] overflow-y-auto rounded-[2rem] shadow-2xl p-6 space-y-4" style="background: var(--cf-superficie, #fff); color: var(--cf-texto, #111)">
                 <div class="flex items-center justify-between">
                     <h3 class="text-lg font-black flex items-center gap-2"><i class="fas fa-print" style="color: var(--cf-marca, #e3353d)"></i> Impressora</h3>
                     <button type="button" data-fechar class="w-9 h-9 rounded-full bg-gray-100 text-gray-500" aria-label="Fechar"><i class="fas fa-times"></i></button>
@@ -654,6 +889,18 @@
                     <button type="button" data-salvar class="rounded-xl py-3 font-black text-sm text-white" style="background: var(--cf-marca, #e3353d)">Salvar</button>
                 </div>
                 <p class="text-[11px] text-gray-400">Pendentes na fila: <b>${fila().length}</b>. As notinhas pendentes saem sozinhas quando a impressora responde.</p>
+                <div class="rounded-2xl border p-4 space-y-3">
+                    <div class="flex items-center justify-between gap-2">
+                        <span class="text-[11px] font-black uppercase tracking-wide text-gray-500">Diagnóstico da impressão</span>
+                        <button type="button" data-diagnosticar class="text-xs font-black underline" style="color: var(--cf-marca, #e3353d)">Verificar de novo</button>
+                    </div>
+                    <ul data-passos class="space-y-3 text-xs"></ul>
+                    <a href="/api/qz/certificado/?baixar=1" download="override.crt"
+                       class="flex items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-black bg-gray-100 text-gray-700">
+                        <i class="fas fa-download"></i> Baixar certificado do site (override.crt)
+                    </a>
+                    <p class="text-[11px] text-gray-400">Instale-o no PC do caixa com <b>qz\\configurar_caixa.bat</b> (ou copie para C:\\Program Files\\QZ Tray\\override.crt e reinicie o QZ).</p>
+                </div>
             </div>`;
         document.body.appendChild(fundo);
         const sel = fundo.querySelector('[data-campo="impressora"]');
@@ -670,6 +917,8 @@
             fechar();
             processar();
         });
+        const passos = fundo.querySelector("[data-passos]");
+        fundo.querySelector("[data-diagnosticar]").addEventListener("click", () => mostrarDiagnostico(passos));
         fundo.querySelector("[data-teste]").addEventListener("click", async () => {
             salvarConfig(valores());
             status.textContent = "Imprimindo teste...";
@@ -682,14 +931,17 @@
         });
         try {
             const lista = await listarImpressoras();
-            const atual = c.impressora || (await escolherImpressora().catch(() => ""));
+            // também avisa se a impressora salva sumiu (avisoImpressora)
+            const escolhida = await escolherImpressora(true).catch(() => "");
+            const atual = c.impressora || escolhida;
             sel.innerHTML = '<option value="">Automática (procura a térmica)</option>' +
-                lista.map(n => `<option ${n === atual ? "selected" : ""}>${n.replace(/</g, "&lt;")}</option>`).join("");
-            status.textContent = `${lista.length} impressora(s) encontrada(s).`;
+                lista.map(n => `<option ${n === atual ? "selected" : ""}>${escaparHtml(n)}</option>`).join("");
+            status.textContent = `${lista.length} impressora(s) encontrada(s).` + (avisoImpressora ? " " + avisoImpressora : "");
         } catch (erro) {
             sel.innerHTML = '<option value="">QZ Tray não conectado</option>';
             status.textContent = erro.message;
         }
+        mostrarDiagnostico(passos);
     }
 
     window.Impressora = {
@@ -701,6 +953,7 @@
         listarImpressoras,
         escolherImpressora,
         testar,
+        diagnosticar,
         config,
         salvarConfig,
         ultimoPedido,
