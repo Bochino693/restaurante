@@ -22,6 +22,7 @@ para o servidor, o cardápio do cliente e o painel.
 | `LOJA_ABRE` / `LOJA_FECHA` | horário (hora cheia) | `11` / `16` |
 | `DB_CONN_MAX_AGE` | segundos que a função reaproveita a conexão | `60` |
 | `PALAVRAS_BEBIDAS` | palavras que fazem uma categoria contar como bebida nos relatórios (separadas por vírgula) | `bebida,refri,suco,cerveja,drink` |
+| `QZ_CERTIFICADO`, `QZ_CHAVE_PRIVADA` | certificado e chave do QZ Tray (o QZ lembra a permissão do site); geradas por `qz/gerar_certificado.py` | vazias (o QZ pergunta a cada conexão, mas imprime) |
 
 ## Relatórios
 
@@ -57,23 +58,54 @@ uma impressão de teste.
 
 O QZ Tray só lembra a permissão de um site que se identifica com certificado.
 Usamos um certificado **próprio e gratuito**; o servidor assina as requisições
-(`core/qz_seguranca.py`) e o `impressao.js` usa isso sozinho.
+(`core/qz_seguranca.py`) e o `impressao.js` usa isso sozinho. Se faltar o
+certificado ou uma assinatura falhar, a impressão **continua funcionando**
+(o QZ só volta a perguntar "Permitir?").
 
 **Uma vez só (no computador de desenvolvimento):**
 
 1. `python qz\gerar_certificado.py` cria `qz/digital-certificate.txt`,
    `qz/private-key.pem` e `qz/COLAR-NA-VERCEL.txt`.
-2. Na Vercel, crie as variáveis `QZ_CERTIFICADO` e `QZ_CHAVE_PRIVADA` com os
-   valores de `COLAR-NA-VERCEL.txt` e faça um novo deploy (`git push`).
-3. Guarde uma cópia de `private-key.pem` fora do GitHub. Se perder, gere de
-   novo e repita os passos 2 e 4.
+2. Na Vercel → Settings → Environment Variables, crie `QZ_CERTIFICADO` e
+   `QZ_CHAVE_PRIVADA` (ambiente **Production**) com as duas linhas do
+   **mesmo** `COLAR-NA-VERCEL.txt`, sem aspas, e faça **Redeploy**.
+3. Guarde uma cópia de `private-key.pem` fora do GitHub. Gerar de novo cria
+   um par novo: aí as duas variáveis e o PC do caixa precisam ser refeitos.
 
-**No PC do caixa (sempre que instalar/reinstalar o QZ Tray):**
+**No PC do caixa (sempre que formatar, trocar peça ou reinstalar o QZ Tray):**
 
-4. Dê dois cliques em `qz/configurar_caixa.bat` (instala o certificado no QZ e reinicia).
-5. Abra o `/caixa/`; na janela do QZ marque **Remember this decision** e **Allow**.
+4. Dê dois cliques em `qz/configurar_caixa.bat` e digite o endereço do
+   sistema. Ele baixa o certificado **do próprio site**, instala no QZ como
+   `override.crt`, limpa a lista de sites bloqueados do QZ e reinicia o QZ.
+   (Sem o script: engrenagem da impressora → *Baixar certificado do site*,
+   copie para `C:\Program Files\QZ Tray\override.crt` e reinicie o QZ.)
+5. Abra o `/caixa/`. Se o Chrome perguntar se o site pode acessar este
+   computador / a rede local: **Permitir**. Na janela do QZ: marque
+   **Remember this decision** e clique **Allow**.
 
 Dica: no menu do ícone do QZ, ative *Launch at startup*.
+
+## Impressora parou depois de trocar o PC ou a placa-mãe
+
+A engrenagem da impressora (no Caixa e em Pedidos) tem um **Diagnóstico da
+impressão** que confere cada item abaixo e diz o que fazer. Na ordem:
+
+1. **Windows enxerga a Bematech?** Instale o driver da MP-4200 TH, ligue o
+   USB e imprima a página de teste pelo Windows (Impressoras e scanners).
+   Se aparecer "MP-4200 TH (Cópia 1)", a antiga ficou presa na porta USB
+   da placa velha: teste as duas, fique com a que imprime e remova a outra.
+2. **QZ Tray instalado e aberto** (qz.io/download), com *Launch at startup*.
+3. **Chrome liberado** (Chrome 147+ pede permissão para o site falar com o
+   QZ): ícone à esquerda do endereço → Configurações do site →
+   *Acesso à rede local* / *Apps neste dispositivo* → **Permitir**.
+   Ignorar o aviso 3 vezes conta como bloquear.
+4. **Site não bloqueado no QZ**: ícone do QZ → Advanced → Site Manager →
+   aba *Blocked* → remova o site (o `configurar_caixa.bat` já faz isso).
+5. **Certificado**: o diagnóstico mostra se `QZ_CERTIFICADO` e
+   `QZ_CHAVE_PRIVADA` estão no deploy e se formam um par; depois rode o
+   passo 4 acima no PC do caixa.
+6. **Escolha a impressora** na engrenagem (a salva pode ter sumido) e use
+   *Imprimir teste*.
 
 ## Temas
 

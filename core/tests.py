@@ -1,6 +1,8 @@
 import re
 from datetime import datetime
 from decimal import Decimal
+from pathlib import Path
+from unittest import mock
 from zoneinfo import ZoneInfo
 
 from django.contrib.auth.models import User
@@ -468,7 +470,10 @@ class QZAssinaturaTests(TestCase):
 
         with override_settings(QZ_CERTIFICADO=cert_pem, QZ_CHAVE_PRIVADA=chave_pem):
             c = Client(enforce_csrf_checks=True)
-            self.assertEqual(c.get("/api/qz/certificado/").status_code, 401)
+            # o certificado é público (o PC do caixa baixa para o QZ); assinar exige login
+            self.assertEqual(c.get("/api/qz/certificado/").status_code, 200)
+            self.assertEqual(c.post("/api/qz/assinar/", data=b"x", content_type="text/plain",
+                                    HTTP_X_CSRFTOKEN=c.cookies["csrftoken"].value).status_code, 401)
             User.objects.create_user("caixa", password="x")
             c.login(username="caixa", password="x")
             r = c.get("/api/qz/certificado/")
@@ -479,3 +484,78 @@ class QZAssinaturaTests(TestCase):
             self.assertEqual(r.status_code, 200)
             cert.public_key().verify(base64.b64decode(r.content), texto,
                                      padding.PKCS1v15(), hashes.SHA512())
+
+
+def _par_qz():
+    """Um certificado e a chave dele, no formato do qz/gerar_certificado.py."""
+    import datetime
+    from cryptography import x509
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+
+    chave = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    nome = x509.Name([x509.NameAttribute(x509.oid.NameOID.COMMON_NAME, "Cantinho Familia - Impressao")])
+    agora = datetime.datetime.now(datetime.timezone.utc)
+    cert = (x509.CertificateBuilder().subject_name(nome).issuer_name(nome)
+            .public_key(chave.public_key()).serial_number(7)
+            .not_valid_before(agora - datetime.timedelta(days=1))
+            .not_valid_after(agora + datetime.timedelta(days=365))
+            .sign(chave, hashes.SHA512()))
+    return (cert.public_bytes(serialization.Encoding.PEM).decode(),
+            chave.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8,
+                                serialization.NoEncryption()).decode())
+
+
+class QZDiagnosticoTests(TestCase):
+    """O diagnóstico diz exatamente o que está errado nas variáveis do QZ."""
+
+    def setUp(self):
+        self.usuario = User.objects.create_user("caixa", password="x")
+        self.cert, self.chave = _par_qz()
+
+    def _diagnostico(self):
+        self.client.force_login(self.usuario)
+        return self.client.get(reverse("qz_diagnostico")).json()
+
+    def test_exige_login(self):
+        self.assertEqual(self.client.get(reverse("qz_diagnostico")).status_code, 401)
+
+    def test_tudo_certo(self):
+        with override_settings(QZ_CERTIFICADO=self.cert, QZ_CHAVE_PRIVADA=self.chave):
+            d = self._diagnostico()
+        self.assertEqual((d["certificado"], d["chave"], d["par_confere"], d["vencido"]), ("ok", "ok", True, False))
+        self.assertEqual(d["titular"], "Cantinho Familia - Impressao")
+        self.assertRegex(d["sha1"], r"^([0-9A-F]{2}:){19}[0-9A-F]{2}$")
+        self.assertEqual(d["problemas"], [])
+
+    def test_chave_de_outro_par(self):
+        _, outra_chave = _par_qz()
+        with override_settings(QZ_CERTIFICADO=self.cert, QZ_CHAVE_PRIVADA=outra_chave):
+            d = self._diagnostico()
+        self.assertIs(d["par_confere"], False)
+        self.assertIn("NÃO é a do certificado", " ".join(d["problemas"]))
+
+    def test_sem_variaveis(self):
+        with override_settings(QZ_CERTIFICADO="", QZ_CHAVE_PRIVADA=""), \
+                mock.patch("core.qz_seguranca._PASTA_LOCAL", Path("/nao/existe")):
+            d = self._diagnostico()
+            self.assertEqual(self.client.get(reverse("qz_certificado")).status_code, 503)
+        self.assertEqual((d["certificado"], d["chave"], d["par_confere"]), ("ausente", "ausente", None))
+        self.assertEqual(len(d["problemas"]), 2)
+
+    def test_valor_colado_com_aspas_e_barra_n(self):
+        """Como costuma ser colado na Vercel: entre aspas e com \n literal."""
+        uma_linha = lambda pem: '"' + pem.strip().replace("\n", "\\n") + '"'
+        with override_settings(QZ_CERTIFICADO=uma_linha(self.cert), QZ_CHAVE_PRIVADA="QZ_CHAVE_PRIVADA=" + uma_linha(self.chave)):
+            d = self._diagnostico()
+            resposta = self.client.get(reverse("qz_certificado") + "?baixar=1")
+        self.assertIs(d["par_confere"], True)
+        self.assertEqual(resposta.content.decode(), self.cert.strip() + "\n")
+        self.assertIn('filename="override.crt"', resposta["Content-Disposition"])
+
+    def test_certificado_invalido(self):
+        with override_settings(QZ_CERTIFICADO="-----BEGIN CERTIFICATE-----\nlixo\n-----END CERTIFICATE-----",
+                               QZ_CHAVE_PRIVADA=self.chave):
+            d = self._diagnostico()
+        self.assertEqual(d["certificado"], "invalido")
+        self.assertIn("não é um certificado válido", " ".join(d["problemas"]))
