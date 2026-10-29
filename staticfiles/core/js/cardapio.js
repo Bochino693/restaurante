@@ -182,7 +182,8 @@
         try {
             const r = await fetch(`/produto/${encodeURIComponent(id)}/adicionais/`, { headers: { Accept: "application/json" } });
             if (!r.ok) throw new Error();
-            modal.lista = await r.json();
+            // o refri da marmita só aparece se estiver no cardápio
+            modal.lista = (await r.json()).filter(a => !a.produto_id || catalogo[a.produto_id]);
             // A bebida (o refri) vem primeiro do servidor, com foto e a cor azul.
             lista.innerHTML = modal.lista.length ? modal.lista.map((a, i) => `
                 <label class="cf-add flex items-center gap-3 p-3 rounded-xl cursor-pointer border ${a.bebida ? "cf-add-bebida" : "bg-gray-50 border-gray-100"}"${a.cor ? ` style="--tom:${escapar(a.cor)}"` : ""}>
@@ -398,7 +399,11 @@
         },
         confirmarAdicionais() {
             const { id, qtd, card } = modal;
-            adicionar(id, selecionados(), qtd, { avisar: false });
+            const escolhidos = selecionados();
+            adicionar(id, escolhidos.filter(a => !a.produto_id), qtd, { avisar: false });
+            // O refri da marmita é um produto: vai para a cesta na própria
+            // linha, um por marmita.
+            escolhidos.filter(a => a.produto_id).forEach(a => adicionar(String(a.produto_id), [], qtd, { avisar: false }));
             fecharAdicionais();
             voarParaCesta(card, id, qtd);
         }

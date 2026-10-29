@@ -490,6 +490,93 @@ class RefriNosAdicionaisTests(TestCase):
             self.assertFalse(_adicional_eh_bebida(nome), nome)
 
 
+class RefriDaMarmitaTests(TestCase):
+    """O REFRI-MINI 200ml (produto de R$ 2 das bebidas) é o primeiro adicional
+    de toda marmita de R$ 10 e vai para o carrinho como o próprio produto."""
+
+    def setUp(self):
+        from .models import Adicional
+        cache.clear()
+        self.usuario = User.objects.create_superuser("dono", "dono@x.com", "senha-segura-123")
+        categorias = {}
+        for nome_categoria in ("Marmitas", "Bebidas"):
+            categoria = CategoriaProdutos(nome_categoria=nome_categoria)
+            categoria.imagem_categoria.name = "x.png"
+            categoria.save()
+            categorias[nome_categoria] = categoria
+        self.refri = Produtos(nome_produto="REFRI-MINI 200ml", categoria=categorias["Bebidas"], preco=Decimal("2.00"))
+        self.refri.image_produto.name = "produtos/refri-mini.png"
+        self.refri.save()
+        # bebidas que não são o refri da marmita: não é refri / cara demais
+        Produtos.objects.create(nome_produto="Água mineral", categoria=categorias["Bebidas"], preco=Decimal("2.00"))
+        Produtos.objects.create(nome_produto="Coca-Cola 2L", categoria=categorias["Bebidas"], preco=Decimal("18.00"))
+
+        def marmita(nome, preco):
+            return Produtos.objects.create(nome_produto=nome, categoria=categorias["Marmitas"], preco=Decimal(preco))
+        self.frango = marmita("MARMITEX FILE DE FRANGO", "10.00")
+        self.carne = marmita("Marmitex Carne", "10.00")      # sem nenhum adicional cadastrado
+        self.grande = marmita("Marmitex Grande", "15.00")
+        Adicional.objects.create(nome="Ovo", preco=Decimal("3.00")).produtos.add(self.frango)
+
+    def _lista(self, produto):
+        resposta = self.client.get(f"/produto/{produto.id}/adicionais/")
+        self.assertEqual(resposta.status_code, 200)
+        return resposta.json()
+
+    def test_refri_abre_a_lista_das_marmitas_de_10(self):
+        from .views import COR_BEBIDA
+        refri, ovo = self._lista(self.frango)
+        self.assertEqual(
+            (refri["nome"], refri["preco"], refri["produto_id"], refri["bebida"], refri["cor"]),
+            ("REFRI-MINI 200ml", "2.00", self.refri.id, True, COR_BEBIDA),
+        )
+        self.assertTrue(refri["imagem"].endswith("produtos/refri-mini.png"))
+        self.assertEqual(ovo["nome"], "Ovo")
+        self.assertNotIn("produto_id", ovo)
+        self.assertEqual([a["nome"] for a in self._lista(self.carne)], ["REFRI-MINI 200ml"])
+        self.assertEqual(self._lista(self.grande), [])
+        self.assertEqual(self._lista(self.refri), [])
+
+    def test_marmita_de_10_sem_adicionais_abre_o_modal(self):
+        self.client.force_login(self.usuario)
+        html = self.client.get(reverse("caixa")).content.decode()
+        self.assertEqual(html.count(f"abrirModalAdicionais('{self.carne.id}'"), 3)
+        self.assertEqual(html.count(f"adicionarComEfeito(this, '{self.grande.id}'"), 2)
+        catalogo = self.client.get(reverse("cardapio")).context["catalogo"]
+        self.assertIs(catalogo[str(self.carne.id)]["tem_adicionais"], True)
+        self.assertIs(catalogo[str(self.grande.id)]["tem_adicionais"], False)
+        self.assertIs(catalogo[str(self.refri.id)]["tem_adicionais"], False)
+
+    def test_refri_desativado_nada_muda(self):
+        self.refri.ativo = False
+        self.refri.save()
+        self.assertEqual([a["nome"] for a in self._lista(self.frango)], ["Ovo"])
+        self.assertEqual(self._lista(self.carne), [])
+        self.client.force_login(self.usuario)
+        html = self.client.get(reverse("caixa")).content.decode()
+        self.assertEqual(html.count(f"adicionarComEfeito(this, '{self.carne.id}'"), 2)
+
+    def test_venda_leva_o_refri_na_propria_linha(self):
+        self.client.force_login(self.usuario)
+        venda = {
+            "carrinho": [
+                {"id": str(self.frango.id), "qtd": 2, "adicionais": [{"nome": "Ovo", "preco": 3, "qtd": 1}]},
+                {"id": str(self.refri.id), "qtd": 2, "adicionais": []},
+            ],
+            "nome_cliente": "Maria",
+            "metodo_pagamento": "PIX",
+            "tipo_entrega": "retirada",
+            "endereco": {},
+        }
+        resposta = self.client.post(reverse("caixa"), venda, content_type="application/json",
+                                    HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+        self.assertEqual(resposta.status_code, 200, resposta.content)
+        pedido = Pedidos.objects.get()
+        self.assertEqual(pedido.total, Decimal("30.00"))   # 2 × (10 + 3) + 2 × 2
+        refri = pedido.itens.get(produto=self.refri)
+        self.assertEqual((refri.quantidade, refri.subtotal, refri.adicionais), (2, Decimal("4.00"), []))
+
+
 class QZAssinaturaTests(TestCase):
     """Certificado e assinatura do QZ Tray (precisam de login e conferem)."""
 

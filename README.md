@@ -22,6 +22,8 @@ para o servidor, o cardápio do cliente e o painel.
 | `LOJA_ABRE` / `LOJA_FECHA` | horário (hora cheia) | `11` / `16` |
 | `DB_CONN_MAX_AGE` | segundos que a função reaproveita a conexão | `60` |
 | `PALAVRAS_BEBIDAS` | palavras que fazem uma categoria contar como bebida nos relatórios (separadas por vírgula) | `bebida,refri,suco,cerveja,drink` |
+| `MARMITA_PRECO_COM_REFRI` | preço das marmitas que oferecem o refri como adicional | `10.00` |
+| `REFRI_MARMITA_PRECO_MAX` | preço máximo do refri que vira adicional das marmitas | `2.00` |
 | `QZ_CERTIFICADO`, `QZ_CHAVE_PRIVADA` | certificado e chave do QZ Tray (o QZ lembra a permissão do site); geradas por `qz/gerar_certificado.py` | vazias (o QZ pergunta a cada conexão, mas imprime) |
 
 ## Relatórios
@@ -47,11 +49,21 @@ branco.
 
 ## Adicionais
 
-O adicional que é bebida (o **refri de R$ 2** das marmitas) abre a lista de
-adicionais no Caixa e no cardápio: primeiro da lista, em destaque azul, com
-o selo "Bebida" e foto. Os outros vêm depois, na ordem em que foram
-cadastrados. Conta como bebida o adicional com uma das `PALAVRAS_BEBIDAS`
-no nome ou o nome de um refri (Coca, Guaraná, Fanta, Sprite, Pepsi...).
+**Refri da marmita.** Toda marmita de R$ 10 (`MARMITA_PRECO_COM_REFRI`)
+oferece, como **primeiro adicional**, o refri já cadastrado nas bebidas (o
+**REFRI-MINI 200ml** de R$ 2,00): produto ativo de categoria de bebidas, com
+nome de refri/suco e preço até `REFRI_MARMITA_PRECO_MAX`. Não precisa
+cadastrar adicional nenhum, e a marmita de R$ 10 sem adicionais também abre
+o modal. No Caixa e no cardápio ele aparece em destaque azul, com o selo
+"Bebida" e a foto do produto. Escolhido, entra no carrinho **como o próprio
+produto**, numa linha só dele (1 por marmita): conta nas bebidas dos
+relatórios e sai separado na notinha. Desativar o produto tira o refri das
+marmitas.
+
+O adicional cadastrado que é bebida também vem antes dos outros, em
+destaque. Os outros vêm depois, na ordem em que foram cadastrados. Conta
+como bebida o adicional com uma das `PALAVRAS_BEBIDAS` no nome ou o nome de
+um refri (Coca, Guaraná, Fanta, Sprite, Pepsi...).
 
 A foto é a do **produto de mesmo nome** (ex.: o adicional "Coca-Cola Lata"
 usa a foto do produto "Coca-Cola Lata", mesmo desativado no cardápio). Sem

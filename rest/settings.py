@@ -1,3 +1,4 @@
+from decimal import Decimal
 from pathlib import Path
 import os
 import dj_database_url
@@ -174,6 +175,12 @@ PALAVRAS_BEBIDAS = [
     for palavra in os.environ.get("PALAVRAS_BEBIDAS", "bebida,refri,suco,cerveja,drink").split(",")
     if palavra.strip()
 ]
+
+# Refri da marmita: a bebida barata já cadastrada (o REFRI-MINI 200ml de
+# R$ 2,00) aparece como primeiro adicional de toda marmita deste preço. É
+# bebida de categoria de bebidas, com nome de refri/suco e preço até o teto.
+MARMITA_PRECO_COM_REFRI = Decimal(os.environ.get("MARMITA_PRECO_COM_REFRI", "10.00"))
+REFRI_MARMITA_PRECO_MAX = Decimal(os.environ.get("REFRI_MARMITA_PRECO_MAX", "2.00"))
 
 # WhatsApp que recebe os pedidos do cardápio (só dígitos, com DDI e DDD).
 WHATSAPP_LOJA = os.environ.get("WHATSAPP_LOJA", "5511999999999")

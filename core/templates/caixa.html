@@ -57,7 +57,7 @@
                              data-categoria="{{ prato.produto.categoria.id|default:'' }}">
 
                             <div class="aspect-video bg-orange-100 flex items-center justify-center relative cursor-pointer"
-                                 onclick="{% if prato.produto.adicionais_disponiveis.exists %}abrirModalAdicionais('{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}', this){% elif prato.produto.eh_bebida %}abrirQtdBebida(this, '{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}'){% else %}adicionarComEfeito(this, '{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}'){% endif %}">
+                                 onclick="{% if prato.produto.tem_adicionais %}abrirModalAdicionais('{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}', this){% elif prato.produto.eh_bebida %}abrirQtdBebida(this, '{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}'){% else %}adicionarComEfeito(this, '{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}'){% endif %}">
 
                                 {% if prato.produto.image_produto %}
                                 <img src="{{ prato.produto.image_produto.url }}"
@@ -71,7 +71,7 @@
                                     Hoje
                                 </div>
 
-                                {% if prato.produto.adicionais_disponiveis.exists %}
+                                {% if prato.produto.tem_adicionais %}
                                 <button type="button"
                                         onclick="event.stopPropagation(); abrirModalAdicionais('{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}', this)"
                                         class="absolute top-2 right-2 bg-white/90 backdrop-blur p-2 rounded-full shadow-md text-orange-500 hover:scale-110 transition-transform z-10">
@@ -81,7 +81,7 @@
                             </div>
 
                             <div class="p-4 cursor-pointer"
-                                 onclick="{% if prato.produto.adicionais_disponiveis.exists %}abrirModalAdicionais('{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}', this){% elif prato.produto.eh_bebida %}abrirQtdBebida(this, '{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}'){% else %}adicionarComEfeito(this, '{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}'){% endif %}">
+                                 onclick="{% if prato.produto.tem_adicionais %}abrirModalAdicionais('{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}', this){% elif prato.produto.eh_bebida %}abrirQtdBebida(this, '{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}'){% else %}adicionarComEfeito(this, '{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}'){% endif %}">
                                 <div class="flex justify-between items-start mb-1 gap-2">
                                     <h3 class="text-sm font-black text-gray-800 leading-tight">
                                         {{ prato.produto.nome_produto }}
@@ -113,7 +113,7 @@
                              data-categoria="{{ produto.categoria.id|default:'' }}">
 
                             <div class="aspect-video bg-gray-50 flex items-center justify-center relative cursor-pointer"
-                                 onclick="{% if produto.adicionais_disponiveis.exists %}abrirModalAdicionais('{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}', this){% elif produto.eh_bebida %}abrirQtdBebida(this, '{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}'){% else %}adicionarComEfeito(this, '{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}'){% endif %}">
+                                 onclick="{% if produto.tem_adicionais %}abrirModalAdicionais('{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}', this){% elif produto.eh_bebida %}abrirQtdBebida(this, '{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}'){% else %}adicionarComEfeito(this, '{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}'){% endif %}">
 
                                 {% if produto.image_produto %}
                                 <img src="{{ produto.image_produto.url }}"
@@ -123,7 +123,7 @@
                                 <i class="fas fa-box text-gray-200 text-3xl"></i>
                                 {% endif %}
 
-                                {% if produto.adicionais_disponiveis.exists %}
+                                {% if produto.tem_adicionais %}
                                 <button type="button"
                                         onclick="event.stopPropagation(); abrirModalAdicionais('{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}', this)"
                                         class="absolute top-2 right-2 bg-white/90 backdrop-blur p-2 rounded-full shadow-md text-orange-500 hover:scale-110 transition-transform z-10">
@@ -133,7 +133,7 @@
                             </div>
 
                             <div class="p-4 cursor-pointer"
-                                 onclick="{% if produto.adicionais_disponiveis.exists %}abrirModalAdicionais('{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}', this){% elif produto.eh_bebida %}abrirQtdBebida(this, '{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}'){% else %}adicionarComEfeito(this, '{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}'){% endif %}">
+                                 onclick="{% if produto.tem_adicionais %}abrirModalAdicionais('{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}', this){% elif produto.eh_bebida %}abrirQtdBebida(this, '{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}'){% else %}adicionarComEfeito(this, '{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}'){% endif %}">
                                 <div class="flex justify-between items-start mb-1 gap-2">
                                     <h3 class="text-sm font-bold text-gray-800 leading-tight">
                                         {{ produto.nome_produto }}
@@ -1104,7 +1104,9 @@ function adicionaisEscolhidos() {
             escolhidos.push({
                 nome: String(el.dataset.nome || '').trim(),
                 preco: Number(el.dataset.preco || 0),
-                qtd
+                qtd,
+                produtoId: el.dataset.produto || '',
+                cor: el.dataset.cor || ''
             });
         }
     });
@@ -1418,7 +1420,9 @@ async function abrirModalAdicionais(id, nome, preco, origem) {
 
                     <span class="qtd-add"
                           data-nome="${escaparHtml(add.nome)}"
-                          data-preco="${Number(add.preco || 0)}">0</span>
+                          data-preco="${Number(add.preco || 0)}"
+                          data-produto="${add.produto_id ? Number(add.produto_id) : ''}"
+                          data-cor="${escaparHtml(add.cor || '')}">0</span>
 
                     <button type="button"
                             onclick="alterQtdAdicional(this, 1)"
@@ -1445,12 +1449,17 @@ async function abrirModalAdicionais(id, nome, preco, origem) {
             btnConfirmar.disabled = true;
 
             const atual = produtoAdicionalAtual;
-            const selecionados = adicionaisEscolhidos();
+            const escolhidos = adicionaisEscolhidos();
             const qtd = qtdItemAdicional;
 
             // Entra no carrinho na hora; o botão vira "Adicionado!" e a foto
             // voa até o carrinho com a cor da categoria.
-            const chave = addProduto(id, nome, preco, selecionados, qtd, atual.cor);
+            const chave = addProduto(id, nome, preco, escolhidos.filter(a => !a.produtoId), qtd, atual.cor);
+            // O refri da marmita é um produto: entra na própria linha (conta
+            // nas bebidas e sai separado na notinha), tantos por marmita.
+            escolhidos.filter(a => a.produtoId).forEach(bebida => {
+                addProduto(bebida.produtoId, bebida.nome, bebida.preco, [], bebida.qtd * qtd, bebida.cor);
+            });
             modal.classList.add('confirmado');
             const fotoModal = document.querySelector('#modalProdFoto:not(.sem-foto)');
             efeitoEntrou(fotoModal || document.getElementById('modalProdFoto'), {
