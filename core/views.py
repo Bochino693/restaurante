@@ -2,6 +2,7 @@ import hmac
 import json
 import logging
 import re
+import unicodedata
 from datetime import datetime, time, timedelta
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from urllib.parse import quote
@@ -21,12 +22,14 @@ from django.db.models import (
 from django.db.models.functions import Coalesce, ExtractHour, ExtractWeekDay, TruncDate
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.templatetags.static import static
 from django.utils import timezone
 from django.views import View
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from django.views.generic import TemplateView
 
+from .context_processors import VERSAO_ESTATICOS
 from .horario import status_da_loja
 from .models import (
     CategoriaProdutos, EstoqueProdutos, ItensPedido, Pedidos, PratoDoDia,
@@ -756,17 +759,63 @@ def pedidos_pendentes_impressao(request):
     return JsonResponse({'pedidos': resultado})
 
 
+# Adicional que é bebida (o refri de R$ 2 das marmitas) abre a lista de
+# adicionais no Caixa e no cardápio, em destaque, com foto e na cor das
+# bebidas. É bebida o nome com uma das PALAVRAS_BEBIDAS ou de um refri.
+PALAVRAS_REFRI = ("coca", "guarana", "fanta", "sprite", "pepsi", "kuat", "soda", "tubaina")
+FOTO_REFRI_PADRAO = "core/img/refri.svg"
+
+
+def _sem_acento(texto):
+    return "".join(
+        c for c in unicodedata.normalize("NFD", texto or "") if not unicodedata.combining(c)
+    ).casefold()
+
+
+def _adicional_eh_bebida(nome):
+    nome = _sem_acento(nome)
+    return any(_sem_acento(palavra) in nome for palavra in (*settings.PALAVRAS_BEBIDAS, *PALAVRAS_REFRI))
+
+
+def _fotos_dos_adicionais(adicionais):
+    """Foto de cada adicional: a do produto de mesmo nome (o "Coca-Cola Lata"
+    das bebidas empresta a foto ao adicional "Coca-Cola Lata"), mesmo que o
+    produto esteja desativado no cardápio. Sem foto: "" (o chamador decide)."""
+    nomes = {adicional.nome.strip() for adicional in adicionais if adicional.nome.strip()}
+    if not nomes:
+        return {}
+    filtro = Q()
+    for nome in nomes:
+        filtro |= Q(nome_produto__iexact=nome)
+    fotos = {}
+    for produto in Produtos.objects.filter(filtro).exclude(image_produto="").order_by("-ativo", "id"):
+        url = _url_imagem(produto.image_produto)
+        if url:
+            fotos.setdefault(produto.nome_produto.strip().casefold(), url)
+    return fotos
+
+
 def adicionais_produto(request, produto_id):
     produto = get_object_or_404(Produtos, id=produto_id)
-    adicionais = produto.adicionais_disponiveis.filter(ativo=True)
+    adicionais = list(produto.adicionais_disponiveis.filter(ativo=True).order_by("id"))
 
-    data = [
-        {
+    # Bebida primeiro; os outros na ordem em que foram cadastrados.
+    bebidas = {adicional.id for adicional in adicionais if _adicional_eh_bebida(adicional.nome)}
+    adicionais.sort(key=lambda adicional: adicional.id not in bebidas)
+    fotos = _fotos_dos_adicionais(adicionais)
+    foto_refri = f"{static(FOTO_REFRI_PADRAO)}?v={VERSAO_ESTATICOS}"
+
+    data = []
+    for adicional in adicionais:
+        bebida = adicional.id in bebidas
+        foto = fotos.get(adicional.nome.strip().casefold(), "")
+        data.append({
             "nome": adicional.nome,
-            "preco": str(adicional.preco)
-        }
-        for adicional in adicionais
-    ]
+            "preco": str(adicional.preco),
+            "bebida": bebida,
+            "imagem": foto or (foto_refri if bebida else ""),
+            "cor": COR_BEBIDA if bebida else "",
+        })
 
     return JsonResponse(data, safe=False)
 

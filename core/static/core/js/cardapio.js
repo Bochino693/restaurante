@@ -183,9 +183,13 @@
             const r = await fetch(`/produto/${encodeURIComponent(id)}/adicionais/`, { headers: { Accept: "application/json" } });
             if (!r.ok) throw new Error();
             modal.lista = await r.json();
+            // A bebida (o refri) vem primeiro do servidor, com foto e a cor azul.
             lista.innerHTML = modal.lista.length ? modal.lista.map((a, i) => `
-                <label class="flex justify-between items-center gap-3 p-3 rounded-xl cursor-pointer bg-gray-50 border border-gray-100">
-                    <span class="text-sm font-bold text-gray-700">${escapar(a.nome)}
+                <label class="cf-add flex items-center gap-3 p-3 rounded-xl cursor-pointer border ${a.bebida ? "cf-add-bebida" : "bg-gray-50 border-gray-100"}"${a.cor ? ` style="--tom:${escapar(a.cor)}"` : ""}>
+                    ${a.imagem ? `<span class="cf-add-foto"><img src="${escapar(a.imagem)}" alt="" decoding="async"></span>` : ""}
+                    <span class="cf-add-texto text-sm font-bold text-gray-700">
+                        ${a.bebida ? '<em class="cf-add-selo"><i class="fas fa-glass-water"></i> Bebida</em>' : ""}
+                        ${escapar(a.nome)}
                         <span class="cf-preco text-xs font-black ml-1">+ ${reais(a.preco)}</span></span>
                     <input type="checkbox" value="${i}" class="w-5 h-5 accent-red-500">
                 </label>`).join("") : '<p class="text-sm text-gray-400 py-4">Este item não tem adicionais.</p>';
