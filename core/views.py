@@ -70,14 +70,23 @@ def _cores_das_categorias():
     return cores
 
 
-def _produto_para_cardapio(produto, cores=None):
+def _tem_adicionais(produto, com_refri):
+    """Abre o modal de adicionais: tem adicional ativo ou é marmita que
+    oferece o refri (com_refri: existe refri da marmita cadastrado)."""
+    return (
+        any(a.ativo for a in produto.adicionais_disponiveis.all())
+        or (com_refri and _marmita_leva_refri(produto))
+    )
+
+
+def _produto_para_cardapio(produto, cores=None, com_refri=False):
     return {
         "id": produto.id,
         "nome": produto.nome_produto,
         "preco": f"{produto.preco:.2f}",
         "codigo": produto.codigo,
         "imagem": _url_imagem(produto.image_produto),
-        "tem_adicionais": any(a.ativo for a in produto.adicionais_disponiveis.all()),
+        "tem_adicionais": _tem_adicionais(produto, com_refri),
         # Bebida mostra a lata/garrafa inteira na foto (sem corte).
         "bebida": _eh_bebida(produto),
         "cor": (cores or {}).get(produto.categoria_id, PALETA_CATEGORIAS[0]),
@@ -92,7 +101,7 @@ CARDAPIO_CACHE_SEGUNDOS = 60
 
 def _dados_do_cardapio():
     dia_hoje = timezone.localdate().weekday()
-    chave = f"cardapio:v4:{dia_hoje}"
+    chave = f"cardapio:v5:{dia_hoje}"
     dados = cache.get(chave)
     if dados is not None:
         return dados
@@ -118,16 +127,17 @@ def _dados_do_cardapio():
         .prefetch_related("produto__adicionais_disponiveis")
     )
     cores = _cores_das_categorias()
+    com_refri = bool(_refris_da_marmita())
     dados = {
         "categorias": [
             {
                 "id": categoria.id,
                 "nome": categoria.nome_categoria,
-                "produtos": [_produto_para_cardapio(p, cores) for p in categoria.produtos.all()],
+                "produtos": [_produto_para_cardapio(p, cores, com_refri) for p in categoria.produtos.all()],
             }
             for categoria in categorias
         ],
-        "pratos_do_dia": [_produto_para_cardapio(prato.produto, cores) for prato in pratos],
+        "pratos_do_dia": [_produto_para_cardapio(prato.produto, cores, com_refri) for prato in pratos],
     }
     dados["categorias"] = [c for c in dados["categorias"] if c["produtos"]]
     cache.set(chave, dados, CARDAPIO_CACHE_SEGUNDOS)
@@ -135,7 +145,7 @@ def _dados_do_cardapio():
 
 
 def _limpar_cache_cardapio():
-    cache.delete_many([f"cardapio:v4:{d}" for d in range(7)])
+    cache.delete_many([f"cardapio:v5:{d}" for d in range(7)])
 
 
 class CardapioClienteView(View):
@@ -210,9 +220,11 @@ class CaixaView(LoginRequiredMixin, View):
         # Bebida mostra a lata/garrafa inteira na foto (sem corte) e cada
         # categoria tem a sua cor no efeito de entrar no carrinho.
         cores = _cores_das_categorias()
+        com_refri = bool(_refris_da_marmita())
         for produto in list(produtos) + [prato.produto for prato in pratos_do_dia]:
             produto.eh_bebida = _eh_bebida(produto)
             produto.cor = cores.get(produto.categoria_id, PALETA_CATEGORIAS[0])
+            produto.tem_adicionais = _tem_adicionais(produto, com_refri)
 
         return render(request, 'caixa.html', {
             'produtos': produtos,
@@ -777,6 +789,24 @@ def _adicional_eh_bebida(nome):
     return any(_sem_acento(palavra) in nome for palavra in (*settings.PALAVRAS_BEBIDAS, *PALAVRAS_REFRI))
 
 
+def _refris_da_marmita():
+    """O refri que toda marmita de MARMITA_PRECO_COM_REFRI oferece como
+    primeiro adicional: o produto já cadastrado nas bebidas (o REFRI-MINI
+    200ml de R$ 2,00), com nome de refri/suco e preço até o teto. Entra no
+    carrinho como o próprio produto: conta nas bebidas e sai na notinha."""
+    candidatos = (
+        Produtos.objects
+        .filter(ativo=True, preco__gt=0, preco__lte=settings.REFRI_MARMITA_PRECO_MAX)
+        .select_related("categoria")
+        .order_by("preco", "id")
+    )
+    return [p for p in candidatos if _eh_bebida(p) and _adicional_eh_bebida(p.nome_produto)]
+
+
+def _marmita_leva_refri(produto):
+    return produto.preco == settings.MARMITA_PRECO_COM_REFRI and not _eh_bebida(produto)
+
+
 def _fotos_dos_adicionais(adicionais):
     """Foto de cada adicional: a do produto de mesmo nome (o "Coca-Cola Lata"
     das bebidas empresta a foto ao adicional "Coca-Cola Lata"), mesmo que o
@@ -805,7 +835,24 @@ def adicionais_produto(request, produto_id):
     fotos = _fotos_dos_adicionais(adicionais)
     foto_refri = f"{static(FOTO_REFRI_PADRAO)}?v={VERSAO_ESTATICOS}"
 
-    data = []
+    # Marmita de R$ 10: o refri da marmita abre a lista (menos quando já há
+    # um adicional com o mesmo nome). produto_id: vai para o carrinho como
+    # o próprio produto, numa linha só dele.
+    refris = []
+    if _marmita_leva_refri(produto):
+        nomes = {adicional.nome.strip().casefold() for adicional in adicionais}
+        refris = [r for r in _refris_da_marmita() if r.nome_produto.strip().casefold() not in nomes]
+    data = [
+        {
+            "nome": refri.nome_produto,
+            "preco": f"{refri.preco:.2f}",
+            "bebida": True,
+            "imagem": _url_imagem(refri.image_produto) or foto_refri,
+            "cor": COR_BEBIDA,
+            "produto_id": refri.id,
+        }
+        for refri in refris
+    ]
     for adicional in adicionais:
         bebida = adicional.id in bebidas
         foto = fotos.get(adicional.nome.strip().casefold(), "")
