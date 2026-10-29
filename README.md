@@ -45,6 +45,20 @@ quantidade dos itens; o desconto do pedido inteiro não é rateado. No
 cardápio e no caixa a foto da bebida aparece inteira (sem corte), em fundo
 branco.
 
+## Adicionais
+
+O adicional que é bebida (o **refri de R$ 2** das marmitas) abre a lista de
+adicionais no Caixa e no cardápio: primeiro da lista, em destaque azul, com
+o selo "Bebida" e foto. Os outros vêm depois, na ordem em que foram
+cadastrados. Conta como bebida o adicional com uma das `PALAVRAS_BEBIDAS`
+no nome ou o nome de um refri (Coca, Guaraná, Fanta, Sprite, Pepsi...).
+
+A foto é a do **produto de mesmo nome** (ex.: o adicional "Coca-Cola Lata"
+usa a foto do produto "Coca-Cola Lata", mesmo desativado no cardápio). Sem
+produto de mesmo nome, a bebida usa o copo de refri do sistema
+(`core/static/core/img/refri.svg`). Sem migração. Dados:
+`produto/<id>/adicionais/`.
+
 ## Impressão das notinhas
 
 Um motor só para o Caixa e a tela de Pedidos: `core/static/core/js/impressao.js`

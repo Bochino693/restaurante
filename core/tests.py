@@ -439,6 +439,57 @@ class CoresDasCategoriasTests(TestCase):
         self.assertEqual(catalogo[str(self.produtos["Feijoada"].id)]["cor"], PALETA_CATEGORIAS[1])
 
 
+class RefriNosAdicionaisTests(TestCase):
+    """O refri de R$ 2 abre a lista de adicionais da marmita, com foto e em azul."""
+
+    def setUp(self):
+        from .models import Adicional
+        self.categorias = {}
+        for nome_categoria in ("Marmitas", "Bebidas"):
+            categoria = CategoriaProdutos(nome_categoria=nome_categoria)
+            categoria.imagem_categoria.name = "x.png"
+            categoria.save()
+            self.categorias[nome_categoria] = categoria
+        self.marmita = Produtos.objects.create(
+            nome_produto="Marmitex Frango", categoria=self.categorias["Marmitas"], preco=Decimal("10.00")
+        )
+        # o refri foi cadastrado por último, depois dos outros adicionais
+        for nome, preco, ativo in [("Ovo", "3.00", True), ("Bacon", "4.00", False),
+                                   ("Mistura Extra", "5.00", True), ("Refri", "2.00", True)]:
+            Adicional.objects.create(nome=nome, preco=Decimal(preco), ativo=ativo).produtos.add(self.marmita)
+
+    def _lista(self):
+        resposta = self.client.get(f"/produto/{self.marmita.id}/adicionais/")
+        self.assertEqual(resposta.status_code, 200)
+        return resposta.json()
+
+    def test_refri_vem_primeiro_com_foto_e_em_azul(self):
+        from .views import COR_BEBIDA
+        refri, ovo, mistura = self._lista()
+        self.assertEqual((refri["nome"], refri["preco"], refri["bebida"], refri["cor"]), ("Refri", "2.00", True, COR_BEBIDA))
+        self.assertIn("core/img/refri.svg?v=", refri["imagem"])
+        # os outros continuam na ordem do cadastro, sem foto e sem destaque
+        self.assertEqual([ovo["nome"], mistura["nome"]], ["Ovo", "Mistura Extra"])
+        self.assertEqual((ovo["bebida"], ovo["imagem"], ovo["cor"]), (False, "", ""))
+
+    def test_foto_do_produto_de_mesmo_nome(self):
+        from .models import Adicional
+        Adicional.objects.filter(nome="Refri").update(nome="Coca-Cola Lata")
+        coca = Produtos(nome_produto="coca-cola lata", categoria=self.categorias["Bebidas"], preco=Decimal("6.00"), ativo=False)
+        coca.image_produto.name = "produtos/coca.png"
+        coca.save()
+        primeiro = self._lista()[0]
+        self.assertEqual(primeiro["nome"], "Coca-Cola Lata")
+        self.assertTrue(primeiro["imagem"].endswith("produtos/coca.png"))
+
+    def test_nomes_de_refri_contam_como_bebida(self):
+        from .views import _adicional_eh_bebida
+        for nome in ("Refri", "Refrigerante lata", "GUARANÁ", "Coca 350ml", "Suco de laranja"):
+            self.assertTrue(_adicional_eh_bebida(nome), nome)
+        for nome in ("Ovo", "Mistura Extra", "Alface c/ Tomate", "Pipoca", "Mandioca"):
+            self.assertFalse(_adicional_eh_bebida(nome), nome)
+
+
 class QZAssinaturaTests(TestCase):
     """Certificado e assinatura do QZ Tray (precisam de login e conferem)."""
 
