@@ -122,6 +122,18 @@ MIDIA_NO_BANCO = (
     _midia_no_banco == "1" if _midia_no_banco in ("0", "1") else bool(os.environ.get("DATABASE_URL"))
 )
 
+# Migrações pendentes aplicadas sozinhas quando o site sobe na Vercel
+# (core/auto_migracao.py, chamado no rest/wsgi.py). No build da Vercel (CI=1)
+# não roda. MIGRAR_AO_INICIAR=1 ou 0 força ligar ou desligar.
+_na_vercel = os.environ.get("VERCEL") == "1"
+_build_da_vercel = _na_vercel and os.environ.get("CI", "").strip().lower() in ("1", "true")
+_migrar_ao_iniciar = os.environ.get("MIGRAR_AO_INICIAR", "").strip().lower()
+MIGRAR_AO_INICIAR = (
+    _migrar_ao_iniciar in ("1", "true", "yes", "on")
+    if _migrar_ao_iniciar
+    else _na_vercel and not _build_da_vercel and bool(os.environ.get("DATABASE_URL"))
+)
+
 # Na Vercel (serverless) quem guarda as fotos já servidas é a borda (CDN); num
 # servidor comum elas também ficam numa pasta temporária, poupando o banco.
 SERVERLESS = bool(os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"))
