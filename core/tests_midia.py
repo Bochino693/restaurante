@@ -1,7 +1,11 @@
 """Fotos no banco do site (core.midia), a rota /midia/banco/, o espelho da
 Cloudinary e a restauração das fotos antigas (cópias locais e ZIP)."""
+import contextlib
+import importlib
 import io
 import os
+import subprocess
+import sys
 import tempfile
 import zipfile
 from decimal import Decimal
@@ -15,13 +19,14 @@ from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
+from django.conf import settings
 from django.core.management.base import CommandError
-from django.db import DatabaseError
+from django.db import DEFAULT_DB_ALIAS, DatabaseError
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from PIL import Image
 
-from . import midia, restauracao
+from . import auto_migracao, midia, restauracao
 from .midia import ErroAoGuardarMidia, MidiaNoBanco, url_da_foto
 from .models import ArquivoNoBanco, CategoriaProdutos, Produtos
 
@@ -476,6 +481,15 @@ class RestaurarCopiasLocaisTests(ComProdutos):
         coca.refresh_from_db()
         self.assertEqual(coca.image_produto.name, "banco/produtos/coca_ab12cd")
 
+    def test_migracao_automatica_ao_iniciar_tambem_restaura(self):
+        coca = self.produto("produtos/coca_ab12cd")
+        self.copia("produtos/coca.png", imagem())
+        with mock.patch.object(auto_migracao, "pendentes", return_value=[(migracao_falsa(), False)]), \
+                contextlib.redirect_stdout(io.StringIO()), self.assertLogs("core.auto_migracao", "WARNING"):
+            self.assertEqual(auto_migracao.migrar_pendentes(forcar=True), ["core.0015_arquivonobanco"])
+        coca.refresh_from_db()
+        self.assertEqual(coca.image_produto.name, "banco/produtos/coca_ab12cd")
+
     def test_restaurar_ao_migrar_nunca_derruba(self):
         with mock.patch("core.restauracao.restaurar_copias_locais", side_effect=DatabaseError("sem tabela")), \
                 self.assertLogs("core.restauracao", "WARNING"):
@@ -629,3 +643,119 @@ class ImportarZipTests(ComProdutos):
             )
         self.assertEqual(resposta.status_code, 503)
         self.assertIn("Nada se perdeu", resposta.json()["mensagem"])
+
+
+def migracao_falsa(app="core", nome="0015_arquivonobanco"):
+    falsa = mock.Mock(app_label=app)
+    falsa.name = nome
+    return falsa
+
+
+class _CursorFalso:
+    def __init__(self, conexao):
+        self.conexao = conexao
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *erro):
+        return False
+
+    def execute(self, sql, parametros=None):
+        self.conexao.sql.append((sql, parametros))
+
+
+class _PostgresFalso:
+    vendor = "postgresql"
+
+    def __init__(self):
+        self.sql = []
+        self.fechada = False
+
+    def cursor(self):
+        return _CursorFalso(self)
+
+    def close(self):
+        self.fechada = True
+
+
+@override_settings(MIGRAR_AO_INICIAR=False)
+class MigracaoAoIniciarTests(TestCase):
+    """core/auto_migracao.py: a 0015 (fotos no banco) entra sozinha na Vercel."""
+
+    def test_desligado_nao_consulta_nada(self):
+        with mock.patch.object(auto_migracao, "pendentes") as pendentes:
+            self.assertEqual(auto_migracao.migrar_pendentes(), [])
+        pendentes.assert_not_called()
+
+    def test_sem_pendencias_nao_faz_nada(self):
+        with mock.patch("django.core.management.call_command") as migrate:
+            self.assertEqual(auto_migracao.migrar_pendentes(forcar=True), [])
+        migrate.assert_not_called()
+
+    @override_settings(MIGRAR_AO_INICIAR=True)
+    def test_aplica_o_que_falta(self):
+        with mock.patch.object(auto_migracao, "pendentes", return_value=[(migracao_falsa(), False)]), \
+                mock.patch("django.core.management.call_command") as migrate, \
+                self.assertLogs("core.auto_migracao", "WARNING"):
+            self.assertEqual(auto_migracao.migrar_pendentes(), ["core.0015_arquivonobanco"])
+        migrate.assert_called_once_with("migrate", interactive=False, verbosity=1)
+
+    def test_no_postgres_so_uma_instancia_migra(self):
+        conexao = _PostgresFalso()
+        plano = [(migracao_falsa(), False)]
+        with mock.patch.object(auto_migracao, "connections", {DEFAULT_DB_ALIAS: conexao}), \
+                mock.patch.object(auto_migracao, "pendentes", side_effect=[plano, plano]) as pendentes, \
+                mock.patch("django.core.management.call_command") as migrate, \
+                self.assertLogs("core.auto_migracao", "WARNING"):
+            self.assertEqual(auto_migracao.migrar_pendentes(forcar=True), ["core.0015_arquivonobanco"])
+        self.assertEqual(conexao.sql, [("SELECT pg_advisory_xact_lock(%s)", [auto_migracao.CHAVE_TRAVA])])
+        self.assertEqual(pendentes.call_count, 2)  # confere de novo depois de pegar a trava
+        migrate.assert_called_once()
+        self.assertTrue(conexao.fechada)
+
+    def test_no_postgres_outra_instancia_ja_migrou(self):
+        conexao = _PostgresFalso()
+        with mock.patch.object(auto_migracao, "connections", {DEFAULT_DB_ALIAS: conexao}), \
+                mock.patch.object(auto_migracao, "pendentes", side_effect=[[(migracao_falsa(), False)], []]), \
+                mock.patch("django.core.management.call_command") as migrate:
+            self.assertEqual(auto_migracao.migrar_pendentes(forcar=True), [])
+        migrate.assert_not_called()
+        self.assertEqual(len(conexao.sql), 1)
+
+    def test_falha_vai_para_o_log_e_o_site_sobe(self):
+        with mock.patch.object(auto_migracao, "pendentes", return_value=[(migracao_falsa(), False)]), \
+                mock.patch("django.core.management.call_command", side_effect=DatabaseError("pooler fora")), \
+                self.assertLogs("core.auto_migracao", "ERROR") as log:
+            self.assertEqual(auto_migracao.migrar_pendentes(forcar=True), [])
+        self.assertIn("python manage.py migrate", log.output[0])
+        with mock.patch.object(auto_migracao, "pendentes", side_effect=DatabaseError("sem banco")), \
+                self.assertLogs("core.auto_migracao", "ERROR"):
+            self.assertEqual(auto_migracao.migrar_pendentes(forcar=True), [])
+
+    def test_wsgi_migra_ao_subir(self):
+        with mock.patch("core.auto_migracao.migrar_pendentes") as migrar:
+            sys.modules.pop("rest.wsgi", None)
+            importlib.import_module("rest.wsgi")
+        migrar.assert_called_once_with()
+
+    def test_ligado_por_padrao_so_no_site_no_ar_da_vercel(self):
+        def valor(**variaveis):
+            ambiente = {
+                k: v for k, v in os.environ.items()
+                if k not in ("VERCEL", "CI", "DATABASE_URL", "MIGRAR_AO_INICIAR", "DJANGO_SETTINGS_MODULE")
+            }
+            ambiente.update(variaveis)
+            saida = subprocess.run(
+                [sys.executable, "-c", "import rest.settings as s; print(s.MIGRAR_AO_INICIAR)"],
+                cwd=settings.BASE_DIR, env=ambiente, capture_output=True, text=True, check=True,
+            )
+            return saida.stdout.strip()
+
+        banco = "postgres://u:s@aws-0.pooler.supabase.com:6543/postgres"
+        self.assertEqual(valor(VERCEL="1", DATABASE_URL=banco), "True")
+        self.assertEqual(valor(VERCEL="1", CI="1", DATABASE_URL=banco), "False")   # build da Vercel
+        self.assertEqual(valor(VERCEL="1"), "False")                               # sem banco de produção
+        self.assertEqual(valor(DATABASE_URL=banco), "False")                       # fora da Vercel
+        self.assertEqual(valor(VERCEL="1", DATABASE_URL=banco, MIGRAR_AO_INICIAR="0"), "False")
+        self.assertEqual(valor(MIGRAR_AO_INICIAR="1"), "True")

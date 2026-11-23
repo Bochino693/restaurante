@@ -19,6 +19,7 @@ para o servidor, o cardápio do cliente e o painel.
 | `DEBUG` | `False` em produção | `True` |
 | `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | **opcionais, só legado**: endereço das fotos antigas e cópia delas com `espelhar_midia` (para copiar basta o `CLOUDINARY_CLOUD_NAME`) | vazias: o site sobe e funciona igual |
 | `MIDIA_NO_BANCO` | `1`/`0` força as fotos no banco ou no disco | liga sozinho com `DATABASE_URL` (produção); sem ele, disco (`media/`) |
+| `MIGRAR_AO_INICIAR` | `1`/`0` liga ou desliga as migrações automáticas quando o site sobe | ligado na Vercel (site no ar, com `DATABASE_URL`); desligado no build e fora dela |
 | `WHATSAPP_LOJA` | número que recebe os pedidos do cardápio (só dígitos, com 55 + DDD) | `5511999999999` (**troque**) |
 | `IMPRESSAO_API_KEY` | chave do agente de impressão externo | a chave antiga, para não parar o agente |
 | `LOJA_ABRE` / `LOJA_FECHA` | horário (hora cheia) | `11` / `16` |
@@ -34,7 +35,9 @@ A Cloudinary desativou a conta e levou junto todas as fotos e os envios
 novos. Agora **toda foto enviada fica numa tabela do próprio banco**
 (`core.ArquivoNoBanco`, migração `0015_arquivonobanco`) e o próprio site a
 entrega em `/midia/banco/<caminho>`. Nenhum serviço de fora participa: se o
-site está no ar, a foto está no ar. Nenhuma variável nova é obrigatória.
+site está no ar, a foto está no ar. Nenhuma variável nova é obrigatória
+e **não é preciso rodar `migrate` à mão**: ver
+[Migrações automáticas](#migrações-automáticas-ao-subir-na-vercel).
 
 - **Envio** (admin): foto com mais de 2000 px ou mais de ~600 KB é regravada
   em **WebP** de no máximo 2000 px, boa qualidade, já girada como o celular
@@ -72,8 +75,8 @@ Cada foto restaurada vira `banco/<nome antigo>` e **todo** campo que usava
 o nome antigo passa a apontar para ela. Regra de ouro: **na dúvida, não
 associa** (foto errada num produto é pior que a foto em atualização).
 
-1. **Sozinho, a cada `migrate`**: depois do `migrate` (rode com o
-   `DATABASE_URL` do Supabase para criar a tabela nova) o sistema procura
+1. **Sozinho, a cada `migrate`** (inclusive o automático da Vercel, que
+   cria a tabela nova no primeiro acesso depois do deploy): o sistema procura
    cópias confiáveis dentro do projeto (`produtos/`, `imagens_categorias/`,
    `media/`, `staticfiles/`) e restaura o que bater pelo nome — inclusive o
    nome original sem o sufixo de 6 letras que a Cloudinary acrescentava
@@ -100,6 +103,24 @@ associa** (foto errada num produto é pior que a foto em atualização).
    pulado; `--limite N` copia aos poucos). Se a Cloudinary responder
    401/"disabled", para na hora e avisa. O projeto não usa crons da Vercel
    (não há `vercel.json`), então este passo é manual.
+
+## Migrações automáticas ao subir na Vercel
+
+Quando o site sobe na Vercel, `rest/wsgi.py` chama
+`core/auto_migracao.py`, que aplica sozinho as migrações pendentes (como a
+`0015_arquivonobanco`, das fotos no banco) antes de atender visitantes —
+ninguém precisa rodar `python manage.py migrate` contra o Supabase.
+
+- Uma trava do Postgres (`pg_advisory_xact_lock`, presa à transação, que
+  funciona no pooler do Supabase na porta 6543) faz só **uma** instância
+  migrar; as outras esperam e encontram tudo aplicado.
+- Sem migração pendente, custa uma consulta rápida por inicialização.
+- O `migrate` automático também restaura as fotos com cópia no projeto
+  (o mesmo passo do `migrate` manual).
+- Se falhar (banco fora do ar, por exemplo), vai para o log da Vercel e o
+  site sobe do mesmo jeito; aí basta rodar `python manage.py migrate`.
+- Ligado por padrão só no site no ar da Vercel (não no build, `CI=1`, nem
+  no desenvolvimento). `MIGRAR_AO_INICIAR=0` desliga; `=1` liga em outro lugar.
 
 ## Relatórios
 
@@ -234,5 +255,6 @@ python manage.py test core
 ```
 
 As fotos no banco, a rota `/midia/banco/`, o espelho da Cloudinary (com a
-Cloudinary simulada: cópia e conta desativada) e a restauração estão em
+Cloudinary simulada: cópia e conta desativada), a restauração e as
+migrações automáticas (com o executor simulado) estão em
 `core/tests_midia.py`.

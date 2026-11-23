@@ -518,7 +518,10 @@ def restaurar_ao_migrar(sender=None, verbosity=1, **kwargs):
 
         if not isinstance(storages["default"], MidiaNoBanco):
             return
-        relatorio = restaurar_copias_locais()
+        # Savepoint próprio: o migrate automático (core/auto_migracao.py)
+        # roda dentro de uma transação; um erro aqui não pode desfazê-lo.
+        with transaction.atomic():
+            relatorio = restaurar_copias_locais()
         if verbosity and relatorio.restauradas:
             print(f"  Fotos restauradas das cópias do projeto: {len(relatorio.restauradas)}")
     except Exception:
