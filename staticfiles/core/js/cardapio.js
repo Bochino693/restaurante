@@ -85,7 +85,8 @@
     function voarParaCesta(card, id, qtd) {
         const p = catalogo[id];
         const img = card && card.querySelector("img");
-        const temFoto = !!(img && img.style.display !== "none" && img.complete && img.naturalWidth);
+        // O quadro "Foto em atualização" (core/js/fotos.js) não conta como foto.
+        const temFoto = !!(img && img.style.display !== "none" && img.complete && img.naturalWidth && !img.hasAttribute("data-foto-falhou"));
         if (!p || !window.Quantidade || !window.Quantidade.voar) { avisarChegada(id, qtd); return; }
         window.Quantidade.voar({
             de: temFoto ? img : (card || document.body),
@@ -228,7 +229,7 @@
         window.Quantidade.abrir({
             nome: p.nome,
             preco: Number(p.preco),
-            imagem: img && img.style.display !== "none" ? (img.currentSrc || img.src) : (p.imagem || ""),
+            imagem: img && img.style.display !== "none" && !img.hasAttribute("data-foto-falhou") ? (img.currentSrc || img.src) : (p.imagem || ""),
             cor: p.cor,
             max: 20,
             origem: card || elemento,

@@ -1,0 +1,169 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Restaurar fotos{% endblock %}
+
+{% block head_extra %}
+<style>
+    .rf-largura { max-width: 64rem; }
+    .rf-pilha-2 > * + * { margin-top: .5rem; }
+    .rf-pilha-3 > * + * { margin-top: .75rem; }
+    .rf-pilha-4 > * + * { margin-top: 1rem; }
+    .rf-pilha-5 > * + * { margin-top: 1.25rem; }
+    .rf-oculto { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+    .rf-cartao { background: var(--cf-superficie); border: 1px solid var(--cf-borda); border-radius: 1.75rem; box-shadow: var(--cf-sombra); padding: 1.25rem; }
+    @media (min-width: 768px) { .rf-cartao { padding: 1.75rem; } }
+    .rf-titulo { font-weight: 900; text-transform: uppercase; letter-spacing: -.01em; color: var(--cf-texto); }
+    .rf-texto { color: var(--cf-texto-2); font-size: .875rem; line-height: 1.55; }
+    .rf-suave { color: var(--cf-texto-suave); font-size: .75rem; }
+    .rf-numero { font-size: 2.25rem; font-weight: 900; line-height: 1; color: var(--cf-marca); }
+    .rf-numero.ok { color: #16a34a; }
+    .rf-solta { border: 2px dashed var(--cf-borda); border-radius: 1.5rem; padding: 2rem 1rem; text-align: center; cursor: pointer;
+        background: var(--cf-superficie-2); transition: border-color .2s, background .2s; }
+    .rf-solta:hover, .rf-solta.arrastando { border-color: var(--cf-marca); background: var(--cf-marca-suave); }
+    .rf-solta i { font-size: 2rem; color: var(--cf-marca); }
+    .rf-botao { display: inline-flex; align-items: center; justify-content: center; gap: .5rem; border-radius: 1rem; padding: .75rem 1.15rem;
+        font-weight: 900; font-size: .8125rem; color: #fff; background: linear-gradient(135deg, var(--cf-marca), var(--cf-marca-forte));
+        box-shadow: 0 10px 22px -12px rgba(227, 53, 61, .7); border: 0; cursor: pointer; }
+    .rf-botao:disabled { opacity: .55; cursor: wait; }
+    .rf-botao.secundario { background: var(--cf-superficie-3); color: var(--cf-texto); box-shadow: none; }
+    .rf-passos { counter-reset: passo; display: grid; gap: .6rem; }
+    .rf-passos li { counter-increment: passo; display: flex; gap: .75rem; align-items: flex-start; }
+    .rf-passos li::before { content: counter(passo); flex: none; width: 1.6rem; height: 1.6rem; border-radius: .6rem; display: grid; place-items: center;
+        font-size: .75rem; font-weight: 900; color: #fff; background: var(--cf-marca); }
+    .rf-tabela { width: 100%; border-collapse: collapse; font-size: .8125rem; }
+    .rf-tabela th { text-align: left; font-size: .625rem; font-weight: 900; text-transform: uppercase; letter-spacing: .16em; color: var(--cf-texto-suave); padding: .5rem .75rem; border-bottom: 1px solid var(--cf-borda); }
+    .rf-tabela td { padding: .6rem .75rem; border-bottom: 1px solid var(--cf-borda); color: var(--cf-texto-2); vertical-align: top; }
+    .rf-tabela code { font-size: .75rem; word-break: break-all; color: var(--cf-texto-suave); }
+    .rf-lista { display: grid; gap: .35rem; max-height: 22rem; overflow-y: auto; }
+    .rf-item { display: flex; gap: .6rem; align-items: center; padding: .5rem .75rem; border-radius: .85rem; background: var(--cf-superficie-2); font-size: .8125rem; }
+    .rf-item .rf-nome { flex: 1; min-width: 0; overflow-wrap: anywhere; color: var(--cf-texto-2); }
+    .rf-item .rf-selo { flex: none; font-size: .625rem; font-weight: 900; text-transform: uppercase; letter-spacing: .08em; padding: .2rem .55rem; border-radius: 99px; }
+    .rf-selo.restaurada { background: #dcfce7; color: #15803d; }
+    .rf-selo.enviando { background: #e0f2fe; color: #0369a1; }
+    .rf-selo.sem_uso, .rf-selo.ja_restaurada { background: var(--cf-superficie-3); color: var(--cf-texto-suave); }
+    .rf-selo.duvida { background: #fef3c7; color: #b45309; }
+    .rf-selo.erro { background: #fee2e2; color: #b91c1c; }
+    .rf-barra { height: .5rem; border-radius: 99px; background: var(--cf-superficie-3); overflow: hidden; }
+    .rf-barra span { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--cf-marca), #f97316); transition: width .25s; }
+    .rf-aviso { border-radius: 1.25rem; padding: .9rem 1.1rem; font-size: .8125rem; font-weight: 700; }
+    .rf-aviso.erro { background: #fee2e2; color: #991b1b; }
+    .rf-aviso.ok { background: #dcfce7; color: #166534; }
+    .rf-aviso.info { background: var(--cf-superficie-2); color: var(--cf-texto-2); }
+    .rf-aviso.atencao { background: #fef3c7; color: #92400e; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="restaurar-fotos" class="rf-largura mx-auto rf-pilha-5"
+     data-url="{% url 'restaurar_fotos' %}"
+     data-limite="{{ limite_envio }}"
+     data-serverless="{{ serverless|yesno:'1,0' }}">
+    {% csrf_token %}
+
+    <div class="rf-cartao flex flex-col md:flex-row md:items-center gap-4 justify-between">
+        <div class="max-w-2xl">
+            <h1 class="rf-titulo text-xl flex items-center gap-2"><i class="fas fa-images" style="color: var(--cf-marca)"></i> Restaurar fotos</h1>
+            <p class="rf-texto mt-2">
+                As fotos agora ficam guardadas <strong>no próprio banco do site</strong>: nenhum serviço de fora consegue
+                tirá-las do ar. As fotos antigas estavam na Cloudinary, que foi desativada. Aqui você traz cada uma de volta.
+            </p>
+        </div>
+        <div class="text-center shrink-0">
+            <div id="rf-faltando" class="rf-numero{% if not faltando %} ok{% endif %}">{{ faltando|length }}</div>
+            <div class="rf-suave font-bold uppercase tracking-widest mt-1">foto{{ faltando|length|pluralize }} faltando</div>
+        </div>
+    </div>
+
+    {% if messages %}
+    <div class="rf-pilha-2">
+        {% for mensagem in messages %}
+        <div class="rf-aviso {% if mensagem.tags == 'error' %}erro{% elif mensagem.tags == 'success' %}ok{% elif mensagem.tags == 'warning' %}atencao{% else %}info{% endif %}">{{ mensagem }}</div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if not banco_ligado %}
+    <div class="rf-aviso atencao">
+        <i class="fas fa-triangle-exclamation mr-1"></i>
+        Neste ambiente (desenvolvimento) as fotos ficam no disco, não no banco. A restauração só grava com o banco ligado
+        (produção, ou <code>MIDIA_NO_BANCO=1</code>).
+    </div>
+    {% endif %}
+
+    <div class="grid gap-4 md:grid-cols-2">
+        <div class="rf-cartao rf-pilha-4">
+            <h2 class="rf-titulo text-sm">Enviar o ZIP da Cloudinary ou as fotos</h2>
+            <ol class="rf-passos rf-texto">
+                <li><span>Na Cloudinary, abra a <strong>Media Library</strong>, selecione as pastas/fotos e use <strong>Download</strong> (vem um ZIP).</span></li>
+                <li><span>Arraste o ZIP aqui (ou fotos soltas, ou as fotos originais que você tem).</span></li>
+                <li><span>Cada arquivo é ligado à foto certa pelo nome (pasta + nome). Na dúvida, não é usado.</span></li>
+            </ol>
+            <form id="rf-form" method="post" enctype="multipart/form-data" action="{% url 'restaurar_fotos' %}?acao=enviar">
+                {% csrf_token %}
+                <label id="rf-solta" class="rf-solta block" for="rf-arquivos">
+                    <i class="fas fa-cloud-arrow-up"></i>
+                    <span class="block font-black mt-2" style="color: var(--cf-texto)">Escolher ZIP ou fotos</span>
+                    <span class="block rf-suave mt-1">ou arraste para cá · JPG, PNG, WebP, GIF ou .zip</span>
+                </label>
+                <input id="rf-arquivos" name="arquivo" type="file" multiple accept="image/*,.zip,application/zip" class="rf-oculto">
+                <noscript><button type="submit" class="rf-botao mt-4">Enviar</button></noscript>
+            </form>
+            {% if serverless %}
+            <p class="rf-suave"><i class="fas fa-circle-info mr-1"></i>Na Vercel cada envio aceita até {{ limite_envio_mb }} MB: o ZIP é aberto
+                aqui no navegador e as fotos vão <strong>uma por vez</strong> (ZIP de qualquer tamanho, até 500 MB).</p>
+            {% endif %}
+            <div id="rf-progresso" class="hidden rf-pilha-3">
+                <div class="flex items-center justify-between rf-suave font-bold"><span id="rf-etapa">Preparando…</span><span id="rf-contagem"></span></div>
+                <div class="rf-barra"><span id="rf-barra"></span></div>
+                <div id="rf-resumo" class="rf-aviso info hidden"></div>
+                <div id="rf-lista" class="rf-lista"></div>
+            </div>
+        </div>
+
+        <div class="rf-cartao rf-pilha-4">
+            <h2 class="rf-titulo text-sm">Cópias que já estão no projeto</h2>
+            <p class="rf-texto">
+                Procura as fotos nas pastas do próprio sistema (<code>produtos/</code>, <code>imagens_categorias/</code>,
+                <code>media/</code>). Só usa a foto quando o nome bate com certeza. Isto também roda sozinho a cada <code>migrate</code>.
+            </p>
+            <form method="post" action="{% url 'restaurar_fotos' %}?acao=locais">
+                {% csrf_token %}
+                <button type="submit" class="rf-botao secundario"{% if not banco_ligado %} disabled{% endif %}><i class="fas fa-folder-open"></i> Procurar cópias no projeto</button>
+            </form>
+            <p class="rf-suave">
+                Pelo terminal: <code>python manage.py restaurar_midia</code> (cópias do projeto),
+                <code>--zip arquivo.zip</code> (ZIP, fotos ou pastas) e <code>--relatorio</code> (o que falta).
+                Quando a Cloudinary voltar: <code>python manage.py espelhar_midia</code> copia o resto sozinho.
+            </p>
+        </div>
+    </div>
+
+    <div class="rf-cartao">
+        <div class="flex items-center justify-between gap-3 mb-3">
+            <h2 class="rf-titulo text-sm">Ainda faltando</h2>
+            <span class="rf-suave">Enquanto falta, o site mostra “Foto em atualização”.</span>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="rf-tabela">
+                <thead><tr><th>Onde</th><th>Campo</th><th>Nome antigo</th></tr></thead>
+                <tbody id="rf-tabela">
+                    {% for linha in faltando %}
+                    <tr>
+                        <td><strong style="color: var(--cf-texto)">{{ linha.rotulo|default:"—" }}</strong><br><span class="rf-suave">{{ linha.modelo }} #{{ linha.pk }}</span></td>
+                        <td>{{ linha.campo }}</td>
+                        <td><code>{{ linha.nome }}</code></td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="3" class="text-center py-6"><i class="fas fa-circle-check mr-1" style="color: #16a34a"></i> Todas as fotos estão no banco.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{% static 'core/js/restaurar_fotos.js' %}?v={{ versao_estaticos }}" defer></script>
+{% endblock %}

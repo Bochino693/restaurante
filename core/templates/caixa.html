@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load midia %}
 {% load static %}
 
 {% block title %} PDV Profissional {% endblock %}
@@ -60,7 +61,7 @@
                                  onclick="{% if prato.produto.tem_adicionais %}abrirModalAdicionais('{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}', this){% elif prato.produto.eh_bebida %}abrirQtdBebida(this, '{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}'){% else %}adicionarComEfeito(this, '{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}'){% endif %}">
 
                                 {% if prato.produto.image_produto %}
-                                <img src="{{ prato.produto.image_produto.url }}"
+                                <img src="{{ prato.produto.image_produto|foto:640 }}"
                                      alt="{{ prato.produto.nome_produto }}"
                                      class="object-cover w-full h-full{% if prato.produto.eh_bebida %} foto-bebida{% endif %}">
                                 {% else %}
@@ -116,7 +117,7 @@
                                  onclick="{% if produto.tem_adicionais %}abrirModalAdicionais('{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}', this){% elif produto.eh_bebida %}abrirQtdBebida(this, '{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}'){% else %}adicionarComEfeito(this, '{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}'){% endif %}">
 
                                 {% if produto.image_produto %}
-                                <img src="{{ produto.image_produto.url }}"
+                                <img src="{{ produto.image_produto|foto:480 }}"
                                      alt="{{ produto.nome_produto }}"
                                      class="object-cover w-full h-full{% if produto.eh_bebida %} foto-bebida{% endif %}">
                                 {% else %}
@@ -972,7 +973,8 @@ function cardDoProduto(elemento) {
 
 function fotoDoCard(card) {
     const img = card ? card.querySelector('img') : null;
-    return img && img.style.display !== 'none' && img.complete && img.naturalWidth ? img : null;
+    // O quadro "Foto em atualização" (core/js/fotos.js) não conta como foto.
+    return img && img.style.display !== 'none' && img.complete && img.naturalWidth && !img.hasAttribute('data-foto-falhou') ? img : null;
 }
 
 function efeitoEntrou(origem, { imagem, rotulo, cor, chave, icone }) {

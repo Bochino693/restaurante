@@ -31,6 +31,7 @@ from django.views.generic import TemplateView
 
 from .context_processors import VERSAO_ESTATICOS
 from .horario import status_da_loja
+from .midia import url_da_foto
 from .models import (
     CategoriaProdutos, EstoqueProdutos, ItensPedido, Pedidos, PratoDoDia,
     Produtos, ProdutosMaisClick,
@@ -41,13 +42,11 @@ logger = logging.getLogger(__name__)
 DINHEIRO_14 = DecimalField(max_digits=14, decimal_places=2)
 ZERO_REAIS = Value(Decimal("0.00"))
 
-def _url_imagem(campo):
+def _url_imagem(campo, largura=None):
     """URL da imagem, ou "" quando o produto não tem foto (antes o cardápio
-    inteiro dava erro 500 por causa de um único produto sem imagem)."""
-    try:
-        return campo.url if campo else ""
-    except (ValueError, AttributeError):
-        return ""
+    inteiro dava erro 500 por causa de um único produto sem imagem). As
+    fotos guardadas no banco já vêm na largura pedida (?w=, WebP leve)."""
+    return url_da_foto(campo, largura)
 
 
 # Cor de cada categoria no efeito de "entrar no carrinho" (a bolha do +N e
@@ -85,7 +84,9 @@ def _produto_para_cardapio(produto, cores=None, com_refri=False):
         "nome": produto.nome_produto,
         "preco": f"{produto.preco:.2f}",
         "codigo": produto.codigo,
-        "imagem": _url_imagem(produto.image_produto),
+        "imagem": _url_imagem(produto.image_produto, 320),
+        # Card grande do "Prato do dia".
+        "imagem_grande": _url_imagem(produto.image_produto, 960),
         "tem_adicionais": _tem_adicionais(produto, com_refri),
         # Bebida mostra a lata/garrafa inteira na foto (sem corte).
         "bebida": _eh_bebida(produto),
@@ -101,7 +102,7 @@ CARDAPIO_CACHE_SEGUNDOS = 60
 
 def _dados_do_cardapio():
     dia_hoje = timezone.localdate().weekday()
-    chave = f"cardapio:v5:{dia_hoje}"
+    chave = f"cardapio:v6:{dia_hoje}"
     dados = cache.get(chave)
     if dados is not None:
         return dados
@@ -145,7 +146,7 @@ def _dados_do_cardapio():
 
 
 def _limpar_cache_cardapio():
-    cache.delete_many([f"cardapio:v5:{d}" for d in range(7)])
+    cache.delete_many([f"cardapio:v6:{d}" for d in range(7)])
 
 
 class CardapioClienteView(View):
@@ -819,7 +820,7 @@ def _fotos_dos_adicionais(adicionais):
         filtro |= Q(nome_produto__iexact=nome)
     fotos = {}
     for produto in Produtos.objects.filter(filtro).exclude(image_produto="").order_by("-ativo", "id"):
-        url = _url_imagem(produto.image_produto)
+        url = _url_imagem(produto.image_produto, 160)
         if url:
             fotos.setdefault(produto.nome_produto.strip().casefold(), url)
     return fotos
@@ -847,7 +848,7 @@ def adicionais_produto(request, produto_id):
             "nome": refri.nome_produto,
             "preco": f"{refri.preco:.2f}",
             "bebida": True,
-            "imagem": _url_imagem(refri.image_produto) or foto_refri,
+            "imagem": _url_imagem(refri.image_produto, 160) or foto_refri,
             "cor": COR_BEBIDA,
             "produto_id": refri.id,
         }

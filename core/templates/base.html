@@ -138,6 +138,9 @@
             <a href="{% url 'dashboards' %}" class="flex items-center gap-4 p-3 rounded-xl transition-all hover:bg-white/10 {% if url_name == 'dashboards' %}ativo{% endif %}">
                 <i class="fas fa-chart-pie w-6"></i> Estatísticas
             </a>
+            <a href="{% url 'restaurar_fotos' %}" class="flex items-center gap-4 p-3 rounded-xl transition-all hover:bg-white/10 {% if url_name == 'restaurar_fotos' %}ativo{% endif %}">
+                <i class="fas fa-images w-6"></i> Restaurar fotos
+            </a>
             <a href="/admin/" target="_blank" rel="noopener" class="flex items-center gap-4 p-3 rounded-xl transition-all hover:bg-white/10">
                 <i class="fas fa-user-shield w-6"></i> Painel Admin
             </a>

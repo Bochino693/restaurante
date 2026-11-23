@@ -245,3 +245,25 @@ class EnderecoLoja(Prime):
     class Meta:
         verbose_name = "Endereço da loja"
         verbose_name_plural = "Endereços das lojas"
+
+
+class ArquivoNoBanco(models.Model):
+    """Foto ou arquivo enviado pelo site, guardado no próprio banco.
+
+    É o armazenamento padrão em produção (core.midia.MidiaNoBanco): nenhum
+    serviço de fora pode sumir com as fotos. O nome começa com "banco/" e
+    segue o caminho original do envio (ex.: banco/produtos/coca-1a2b3c4d5e.webp).
+    """
+    nome = models.CharField(max_length=255, unique=True)
+    conteudo = models.BinaryField()
+    tipo = models.CharField(max_length=100, default="application/octet-stream")
+    tamanho = models.PositiveIntegerField(default=0)
+    sha256 = models.CharField(max_length=64)
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Arquivo no banco"
+        verbose_name_plural = "Arquivos no banco"
+
+    def __str__(self):
+        return self.nome
