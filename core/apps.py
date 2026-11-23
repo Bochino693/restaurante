@@ -20,3 +20,12 @@ class CoreConfig(AppConfig):
             post_save.connect(limpar, sender=modelo, dispatch_uid=f"cardapio-save-{modelo.__name__}")
             post_delete.connect(limpar, sender=modelo, dispatch_uid=f"cardapio-del-{modelo.__name__}")
         m2m_changed.connect(limpar, sender=Adicional.produtos.through, dispatch_uid="cardapio-m2m-adicional")
+
+        # Depois de cada `migrate` (o deploy roda um): as fotos antigas que
+        # têm cópia confiável dentro do projeto voltam sozinhas para o banco.
+        # Nunca derruba o migrate (ver core.restauracao.restaurar_ao_migrar).
+        from django.db.models.signals import post_migrate
+
+        from .restauracao import restaurar_ao_migrar
+
+        post_migrate.connect(restaurar_ao_migrar, sender=self, dispatch_uid="restaurar-fotos-ao-migrar")

@@ -1,6 +1,7 @@
 from decimal import Decimal
 from pathlib import Path
 import os
+import tempfile
 import dj_database_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -103,21 +104,34 @@ else:
         }
     }
 
+# Cloudinary: só LEGADO. Serve para montar o endereço das fotos antigas e
+# para o `espelhar_midia` copiá-las para o banco quando a conta voltar.
+# Todas as variáveis são opcionais: sem elas o site sobe e funciona igual.
 CLOUDINARY_STORAGE = {
     "CLOUD_NAME": os.environ.get("CLOUDINARY_CLOUD_NAME"),
     "API_KEY": os.environ.get("CLOUDINARY_API_KEY"),
     "API_SECRET": os.environ.get("CLOUDINARY_API_SECRET"),
 }
 
-# Sem as chaves da Cloudinary (máquina de desenvolvimento), as imagens ficam
-# no disco em vez de derrubar a página com "Must supply cloud_name".
-USAR_CLOUDINARY = bool(CLOUDINARY_STORAGE["CLOUD_NAME"])
+# Fotos e arquivos enviados ficam no PRÓPRIO BANCO (core.midia.MidiaNoBanco),
+# servidos pelo site em /midia/banco/... com cache longo. Liga sozinho em
+# produção (com DATABASE_URL); no desenvolvimento ficam no disco (media/).
+# MIDIA_NO_BANCO=1 ou 0 força um lado ou o outro.
+_midia_no_banco = os.environ.get("MIDIA_NO_BANCO", "").strip()
+MIDIA_NO_BANCO = (
+    _midia_no_banco == "1" if _midia_no_banco in ("0", "1") else bool(os.environ.get("DATABASE_URL"))
+)
+
+# Na Vercel (serverless) quem guarda as fotos já servidas é a borda (CDN); num
+# servidor comum elas também ficam numa pasta temporária, poupando o banco.
+SERVERLESS = bool(os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"))
+MIDIA_CACHE_PASTA = "" if SERVERLESS else os.path.join(tempfile.gettempdir(), "cantinho-midia")
 
 STORAGES = {
     "default": {
         "BACKEND": (
-            "cloudinary_storage.storage.MediaCloudinaryStorage"
-            if USAR_CLOUDINARY
+            "core.midia.MidiaNoBanco"
+            if MIDIA_NO_BANCO
             else "django.core.files.storage.FileSystemStorage"
         ),
     },

@@ -1,4 +1,4 @@
-{% extends 'base.html' %} {% block title %}Gestão de Pratos do Dia{% endblock %}
+{% extends 'base.html' %}{% load midia %} {% block title %}Gestão de Pratos do Dia{% endblock %}
 
 {% block content %}
 <div class="max-w-7xl mx-auto">
@@ -29,7 +29,7 @@
                 <li class="flex items-center justify-between bg-gray-50 p-3 rounded-lg border border-gray-100">
                     <div class="flex items-center gap-3">
                         {% if prato_dia.produto.image_produto %}
-                        <img src="{{ prato_dia.produto.image_produto.url }}" alt="{{ prato_dia.produto.nome_produto }}" class="w-10 h-10 rounded-md object-cover">
+                        <img src="{{ prato_dia.produto.image_produto|foto:96 }}" alt="{{ prato_dia.produto.nome_produto }}" class="w-10 h-10 rounded-md object-cover">
                         {% else %}
                         <div class="w-10 h-10 rounded-md bg-gray-200 flex items-center justify-center text-gray-500">
                             <i class="fas fa-utensils"></i>

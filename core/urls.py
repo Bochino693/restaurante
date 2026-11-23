@@ -6,6 +6,7 @@ from .views import (CaixaView, EstoqueView,
                     LoginView, LogoutView, GerenciarPratosDiaView, RemoverPratoDiaView, avancar_status,
                     confirmar_impressao, pedidos_pendentes_impressao, ResumoPedidosView, PedidoReimprimirView,
                     registrar_clique, RelatorioPedidosView, PedidoDetalheView)
+from .views_midia import RestaurarFotosView, servir_midia
 
 urlpatterns = [
     path('', CardapioClienteView.as_view(), name='cardapio'),
@@ -35,6 +36,11 @@ urlpatterns = [
     path('pedidos/relatorio/<slug:tipo>/', RelatorioPedidosView.as_view(), name='relatorio_pedidos'),
     path('pedido/<int:pedido_id>/detalhes/', PedidoDetalheView.as_view(), name='pedido_detalhes'),
 
+
+    # Fotos guardadas no banco do site (core.midia) e a tela para trazer de
+    # volta as fotos antigas da Cloudinary.
+    path('midia/banco/<path:caminho>', servir_midia, name='midia_banco'),
+    path('restaurar-fotos/', RestaurarFotosView.as_view(), name='restaurar_fotos'),
 
     path("logout/", LogoutView.as_view(), name="logout"),
     path('login/', LoginView.as_view(), name='login'),

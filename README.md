@@ -2,7 +2,8 @@
 
 Django 5.2 · PDV (caixa), pedidos, estoque, cardápio do dia, estatísticas e
 cardápio online para o cliente. Hospedado na Vercel, banco no Supabase e
-imagens na Cloudinary.
+**fotos guardadas no próprio banco** (a Cloudinary virou só legado — ver
+[Fotos no banco](#fotos-no-banco-sem-depender-da-cloudinary)).
 
 ## Funcionamento
 
@@ -16,7 +17,8 @@ para o servidor, o cardápio do cliente e o painel.
 | `DATABASE_URL` | banco (Supabase) | SQLite local |
 | `SECRET_KEY` | segurança do Django | **defina em produção** |
 | `DEBUG` | `False` em produção | `True` |
-| `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | fotos dos produtos | sem elas, as fotos ficam no disco (desenvolvimento) |
+| `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | **opcionais, só legado**: endereço das fotos antigas e cópia delas com `espelhar_midia` (para copiar basta o `CLOUDINARY_CLOUD_NAME`) | vazias: o site sobe e funciona igual |
+| `MIDIA_NO_BANCO` | `1`/`0` força as fotos no banco ou no disco | liga sozinho com `DATABASE_URL` (produção); sem ele, disco (`media/`) |
 | `WHATSAPP_LOJA` | número que recebe os pedidos do cardápio (só dígitos, com 55 + DDD) | `5511999999999` (**troque**) |
 | `IMPRESSAO_API_KEY` | chave do agente de impressão externo | a chave antiga, para não parar o agente |
 | `LOJA_ABRE` / `LOJA_FECHA` | horário (hora cheia) | `11` / `16` |
@@ -25,6 +27,79 @@ para o servidor, o cardápio do cliente e o painel.
 | `MARMITA_PRECO_COM_REFRI` | preço das marmitas que oferecem o refri como adicional | `10.00` |
 | `REFRI_MARMITA_PRECO_MAX` | preço máximo do refri que vira adicional das marmitas | `2.00` |
 | `QZ_CERTIFICADO`, `QZ_CHAVE_PRIVADA` | certificado e chave do QZ Tray (o QZ lembra a permissão do site); geradas por `qz/gerar_certificado.py` | vazias (o QZ pergunta a cada conexão, mas imprime) |
+
+## Fotos no banco (sem depender da Cloudinary)
+
+A Cloudinary desativou a conta e levou junto todas as fotos e os envios
+novos. Agora **toda foto enviada fica numa tabela do próprio banco**
+(`core.ArquivoNoBanco`, migração `0015_arquivonobanco`) e o próprio site a
+entrega em `/midia/banco/<caminho>`. Nenhum serviço de fora participa: se o
+site está no ar, a foto está no ar. Nenhuma variável nova é obrigatória.
+
+- **Envio** (admin): foto com mais de 2000 px ou mais de ~600 KB é regravada
+  em **WebP** de no máximo 2000 px, boa qualidade, já girada como o celular
+  tirou e sem os dados de localização. O nome é `banco/<pasta>/<nome>-<10 do sha256>.<ext>`:
+  a mesma foto enviada duas vezes não ocupa o dobro, e um endereço nunca
+  muda de conteúdo. Se gravar falhar, o formulário volta com o aviso
+  "Não foi possível guardar a foto agora..." e tudo o que foi digitado —
+  nunca uma página de erro 500.
+- **Entrega**: `Cache-Control: public, max-age=31536000, s-maxage=31536000, immutable`
+  e `ETag` (o navegador revalida com 304). Na Vercel quem segura as fotos é
+  a borda (CDN), então o banco quase não é consultado; num servidor comum
+  as fotos já entregues também ficam numa pasta temporária.
+- **Tamanhos**: `?w=` entrega uma versão menor em WebP, só nas larguras
+  96, 160, 240, 320, 480, 640, 800, 960, 1280 e 1600 (outra largura
+  redireciona para a mais próxima). O cardápio pede 320 (960 no Prato do
+  dia), o caixa 480/640. Nos templates: `{% load midia %}` e
+  `{{ produto.image_produto|foto:480 }}`.
+- **Foto que não carrega** (ex.: as antigas da Cloudinary) vira um quadro
+  limpo **"Foto em atualização"** no mesmo lugar — no cardápio, no painel e
+  no admin — nunca o ícone de imagem quebrada (`core/static/core/js/fotos.js`).
+- **Nomes antigos** (sem `banco/`) continuam apontando para o endereço da
+  Cloudinary, montado sem rede e sem banco. No desenvolvimento (sem
+  `DATABASE_URL`) as fotos ficam no disco, como antes.
+- Código: `core/midia.py` (armazenamento), `core/views_midia.py` (rota e
+  tela), `core/restauracao.py` (restauração), testes em `core/tests_midia.py`.
+
+**Espaço no Supabase**: cada foto fica com ~50–400 KB depois da conversão;
+100 produtos dão poucos MB a algumas dezenas de MB. O plano grátis tem
+500 MB de banco — vale olhar o uso de vez em quando (Supabase → Reports).
+
+### Trazer as fotos antigas de volta
+
+Enquanto uma foto antiga não volta, o site mostra "Foto em atualização".
+Cada foto restaurada vira `banco/<nome antigo>` e **todo** campo que usava
+o nome antigo passa a apontar para ela. Regra de ouro: **na dúvida, não
+associa** (foto errada num produto é pior que a foto em atualização).
+
+1. **Sozinho, a cada `migrate`**: depois do `migrate` (rode com o
+   `DATABASE_URL` do Supabase para criar a tabela nova) o sistema procura
+   cópias confiáveis dentro do projeto (`produtos/`, `imagens_categorias/`,
+   `media/`, `staticfiles/`) e restaura o que bater pelo nome — inclusive o
+   nome original sem o sufixo de 6 letras que a Cloudinary acrescentava
+   (`coca.jpg` → `produtos/coca_ab12cd`), só quando não há outra
+   possibilidade. Nunca derruba o migrate. À mão: `python manage.py restaurar_midia`.
+2. **O que ainda falta**: `python manage.py restaurar_midia --relatorio`
+   (produto/categoria, campo e nome antigo) ou a tela **Restaurar fotos**
+   (menu lateral → Gestão e relatórios, só equipe/superusuário).
+3. **ZIP da Cloudinary ou fotos que você tem**: na tela **Restaurar fotos**,
+   arraste o ZIP baixado da Media Library (Download) ou as fotos soltas.
+   Cada arquivo é ligado pela pasta + nome (o id da Cloudinary); a tela
+   mostra o que foi restaurado, o que não é usado no site e o que ainda
+   falta. Dica: renomeie a foto com o nome antigo mostrado na tabela
+   (ex.: `coca_ab12cd.jpg`) e ela entra com certeza. **Na Vercel cada
+   requisição aceita ~4,5 MB**: por isso a tela abre o ZIP no próprio
+   navegador e envia **uma foto por vez** (ZIP de até 500 MB; foto maior que
+   4 MB é reduzida no navegador antes). Pelo terminal (sem esse limite):
+   `python manage.py restaurar_midia --zip export.zip` (aceita também fotos
+   soltas e pastas; `--simular` só mostra).
+4. **Quando a Cloudinary voltar** (só o dono reativa a conta):
+   `python manage.py espelhar_midia` (com `DATABASE_URL` e
+   `CLOUDINARY_CLOUD_NAME`) baixa cada foto antiga pelo endereço público e
+   grava no banco. Pode rodar quantas vezes quiser (o que já foi copiado é
+   pulado; `--limite N` copia aos poucos). Se a Cloudinary responder
+   401/"disabled", para na hora e avisa. O projeto não usa crons da Vercel
+   (não há `vercel.json`), então este passo é manual.
 
 ## Relatórios
 
@@ -157,3 +232,7 @@ arquivos na Vercel, com cache longo (os links levam `?v=<versão>`).
 ```
 python manage.py test core
 ```
+
+As fotos no banco, a rota `/midia/banco/`, o espelho da Cloudinary (com a
+Cloudinary simulada: cópia e conta desativada) e a restauração estão em
+`core/tests_midia.py`.
