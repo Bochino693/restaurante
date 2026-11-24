@@ -68,6 +68,34 @@ e **não é preciso rodar `migrate` à mão**: ver
 100 produtos dão poucos MB a algumas dezenas de MB. O plano grátis tem
 500 MB de banco — vale olhar o uso de vez em quando (Supabase → Reports).
 
+### Você tem a foto: é só dizer de quem ela é
+
+Não importa o nome do arquivo, o tamanho nem o formato:
+
+- **Restaurar fotos → Ainda faltando**: cada linha tem o botão **Escolher
+  foto** (ou arraste a foto em cima da linha). A foto vai direto para aquele
+  produto/categoria.
+- **Várias de uma vez**: solte todas na área de envio. As que batem pelo nome
+  entram sozinhas; as outras ficam na lista com a pergunta **"De quem é esta
+  foto?"** (com a miniatura) e você escolhe o produto. Se o nome do arquivo
+  parece com o do produto ("Coca-Cola 2L.jpg"), ele já vem escolhido.
+- **Admin** (Produtos/Categorias): continua valendo, e agora a foto é
+  preparada no navegador assim que é escolhida ("Foto pronta para enviar:
+  8,8 MB → 1,7 MB").
+
+Por que antes "não aceitava": a Vercel recusa qualquer envio acima de
+~4,5 MB antes de chegar no Django (foto de celular passa disso), o admin
+recusava **HEIC** (formato do iPhone) e a restauração só usava arquivo com o
+nome antigo da Cloudinary. Agora `core/static/core/js/preparar_foto.js`
+reduz a foto no navegador (até 2000 px, WebP/JPEG) antes de subir, o
+servidor abre HEIC (`pillow-heif`) e guarda em WebP tudo o que o navegador
+não mostra (HEIC, TIFF, BMP), e a escolha manual não depende de nome
+(`restauracao.definir_foto`, `?acao=definir`).
+
+O topo da tela mostra quantas fotos estão guardadas no banco e quantos MB
+ocupam. Se a tabela das fotos ainda não existir, a própria tela aplica a
+migração.
+
 ### Trazer as fotos antigas de volta
 
 Enquanto uma foto antiga não volta, o site mostra "Foto em atualização".

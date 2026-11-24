@@ -64,6 +64,24 @@ TIPOS_DO_PILLOW = {
 
 _EXTENSAO = re.compile(r"^\.[A-Za-z0-9]{2,5}$")
 
+# Formatos que todo navegador mostra. Qualquer outra imagem (HEIC do iPhone,
+# TIFF, BMP...) é regravada em WebP ao ser guardada.
+FORMATOS_DA_WEB = {"JPEG", "MPO", "PNG", "WEBP", "GIF"}
+
+
+def _ligar_heic():
+    """Foto do iPhone (HEIC/HEIF): o Pillow passa a abrir, então o admin
+    aceita e o site guarda em WebP. Sem a biblioteca, tudo segue igual."""
+    try:
+        from pillow_heif import register_heif_opener
+
+        register_heif_opener()
+    except Exception:
+        logger.info("pillow-heif indisponível: fotos HEIC precisam ser convertidas antes do envio.")
+
+
+_ligar_heic()
+
 
 class ErroAoGuardarMidia(Exception):
     """O arquivo não pôde ser guardado. A mensagem já é para o usuário."""
@@ -133,8 +151,9 @@ def preparar_arquivo(dados, nome):
 
     Foto grande (lado > 2000 px ou mais de ~600 KB) vira WebP de no máximo
     2000 px, boa qualidade, já girada como o celular tirou (EXIF) e sem os
-    dados de localização. O resto vai como veio. Qualquer surpresa do
-    Pillow: guarda o original, nunca recusa por isso.
+    dados de localização. Foto num formato que o navegador não mostra (HEIC
+    do iPhone, TIFF, BMP) também vira WebP. O resto vai como veio. Qualquer
+    surpresa do Pillow: guarda o original, nunca recusa por isso.
     """
     from PIL import Image, ImageOps
 
@@ -144,9 +163,11 @@ def preparar_arquivo(dados, nome):
             tipo = TIPOS_DO_PILLOW.get(imagem.format) or Image.MIME.get(imagem.format or "", "")
             tipo = tipo or tipo_pelo_nome(nome)
             grande = max(imagem.size) > LADO_MAXIMO or len(dados) > LIMITE_BYTES
-            if not grande or getattr(imagem, "is_animated", False):
+            da_web = imagem.format in FORMATOS_DA_WEB
+            if da_web and (not grande or getattr(imagem, "is_animated", False)):
                 return dados, tipo, extensao
-            ja_cabe = max(imagem.size) <= LADO_MAXIMO
+            # Só vale devolver o original quando o navegador sabe mostrá-lo.
+            ja_cabe = da_web and max(imagem.size) <= LADO_MAXIMO
             icc = _perfil_de_cor(imagem)
             imagem.draft("RGB", (LADO_MAXIMO, LADO_MAXIMO))  # JPEG: decodifica já reduzido
             reduzida = ImageOps.exif_transpose(imagem)
@@ -263,7 +284,10 @@ class MidiaNoBanco(Storage):
             content = File(content, name)
         validate_file_name(name, allow_relative_path=True)
         try:
-            nome = self._guardar(name, content, max_length)
+            # Savepoint: se o banco recusar, a transação de quem chamou (o
+            # admin salva dentro de uma) continua valendo e o aviso aparece.
+            with transaction.atomic():
+                nome = self._guardar(name, content, max_length)
         except SuspiciousFileOperation:
             raise
         except ErroAoGuardarMidia:

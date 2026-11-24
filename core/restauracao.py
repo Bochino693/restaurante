@@ -115,6 +115,7 @@ def descrever(refs):
     return [
         {
             "modelo": str(ref.modelo._meta.verbose_name),
+            "chave": ref.modelo._meta.label,
             "pk": ref.pk,
             "campo": ref.campo.name,
             "nome": ref.nome,
@@ -357,6 +358,37 @@ def restaurar_nome(nome_antigo, dados, refs, origem=""):
                 raise ArquivoRecusado("conflito de nome no banco")
         _repontar(refs, novo)
     return novo
+
+
+def definir_foto(chave, pk, campo, dados, nome_do_arquivo):
+    """Você escolhe a foto e diz de quem ela é: guarda `dados` e aponta o
+    campo (ex.: core.Produtos #12, image_produto) para ela. Não depende do
+    nome do arquivo. Devolve o objeto já com a foto nova."""
+    alvo = next(
+        ((m, c) for m, c in campos_de_arquivo() if m._meta.label == chave and c.name == campo),
+        None,
+    )
+    if alvo is None:
+        raise ArquivoRecusado("este campo não guarda foto")
+    modelo, campo_de_arquivo = alvo
+    try:
+        objeto = modelo._base_manager.get(pk=pk)
+    except (modelo.DoesNotExist, ValueError, TypeError) as erro:
+        raise ArquivoRecusado("este cadastro não existe mais") from erro
+    if not dados:
+        raise ArquivoRecusado("o arquivo chegou vazio")
+    if len(dados) > LIMITE_ARQUIVO:
+        raise ArquivoRecusado("arquivo grande demais (máximo 60 MB)")
+    if isinstance(campo_de_arquivo, models.ImageField):
+        _conferir_imagem(dados)
+    from django.core.files.base import ContentFile
+
+    nome = posixpath.basename(str(nome_do_arquivo).replace("\\", "/")) or "foto"
+    arquivo = getattr(objeto, campo_de_arquivo.name)
+    arquivo.save(nome, ContentFile(dados), save=False)
+    objeto.save(update_fields=[campo_de_arquivo.name])
+    _limpar_cache_do_cardapio()
+    return objeto
 
 
 def _limpar_cache_do_cardapio():

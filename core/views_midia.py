@@ -8,6 +8,8 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.core.files.storage import storages
+from django.db import DatabaseError
+from django.db.models import Count, Sum
 from django.http import Http404, HttpResponse, HttpResponseNotModified, HttpResponsePermanentRedirect, JsonResponse
 from django.shortcuts import redirect, render
 from django.utils.http import parse_etags
@@ -127,12 +129,38 @@ class RestaurarFotosView(LoginRequiredMixin, UserPassesTestMixin, View):
             or "application/json" in self.request.headers.get("Accept", "")
         )
 
+    @staticmethod
+    def _faltando():
+        """As fotos que faltam. Se a tabela das fotos ainda não existe (a
+        migração não rodou), cria agora e tenta de novo."""
+        try:
+            return restauracao.descrever(restauracao.faltando())
+        except DatabaseError:
+            logger.warning("Tabela das fotos indisponível; aplicando as migrações.", exc_info=True)
+            from .auto_migracao import migrar_pendentes
+
+            migrar_pendentes(forcar=True)
+            return restauracao.descrever(restauracao.faltando())
+
+    @staticmethod
+    def _guardadas():
+        total = ArquivoNoBanco.objects.aggregate(quantas=Count("id"), bytes=Sum("tamanho"))
+        return {"quantas": total["quantas"] or 0, "mb": round((total["bytes"] or 0) / (1024 * 1024), 1)}
+
     def get(self, request):
-        linhas = restauracao.descrever(restauracao.faltando())
+        try:
+            linhas = self._faltando()
+            guardadas = self._guardadas()
+            erro_do_banco = False
+        except DatabaseError:
+            logger.exception("Banco das fotos indisponível")
+            linhas, guardadas, erro_do_banco = [], {"quantas": 0, "mb": 0}, True
         if request.GET.get("formato") == "json":
-            return JsonResponse({"faltando": linhas})
+            return JsonResponse({"faltando": linhas, "guardadas": guardadas}, status=503 if erro_do_banco else 200)
         return render(request, "restaurar_fotos.html", {
             "faltando": linhas,
+            "guardadas": guardadas,
+            "erro_do_banco": erro_do_banco,
             "banco_ligado": self._banco_ligado(),
             "limite_envio": restauracao.limite_de_envio(),
             "limite_envio_mb": restauracao.limite_de_envio() // (1024 * 1024),
@@ -145,7 +173,39 @@ class RestaurarFotosView(LoginRequiredMixin, UserPassesTestMixin, View):
         messages.error(self.request, mensagem)
         return redirect("restaurar_fotos")
 
+    def _definir(self, request):
+        """Foto escolhida à mão para um produto/categoria (sem depender do nome)."""
+        arquivo = request.FILES.get("arquivo")
+        if not arquivo:
+            return self._erro("Escolha a foto.")
+        if arquivo.size > restauracao.limite_de_envio():
+            return self._erro(f"Foto maior que {restauracao.limite_de_envio() // (1024 * 1024)} MB por envio.", 413)
+        try:
+            objeto = restauracao.definir_foto(
+                request.POST.get("modelo", ""), request.POST.get("pk", ""), request.POST.get("campo", ""),
+                arquivo.read(), arquivo.name,
+            )
+        except restauracao.ArquivoRecusado as erro:
+            return self._erro(f"Não usei esta foto: {erro}.")
+        except midia.ErroAoGuardarMidia as erro:
+            return self._erro(str(erro), 503)
+        campo = getattr(objeto, request.POST["campo"])
+        mensagem = f"Foto de “{objeto}” guardada."
+        if self._quer_json():
+            return JsonResponse({
+                "ok": True, "mensagem": mensagem, "nome": campo.name,
+                "url": midia.url_da_foto(campo, 160), "faltando": len(restauracao.faltando()),
+            })
+        messages.success(request, mensagem)
+        return redirect("restaurar_fotos")
+
     def post(self, request):
+        if (request.GET.get("acao") or request.POST.get("acao")) == "definir":
+            try:
+                return self._definir(request)
+            except Exception:
+                logger.exception("Falha ao definir a foto")
+                return self._erro("Não foi possível guardar a foto agora. Nada se perdeu: tente de novo em instantes.", 503)
         if not self._banco_ligado():
             return self._erro(
                 "O armazenamento das fotos no banco está desligado neste ambiente "

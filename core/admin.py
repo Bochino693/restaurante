@@ -50,7 +50,9 @@ class AdminComFotos(admin.ModelAdmin):
 
     class Media:
         # Foto que não carrega vira o quadro "Foto em atualização".
-        js = ("core/js/fotos.js",)
+        # preparar_foto.js reduz a foto no navegador antes do envio (a Vercel
+        # recusa envios acima de ~4,5 MB).
+        js = ("core/js/fotos.js", "core/js/preparar_foto.js")
 
     def changeform_view(self, request, object_id=None, form_url="", extra_context=None):
         # Rede de segurança: qualquer falha do armazenamento vira aviso.

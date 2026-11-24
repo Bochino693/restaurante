@@ -651,6 +651,139 @@ def migracao_falsa(app="core", nome="0015_arquivonobanco"):
     return falsa
 
 
+def imagem_heic(largura=64, altura=48):
+    saida = io.BytesIO()
+    Image.new("RGB", (largura, altura), (30, 120, 200)).save(saida, "HEIF")
+    return saida.getvalue()
+
+
+@override_settings(STORAGES=NO_BANCO, MIDIA_CACHE_PASTA="", CLOUDINARY_STORAGE=SEM_CLOUDINARY, SERVERLESS=False)
+class EscolherFotoTests(ComProdutos):
+    """Você tem a foto (com qualquer nome) e diz de quem ela é."""
+
+    def setUp(self):
+        super().setUp()
+        self.coca = self.produto("media/produtos/coca_ab12cd")
+        self.dono = User.objects.create_superuser("dono", "dono@x.com", "senha-segura-123")
+        self.client.force_login(self.dono)
+        self.url = reverse("restaurar_fotos")
+
+    def _definir(self, arquivo, **campos):
+        dados = {"arquivo": arquivo, "modelo": "core.Produtos", "pk": self.coca.pk, "campo": "image_produto"}
+        dados.update(campos)
+        return self.client.post(f"{self.url}?acao=definir", dados, HTTP_X_REQUESTED_WITH="fetch")
+
+    def test_foto_com_qualquer_nome_vai_para_o_produto_escolhido(self):
+        resposta = self._definir(SimpleUploadedFile("IMG_4032.JPG", imagem(90, 60, "JPEG"), "image/jpeg"))
+        self.assertEqual(resposta.status_code, 200, resposta.content)
+        corpo = resposta.json()
+        self.assertTrue(corpo["ok"])
+        self.assertEqual(corpo["faltando"], 1)  # só a foto da categoria
+        self.coca.refresh_from_db()
+        self.assertTrue(self.coca.image_produto.name.startswith("banco/produtos/IMG_4032-"))
+        entregue = self.client.get(self.coca.image_produto.url)
+        self.assertEqual(entregue.status_code, 200)
+        self.assertEqual(entregue["Content-Type"], "image/jpeg")
+        self.assertIn("immutable", entregue["Cache-Control"])
+
+    def test_tambem_serve_para_a_categoria(self):
+        resposta = self._definir(
+            SimpleUploadedFile("marmita nova.png", imagem(), "image/png"),
+            modelo="core.CategoriaProdutos", pk=self.categoria.pk, campo="imagem_categoria",
+        )
+        self.assertTrue(resposta.json()["ok"])
+        self.categoria.refresh_from_db()
+        self.assertTrue(self.categoria.imagem_categoria.name.startswith("banco/imagens_categorias/"))
+
+    def test_a_pagina_mostra_o_botao_de_cada_foto_que_falta(self):
+        resposta = self.client.get(self.url)
+        self.assertContains(resposta, "data-definir")
+        self.assertContains(resposta, 'data-chave="core.Produtos"')
+        self.assertContains(resposta, "preparar_foto.js")
+        linhas = self.client.get(f"{self.url}?formato=json").json()
+        self.assertEqual({l["chave"] for l in linhas["faltando"]}, {"core.Produtos", "core.CategoriaProdutos"})
+
+    def test_o_que_nao_e_imagem_nao_entra_e_nada_muda(self):
+        resposta = self._definir(SimpleUploadedFile("nota.jpg", b"isto nao e imagem", "image/jpeg"))
+        self.assertEqual(resposta.status_code, 400)
+        self.assertIn("imagem", resposta.json()["mensagem"])
+        self.coca.refresh_from_db()
+        self.assertEqual(self.coca.image_produto.name, "media/produtos/coca_ab12cd")
+
+    def test_campo_ou_cadastro_errado_e_recusado(self):
+        foto = lambda: SimpleUploadedFile("a.png", imagem(), "image/png")
+        self.assertEqual(self._definir(foto(), campo="nome_produto").status_code, 400)
+        self.assertEqual(self._definir(foto(), modelo="auth.User", campo="password").status_code, 400)
+        self.assertEqual(self._definir(foto(), pk=999999).status_code, 400)
+        self.assertEqual(ArquivoNoBanco.objects.count(), 0)
+
+    def test_so_a_equipe_define_foto(self):
+        self.client.force_login(User.objects.create_user("caixa", password="senha-segura-123"))
+        resposta = self._definir(SimpleUploadedFile("a.png", imagem(), "image/png"))
+        self.assertEqual(resposta.status_code, 403)
+
+    def test_foto_do_iphone_heic_vira_webp(self):
+        resposta = self._definir(SimpleUploadedFile("IMG_0001.HEIC", imagem_heic(), "image/heic"))
+        self.assertEqual(resposta.status_code, 200, resposta.content)
+        self.coca.refresh_from_db()
+        self.assertTrue(self.coca.image_produto.name.endswith(".webp"))
+        entregue = self.client.get(self.coca.image_produto.url)
+        self.assertEqual(entregue["Content-Type"], "image/webp")
+        self.assertEqual(abrir(entregue.content).size, (64, 48))
+
+    def test_admin_aceita_heic(self):
+        resposta = self.client.post(reverse("admin:core_produtos_change", args=[self.coca.pk]), {
+            "nome_produto": "Coca-Cola Lata",
+            "image_produto": SimpleUploadedFile("IMG_0002.heic", imagem_heic(), content_type="image/heic"),
+            "codigo": 7, "preco": "6.00", "categoria": self.categoria.pk, "ativo": "on",
+        })
+        self.assertEqual(resposta.status_code, 302, resposta.content[:2000])
+        self.coca.refresh_from_db()
+        self.assertTrue(self.coca.image_produto.name.endswith(".webp"))
+
+    def test_formato_que_o_navegador_nao_mostra_vira_webp(self):
+        dados, tipo, extensao = midia.preparar_arquivo(imagem(50, 30, "BMP"), "produtos/foto.bmp")
+        self.assertEqual((tipo, extensao), ("image/webp", ".webp"))
+        self.assertEqual(abrir(dados).format, "WEBP")
+
+    def test_admin_carrega_o_redutor_de_fotos(self):
+        resposta = self.client.get(reverse("admin:core_produtos_add"))
+        self.assertContains(resposta, "core/js/preparar_foto.js")
+
+    def test_pagina_cria_a_tabela_se_a_migracao_nao_rodou(self):
+        original = restauracao.faltando
+        chamadas = []
+
+        def faltando_que_falha_uma_vez():
+            chamadas.append(1)
+            if len(chamadas) == 1:
+                raise DatabaseError("relation core_arquivonobanco does not exist")
+            return original()
+
+        with mock.patch.object(restauracao, "faltando", faltando_que_falha_uma_vez), \
+                mock.patch.object(auto_migracao, "migrar_pendentes") as migrar:
+            resposta = self.client.get(self.url)
+        self.assertEqual(resposta.status_code, 200)
+        migrar.assert_called_once_with(forcar=True)
+
+    def test_banco_fora_do_ar_mostra_aviso_e_nao_da_500(self):
+        with mock.patch.object(restauracao, "faltando", side_effect=DatabaseError("fora do ar")), \
+                mock.patch.object(auto_migracao, "migrar_pendentes"):
+            resposta = self.client.get(self.url)
+        self.assertEqual(resposta.status_code, 200)
+        self.assertContains(resposta, "O banco não respondeu")
+
+    def test_falha_do_banco_no_admin_nao_quebra_a_transacao(self):
+        with mock.patch.object(midia, "guardar_bytes", side_effect=DatabaseError("fora do ar")):
+            resposta = self.client.post(reverse("admin:core_produtos_change", args=[self.coca.pk]), {
+                "nome_produto": "Coca-Cola Lata",
+                "image_produto": SimpleUploadedFile("nova.png", imagem(), content_type="image/png"),
+                "codigo": 7, "preco": "6.00", "categoria": self.categoria.pk, "ativo": "on",
+            })
+        self.assertEqual(resposta.status_code, 200)
+        self.assertContains(resposta, "Não foi possível guardar a foto agora")
+
+
 class _CursorFalso:
     def __init__(self, conexao):
         self.conexao = conexao

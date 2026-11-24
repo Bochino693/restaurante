@@ -4,7 +4,12 @@
    memória) e cada foto vai numa requisição própria: na Vercel cada envio
    aceita ~4,5 MB, então um ZIP grande nunca passaria de uma vez. Antes de
    enviar, o servidor diz quais arquivos servem para alguma foto; só esses
-   sobem. Foto maior que o limite é reduzida aqui (WebP, até 2000 px).
+   sobem. Foto maior que o limite é reduzida aqui (preparar_foto.js).
+
+   Foto cujo nome não bate com nenhuma foto antiga NÃO é descartada: ela
+   fica na lista com a pergunta "de quem é esta foto?" e você escolhe o
+   produto/categoria. E cada linha de "Ainda faltando" tem o botão
+   "Escolher foto" (também aceita a foto arrastada em cima da linha).
    ========================================================================= */
 (function () {
     "use strict";
@@ -17,12 +22,14 @@
     const $ = id => document.getElementById(id);
     const entrada = $("rf-arquivos");
     const solta = $("rf-solta");
-    const EH_IMAGEM = /\.(jpe?g|jfif|png|webp|gif|bmp|tiff?|avif|heic)$/i;
     const SITUACOES = {
-        restaurada: "Restaurada", enviando: "Enviando", sem_uso: "Sem uso no site",
-        ja_restaurada: "Já estava no banco", duvida: "Na dúvida", erro: "Erro"
+        restaurada: "Guardada", enviando: "Enviando", sem_uso: "Sem uso no site",
+        ja_restaurada: "Já estava no banco", duvida: "Na dúvida", erro: "Erro", escolher: "De quem é?"
     };
     let ocupado = false;
+    let faltando = [];
+    try { faltando = JSON.parse($("rf-dados-faltando").textContent) || []; } catch (_) { /* lista vazia */ }
+    const chaveDe = l => `${l.chave}|${l.pk}|${l.campo}`;
 
     const escapar = t => String(t ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
@@ -98,17 +105,10 @@
 
     /* ------------------------------------------------- foto grande demais */
     async function caber(blob, nome) {
-        if (blob.size <= LIMITE) return { blob, nome };
-        if (!EH_IMAGEM.test(nome) || typeof createImageBitmap !== "function") throw new Error("maior que o limite de envio");
-        const bmp = await createImageBitmap(blob);
-        const escala = Math.min(1, 2000 / Math.max(bmp.width, bmp.height));
-        const tela = document.createElement("canvas");
-        tela.width = Math.round(bmp.width * escala);
-        tela.height = Math.round(bmp.height * escala);
-        tela.getContext("2d").drawImage(bmp, 0, 0, tela.width, tela.height);
-        const menor = await new Promise(ok => tela.toBlob(ok, "image/webp", 0.86));
-        if (!menor || menor.size > LIMITE) throw new Error("maior que o limite de envio");
-        return { blob: menor, nome: nome.replace(/\.[^./]+$/, "") + ".webp" };
+        const base = nome.split("/").pop();
+        const arquivo = blob instanceof File && blob.name === base ? blob : new File([blob], base, { type: blob.type || "" });
+        const pronto = await window.cfPrepararFoto(arquivo, LIMITE);
+        return { blob: pronto.arquivo, nome: pronto.arquivo.name };
     }
 
     /* -------------------------------------------------------- servidor */
@@ -121,7 +121,8 @@
         let dados = {};
         try { dados = await resposta.json(); } catch (_) { /* página de erro */ }
         if (!resposta.ok || dados.ok === false) {
-            throw new Error(dados.mensagem || (resposta.status === 413 ? "arquivo grande demais para um envio" : `erro ${resposta.status}`));
+            throw new Error(dados.mensagem || (resposta.status === 413 ? "arquivo grande demais para um envio"
+                : resposta.status === 403 ? "sua sessão expirou: recarregue a página e entre de novo" : `erro ${resposta.status}`));
         }
         return dados;
     }
@@ -146,6 +147,16 @@
         return pedir(`${URL_BASE}?acao=enviar`, { method: "POST", body: form });
     }
 
+    async function definir(alvo, blob, nome) {
+        const pronto = await caber(blob, nome);
+        const form = new FormData();
+        form.append("arquivo", pronto.blob, pronto.nome);
+        form.append("modelo", alvo.chave);
+        form.append("pk", alvo.pk);
+        form.append("campo", alvo.campo);
+        return pedir(`${URL_BASE}?acao=definir`, { method: "POST", body: form });
+    }
+
     /* ------------------------------------------------------------- tela */
     const linhas = new Map();
 
@@ -159,6 +170,58 @@
         }
         el.innerHTML = `<span class="rf-nome">${escapar(caminho)}${detalhe ? `<br><span class="rf-suave">${escapar(detalhe)}</span>` : ""}</span>` +
             `<span class="rf-selo ${situacao}">${SITUACOES[situacao] || situacao}</span>`;
+        return el;
+    }
+
+    /* Foto que o nome não resolveu: você diz de quem ela é. */
+    const aguardando = new Map();   // caminho -> { obter }
+    const simples = t => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+
+    function opcoes(caminho, escolhida) {
+        const nome = simples(caminho.split("/").pop().replace(/\.[^.]+$/, ""));
+        let palpite = escolhida || "";
+        if (!palpite && nome.length >= 3) {
+            const parecidas = faltando.filter(l => { const r = simples(l.rotulo); return r && (r.includes(nome) || nome.includes(r)); });
+            if (parecidas.length === 1) palpite = chaveDe(parecidas[0]);
+        }
+        return `<option value="">De quem é esta foto?</option>` + faltando.map(l =>
+            `<option value="${escapar(chaveDe(l))}"${chaveDe(l) === palpite ? " selected" : ""}>${escapar(l.rotulo || l.nome)} — ${escapar(l.modelo)}</option>`).join("");
+    }
+
+    function perguntar(item, motivo) {
+        if (!faltando.length) return false;
+        aguardando.set(item.caminho, item);
+        const el = linha(item.caminho, "escolher", motivo || "O nome não bate com nenhuma foto antiga: escolha o produto ou a categoria.");
+        el.classList.add("rf-escolha");
+        el.dataset.caminho = item.caminho;
+        const caixa = document.createElement("div");
+        caixa.className = "rf-escolher";
+        caixa.innerHTML = `<img class="rf-previa" alt="" hidden><select class="rf-select">${opcoes(item.caminho)}</select>` +
+            `<button type="button" class="rf-botao pequeno" data-usar>Usar esta foto</button>`;
+        el.appendChild(caixa);
+        if (aguardando.size <= 60) {
+            item.obter().then(blob => {
+                const previa = caixa.querySelector(".rf-previa");
+                previa.onload = () => { previa.hidden = false; };
+                previa.onerror = () => previa.remove();   // ex.: HEIC, que o Chrome não mostra
+                previa.src = URL.createObjectURL(blob);
+            }).catch(() => { /* sem prévia */ });
+        }
+        return true;
+    }
+
+    function atualizarEscolhas() {
+        document.querySelectorAll(".rf-escolha .rf-select").forEach(select => {
+            const caminho = select.closest(".rf-escolha").dataset.caminho;
+            select.innerHTML = opcoes(caminho, select.value);
+        });
+    }
+
+    function linhaDaTabela(l) {
+        return `<tr data-chave="${escapar(l.chave)}" data-pk="${escapar(l.pk)}" data-campo="${escapar(l.campo)}" data-rotulo="${escapar(l.rotulo || "")}">` +
+            `<td><strong style="color: var(--cf-texto)">${escapar(l.rotulo || "—")}</strong><br><span class="rf-suave">${escapar(l.modelo)} #${escapar(l.pk)}</span></td>` +
+            `<td>${escapar(l.campo)}</td><td><code>${escapar(l.nome)}</code></td>` +
+            `<td class="rf-acao"><button type="button" class="rf-botao pequeno" data-definir><i class="fas fa-image"></i> Escolher foto</button></td></tr>`;
     }
 
     function etapa(texto, feitos, total) {
@@ -178,13 +241,14 @@
             const resposta = await fetch(`${URL_BASE}?formato=json`, { credentials: "same-origin", headers: { Accept: "application/json" } });
             const dados = await resposta.json();
             const lista = dados.faltando || [];
+            faltando = lista;
+            atualizarEscolhas();
+            if (dados.guardadas && $("rf-guardadas")) $("rf-guardadas").textContent = dados.guardadas.quantas;
             const numero = $("rf-faltando");
             numero.textContent = lista.length;
             numero.classList.toggle("ok", !lista.length);
-            $("rf-tabela").innerHTML = lista.length ? lista.map(l =>
-                `<tr><td><strong style="color: var(--cf-texto)">${escapar(l.rotulo || "—")}</strong><br><span class="rf-suave">${escapar(l.modelo)} #${escapar(l.pk)}</span></td>` +
-                `<td>${escapar(l.campo)}</td><td><code>${escapar(l.nome)}</code></td></tr>`).join("")
-                : `<tr><td colspan="3" class="text-center py-6"><i class="fas fa-circle-check mr-1" style="color: #16a34a"></i> Todas as fotos estão no banco.</td></tr>`;
+            $("rf-tabela").innerHTML = lista.length ? lista.map(linhaDaTabela).join("")
+                : `<tr><td colspan="4" class="text-center py-6"><i class="fas fa-circle-check mr-1" style="color: #16a34a"></i> Todas as fotos estão no banco.</td></tr>`;
         } catch (_) { /* a tabela antiga continua */ }
     }
 
@@ -222,9 +286,12 @@
             etapa("Conferindo quais fotos servem…", 0, 0);
             const situacoes = await verificar(itens.filter(i => !i.zip).map(i => i.caminho));
             const enviar = itens.filter(i => i.zip || (situacoes[i.caminho] || {}).situacao === "restaurar");
+            let perguntas = 0;
             for (const item of itens) {
                 const s = situacoes[item.caminho];
-                if (!item.zip && s && s.situacao !== "restaurar") linha(item.caminho, s.situacao, s.motivo || "");
+                if (item.zip || !s || s.situacao === "restaurar") continue;
+                if (s.situacao !== "ja_restaurada" && perguntar(item, s.motivo ? `Na dúvida (${s.motivo}): escolha de quem é.` : "")) perguntas += 1;
+                else linha(item.caminho, s.situacao, s.motivo || "");
             }
 
             let feitos = 0, restauradas = 0, erros = 0;
@@ -253,12 +320,13 @@
                 feitos += 1;
             }
             etapa("Pronto", feitos, enviar.length || 1);
-            const semUso = itens.length - enviar.length;
+            const semUso = itens.length - enviar.length - perguntas;
             resumo(
-                `${restauradas} foto${restauradas === 1 ? "" : "s"} restaurada${restauradas === 1 ? "" : "s"}` +
+                `${restauradas} foto${restauradas === 1 ? "" : "s"} guardada${restauradas === 1 ? "" : "s"} pelo nome` +
+                (perguntas ? ` · ${perguntas} esperando você dizer de quem é (escolha na lista abaixo)` : "") +
                 (semUso ? ` · ${semUso} arquivo${semUso === 1 ? "" : "s"} sem uso no site` : "") +
                 (erros ? ` · ${erros} com erro (veja a lista)` : ""),
-                erros ? "atencao" : (restauradas ? "ok" : "info")
+                erros || perguntas ? "atencao" : (restauradas ? "ok" : "info")
             );
         } catch (erro) {
             resumo(`Não deu para continuar: ${erro.message}. Nada se perdeu; tente de novo.`, "erro");
@@ -270,6 +338,90 @@
             atualizarFaltando();
         }
     }
+
+    /* ----------------------------------------- "Usar esta foto" (lista) */
+    $("rf-lista").addEventListener("click", async evento => {
+        const botao = evento.target.closest("[data-usar]");
+        if (!botao) return;
+        const el = botao.closest(".rf-escolha");
+        const caminho = el.dataset.caminho;
+        const escolhida = el.querySelector(".rf-select").value;
+        const alvo = faltando.find(l => chaveDe(l) === escolhida);
+        const item = aguardando.get(caminho);
+        if (!alvo || !item) { el.querySelector(".rf-select").focus(); return; }
+        botao.disabled = true;
+        botao.textContent = "Enviando…";
+        try {
+            await definir(alvo, await item.obter(), caminho);
+            aguardando.delete(caminho);
+            el.classList.remove("rf-escolha");
+            linha(caminho, "restaurada", `Foto de ${alvo.rotulo || alvo.nome}`);
+            await atualizarFaltando();
+        } catch (erro) {
+            botao.disabled = false;
+            botao.textContent = "Usar esta foto";
+            let aviso = el.querySelector(".rf-erro-linha");
+            if (!aviso) { aviso = document.createElement("div"); aviso.className = "rf-erro-linha"; el.appendChild(aviso); }
+            aviso.textContent = erro.message;
+        }
+    });
+
+    /* --------------------------- "Escolher foto" (tabela Ainda faltando) */
+    const umaFoto = document.createElement("input");
+    umaFoto.type = "file";
+    umaFoto.accept = "image/*,.heic,.heif";
+    umaFoto.className = "rf-oculto";
+    raiz.appendChild(umaFoto);
+    let linhaAlvo = null;
+
+    async function definirNaLinha(tr, arquivo) {
+        const botao = tr.querySelector("[data-definir]");
+        const celula = tr.querySelector(".rf-acao");
+        const alvo = { chave: tr.dataset.chave, pk: tr.dataset.pk, campo: tr.dataset.campo };
+        botao.disabled = true;
+        botao.textContent = "Enviando…";
+        try {
+            const dados = await definir(alvo, arquivo, arquivo.name);
+            celula.innerHTML = `<span class="rf-selo restaurada">Guardada</span>`;
+            $("rf-progresso").classList.remove("hidden");
+            $("rf-resumo").classList.remove("hidden");
+            resumo(dados.mensagem || "Foto guardada.", "ok");
+            await atualizarFaltando();
+        } catch (erro) {
+            botao.disabled = false;
+            botao.innerHTML = `<i class="fas fa-image"></i> Escolher foto`;
+            let aviso = celula.querySelector(".rf-erro-linha");
+            if (!aviso) { aviso = document.createElement("div"); aviso.className = "rf-erro-linha"; celula.appendChild(aviso); }
+            aviso.textContent = erro.message;
+        }
+    }
+
+    $("rf-tabela").addEventListener("click", evento => {
+        const botao = evento.target.closest("[data-definir]");
+        if (!botao) return;
+        linhaAlvo = botao.closest("tr");
+        umaFoto.value = "";
+        umaFoto.click();
+    });
+    umaFoto.addEventListener("change", () => {
+        if (linhaAlvo && umaFoto.files.length) definirNaLinha(linhaAlvo, umaFoto.files[0]);
+    });
+    $("rf-tabela").addEventListener("dragover", evento => {
+        const tr = evento.target.closest("tr[data-chave]");
+        if (tr) { evento.preventDefault(); tr.classList.add("rf-sobre"); }
+    });
+    $("rf-tabela").addEventListener("dragleave", evento => {
+        const tr = evento.target.closest("tr[data-chave]");
+        if (tr) tr.classList.remove("rf-sobre");
+    });
+    $("rf-tabela").addEventListener("drop", evento => {
+        const tr = evento.target.closest("tr[data-chave]");
+        if (!tr) return;
+        evento.preventDefault();
+        tr.classList.remove("rf-sobre");
+        const arquivo = (evento.dataTransfer.files || [])[0];
+        if (arquivo) definirNaLinha(tr, arquivo);
+    });
 
     entrada.addEventListener("change", () => processar(Array.from(entrada.files)));
     ["dragenter", "dragover"].forEach(ev => solta.addEventListener(ev, e => { e.preventDefault(); solta.classList.add("arrastando"); }));

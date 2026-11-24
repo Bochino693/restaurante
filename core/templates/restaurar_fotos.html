@@ -51,6 +51,16 @@
     .rf-aviso.ok { background: #dcfce7; color: #166534; }
     .rf-aviso.info { background: var(--cf-superficie-2); color: var(--cf-texto-2); }
     .rf-aviso.atencao { background: #fef3c7; color: #92400e; }
+    .rf-botao.pequeno { padding: .45rem .8rem; font-size: .75rem; border-radius: .75rem; white-space: nowrap; }
+    .rf-selo.escolher { background: #fef3c7; color: #b45309; }
+    .rf-item.rf-escolha { flex-wrap: wrap; }
+    .rf-escolher { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+    .rf-previa { width: 3rem; height: 3rem; border-radius: .6rem; object-fit: cover; background: var(--cf-superficie-3); }
+    .rf-select { flex: 1; min-width: 12rem; max-width: 100%; padding: .5rem .65rem; border-radius: .75rem; font-size: .8125rem; font-weight: 700;
+        border: 1px solid var(--cf-borda); background: var(--cf-superficie); color: var(--cf-texto); }
+    .rf-erro-linha { flex-basis: 100%; margin-top: .35rem; font-size: .75rem; font-weight: 700; color: #b91c1c; }
+    .rf-tabela tr.rf-sobre td { background: var(--cf-marca-suave); }
+    .rf-tabela td.rf-acao { text-align: right; }
 </style>
 {% endblock %}
 
@@ -72,8 +82,19 @@
         <div class="text-center shrink-0">
             <div id="rf-faltando" class="rf-numero{% if not faltando %} ok{% endif %}">{{ faltando|length }}</div>
             <div class="rf-suave font-bold uppercase tracking-widest mt-1">foto{{ faltando|length|pluralize }} faltando</div>
+            {% if banco_ligado %}
+            <div class="rf-suave mt-2"><strong id="rf-guardadas">{{ guardadas.quantas }}</strong> guardada{{ guardadas.quantas|pluralize }} no banco · {{ guardadas.mb }} MB</div>
+            {% endif %}
         </div>
     </div>
+
+    {% if erro_do_banco %}
+    <div class="rf-aviso erro">
+        <i class="fas fa-triangle-exclamation mr-1"></i>
+        O banco não respondeu para a tabela das fotos. Recarregue a página em instantes; se continuar, rode
+        <code>python manage.py migrate</code>.
+    </div>
+    {% endif %}
 
     {% if messages %}
     <div class="rf-pilha-2">
@@ -97,16 +118,17 @@
             <ol class="rf-passos rf-texto">
                 <li><span>Na Cloudinary, abra a <strong>Media Library</strong>, selecione as pastas/fotos e use <strong>Download</strong> (vem um ZIP).</span></li>
                 <li><span>Arraste o ZIP aqui (ou fotos soltas, ou as fotos originais que você tem).</span></li>
-                <li><span>Cada arquivo é ligado à foto certa pelo nome (pasta + nome). Na dúvida, não é usado.</span></li>
+                <li><span>Cada arquivo é ligado à foto certa pelo nome (pasta + nome).</span></li>
+                <li><span><strong>Nome diferente? Sem problema:</strong> a foto aparece na lista com a pergunta “De quem é esta foto?” e você escolhe o produto.</span></li>
             </ol>
             <form id="rf-form" method="post" enctype="multipart/form-data" action="{% url 'restaurar_fotos' %}?acao=enviar">
                 {% csrf_token %}
                 <label id="rf-solta" class="rf-solta block" for="rf-arquivos">
                     <i class="fas fa-cloud-arrow-up"></i>
                     <span class="block font-black mt-2" style="color: var(--cf-texto)">Escolher ZIP ou fotos</span>
-                    <span class="block rf-suave mt-1">ou arraste para cá · JPG, PNG, WebP, GIF ou .zip</span>
+                    <span class="block rf-suave mt-1">ou arraste para cá · JPG, PNG, WebP, HEIC (iPhone), GIF ou .zip · qualquer tamanho</span>
                 </label>
-                <input id="rf-arquivos" name="arquivo" type="file" multiple accept="image/*,.zip,application/zip" class="rf-oculto">
+                <input id="rf-arquivos" name="arquivo" type="file" multiple accept="image/*,.heic,.heif,.zip,application/zip" class="rf-oculto">
                 <noscript><button type="submit" class="rf-botao mt-4">Enviar</button></noscript>
             </form>
             {% if serverless %}
@@ -142,20 +164,21 @@
     <div class="rf-cartao">
         <div class="flex items-center justify-between gap-3 mb-3">
             <h2 class="rf-titulo text-sm">Ainda faltando</h2>
-            <span class="rf-suave">Enquanto falta, o site mostra “Foto em atualização”.</span>
+            <span class="rf-suave">Use <strong>Escolher foto</strong> (ou arraste a foto em cima da linha). Enquanto falta, o site mostra “Foto em atualização”.</span>
         </div>
         <div class="overflow-x-auto">
             <table class="rf-tabela">
-                <thead><tr><th>Onde</th><th>Campo</th><th>Nome antigo</th></tr></thead>
+                <thead><tr><th>Onde</th><th>Campo</th><th>Nome antigo</th><th></th></tr></thead>
                 <tbody id="rf-tabela">
                     {% for linha in faltando %}
-                    <tr>
+                    <tr data-chave="{{ linha.chave }}" data-pk="{{ linha.pk }}" data-campo="{{ linha.campo }}" data-rotulo="{{ linha.rotulo }}">
                         <td><strong style="color: var(--cf-texto)">{{ linha.rotulo|default:"—" }}</strong><br><span class="rf-suave">{{ linha.modelo }} #{{ linha.pk }}</span></td>
                         <td>{{ linha.campo }}</td>
                         <td><code>{{ linha.nome }}</code></td>
+                        <td class="rf-acao"><button type="button" class="rf-botao pequeno" data-definir><i class="fas fa-image"></i> Escolher foto</button></td>
                     </tr>
                     {% empty %}
-                    <tr><td colspan="3" class="text-center py-6"><i class="fas fa-circle-check mr-1" style="color: #16a34a"></i> Todas as fotos estão no banco.</td></tr>
+                    <tr><td colspan="4" class="text-center py-6"><i class="fas fa-circle-check mr-1" style="color: #16a34a"></i> Todas as fotos estão no banco.</td></tr>
                     {% endfor %}
                 </tbody>
             </table>
@@ -165,5 +188,7 @@
 {% endblock %}
 
 {% block scripts %}
+{{ faltando|json_script:"rf-dados-faltando" }}
+<script src="{% static 'core/js/preparar_foto.js' %}?v={{ versao_estaticos }}" defer></script>
 <script src="{% static 'core/js/restaurar_fotos.js' %}?v={{ versao_estaticos }}" defer></script>
 {% endblock %}
