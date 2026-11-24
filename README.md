@@ -93,8 +93,18 @@ não mostra (HEIC, TIFF, BMP), e a escolha manual não depende de nome
 (`restauracao.definir_foto`, `?acao=definir`).
 
 O topo da tela mostra quantas fotos estão guardadas no banco e quantos MB
-ocupam. Se a tabela das fotos ainda não existir, a própria tela aplica a
-migração.
+ocupam, e **testa o armazenamento a cada abertura** (grava, lê e desfaz uma
+foto de teste): faixa verde = pode enviar; faixa vermelha = o motivo exato
+que o banco deu.
+
+**A tabela das fotos se cria sozinha.** Em produção a migração `0015` não
+tinha rodado e todo envio falhava com "Não foi possível guardar a foto
+agora" (`relation "core_arquivonobanco" does not exist`). Guardar foto não
+depende mais de migração, variável de ambiente ou de como o site sobe: se a
+tabela faltar na hora de gravar, de entregar uma foto ou de abrir "Restaurar
+fotos", ela é criada ali (`core.midia.garantir_tabela`), e a `0015` aceita a
+tabela já criada. Se guardar falhar por outro motivo, o aviso no admin traz
+o **detalhe técnico** do banco.
 
 ### Trazer as fotos antigas de volta
 

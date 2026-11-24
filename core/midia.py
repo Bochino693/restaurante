@@ -30,7 +30,7 @@ from django.core.exceptions import SuspiciousFileOperation
 from django.core.files.base import ContentFile, File
 from django.core.files.storage import FileSystemStorage, Storage
 from django.core.files.utils import validate_file_name
-from django.db import IntegrityError, transaction
+from django.db import DatabaseError, IntegrityError, connection, transaction
 from django.utils.deconstruct import deconstructible
 from django.utils.encoding import filepath_to_uri
 from django.utils.functional import cached_property
@@ -91,8 +91,90 @@ class ErroAoGuardarMidia(Exception):
         "enviar de novo em alguns instantes. Se continuar, use uma foto menor."
     )
 
-    def __init__(self, mensagem=None):
-        super().__init__(mensagem or self.MENSAGEM)
+    def __init__(self, mensagem=None, causa=None):
+        mensagem = mensagem or self.MENSAGEM
+        if causa is not None:
+            # O motivo de verdade aparece para a equipe (só ela envia fotos):
+            # sem isso, cada falha vira adivinhação.
+            detalhe = " ".join(f"{causa.__class__.__name__}: {causa}".split())[:220]
+            mensagem = f"{mensagem} (Detalhe técnico: {detalhe})"
+        super().__init__(mensagem)
+
+
+# ------------------------------------------------- a tabela das fotos
+# A tabela nasce na migração 0015, mas guardar foto NÃO pode depender de a
+# migração ter rodado no servidor (na Vercel ela não rodou e todo envio
+# falhava). Se a tabela faltar na hora de usar, ela é criada ali mesmo.
+
+def tabela_existe():
+    from .models import ArquivoNoBanco
+
+    with connection.cursor() as cursor:
+        return ArquivoNoBanco._meta.db_table in connection.introspection.table_names(cursor)
+
+
+def garantir_tabela():
+    """Cria a tabela das fotos se ela não existir. True se criou agora."""
+    from .models import ArquivoNoBanco
+
+    if tabela_existe():
+        return False
+    try:
+        with transaction.atomic():
+            editor = connection.schema_editor()
+            editor.deferred_sql = []  # só existe dentro do "with"; aqui só queremos o SQL
+            sql, parametros = editor.table_sql(ArquivoNoBanco)
+            with connection.cursor() as cursor:
+                cursor.execute(sql, parametros or None)
+                for extra in editor.deferred_sql:
+                    cursor.execute(str(extra))
+    except DatabaseError:
+        if tabela_existe():  # outra instância criou no mesmo instante
+            return True
+        raise
+    logger.warning("Tabela das fotos criada agora (a migração 0015 não tinha rodado).")
+    return True
+
+
+def com_tabela(funcao, savepoint=True):
+    """Roda `funcao()`; se o banco reclamar e a tabela das fotos não
+    existir, cria a tabela e roda de novo. `savepoint=False` só para quem
+    nunca roda dentro de uma transação (a rota que entrega as fotos)."""
+    try:
+        if savepoint and connection.in_atomic_block:
+            with transaction.atomic():  # savepoint: a transação de fora segue valendo
+                return funcao()
+        return funcao()
+    except DatabaseError as erro:
+        try:
+            criou = garantir_tabela()
+        except Exception:
+            raise erro
+        if not criou:
+            raise
+        return funcao()
+
+
+def testar_armazenamento():
+    """Grava, lê e desfaz um arquivo de teste. "" se está tudo certo; senão,
+    o erro como o banco contou."""
+    from .models import ArquivoNoBanco
+
+    def teste():
+        with transaction.atomic():
+            nome = f"{PREFIXO}_teste/{secrets.token_hex(8)}"
+            ArquivoNoBanco.objects.create(nome=nome, conteudo=b"ok", tipo="text/plain", tamanho=2, sha256="teste")
+            lido = ArquivoNoBanco.objects.filter(nome=nome).values_list("conteudo", flat=True).first()
+            transaction.set_rollback(True)
+        if lido is None or bytes(lido) != b"ok":
+            raise DatabaseError("o arquivo de teste não voltou igual do banco")
+
+    try:
+        com_tabela(teste)
+    except Exception as erro:
+        logger.exception("Teste do armazenamento das fotos falhou")
+        return " ".join(f"{erro.__class__.__name__}: {erro}".split())[:300]
+    return ""
 
 
 def largura_permitida(largura):
@@ -228,6 +310,10 @@ def guardar_bytes(nome, dados, tipo):
     vezes não duplica nada). Mesmo nome com outro conteúdo: devolve False
     (quem chamou escolhe outro nome).
     """
+    return com_tabela(lambda: _guardar_bytes(nome, dados, tipo))
+
+
+def _guardar_bytes(nome, dados, tipo):
     from .models import ArquivoNoBanco
 
     sha256 = hashlib.sha256(dados).hexdigest()
@@ -294,7 +380,7 @@ class MidiaNoBanco(Storage):
             raise
         except Exception as erro:
             logger.exception("Falha ao guardar %s no banco", name)
-            raise ErroAoGuardarMidia() from erro
+            raise ErroAoGuardarMidia(causa=erro) from erro
         validate_file_name(nome, allow_relative_path=True)
         return nome
 

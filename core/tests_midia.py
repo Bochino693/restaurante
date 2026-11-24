@@ -21,8 +21,8 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
 from django.conf import settings
 from django.core.management.base import CommandError
-from django.db import DEFAULT_DB_ALIAS, DatabaseError
-from django.test import TestCase, override_settings
+from django.db import DEFAULT_DB_ALIAS, DatabaseError, connection
+from django.test import TestCase, TransactionTestCase, override_settings
 from django.urls import reverse
 from PIL import Image
 
@@ -303,6 +303,7 @@ class EnvioPeloAdminTests(ComProdutos):
             resposta = self._enviar()
         self.assertEqual(resposta.status_code, 200)
         self.assertContains(resposta, "Não foi possível guardar a foto agora")
+        self.assertContains(resposta, "Detalhe técnico: DatabaseError: fora do ar")
         self.assertContains(resposta, "Suco de Laranja")  # o que foi digitado continua no formulário
         self.assertFalse(Produtos.objects.filter(nome_produto="Suco de Laranja").exists())
 
@@ -750,25 +751,8 @@ class EscolherFotoTests(ComProdutos):
         resposta = self.client.get(reverse("admin:core_produtos_add"))
         self.assertContains(resposta, "core/js/preparar_foto.js")
 
-    def test_pagina_cria_a_tabela_se_a_migracao_nao_rodou(self):
-        original = restauracao.faltando
-        chamadas = []
-
-        def faltando_que_falha_uma_vez():
-            chamadas.append(1)
-            if len(chamadas) == 1:
-                raise DatabaseError("relation core_arquivonobanco does not exist")
-            return original()
-
-        with mock.patch.object(restauracao, "faltando", faltando_que_falha_uma_vez), \
-                mock.patch.object(auto_migracao, "migrar_pendentes") as migrar:
-            resposta = self.client.get(self.url)
-        self.assertEqual(resposta.status_code, 200)
-        migrar.assert_called_once_with(forcar=True)
-
     def test_banco_fora_do_ar_mostra_aviso_e_nao_da_500(self):
-        with mock.patch.object(restauracao, "faltando", side_effect=DatabaseError("fora do ar")), \
-                mock.patch.object(auto_migracao, "migrar_pendentes"):
+        with mock.patch.object(restauracao, "faltando", side_effect=DatabaseError("fora do ar")):
             resposta = self.client.get(self.url)
         self.assertEqual(resposta.status_code, 200)
         self.assertContains(resposta, "O banco não respondeu")
@@ -782,6 +766,66 @@ class EscolherFotoTests(ComProdutos):
             })
         self.assertEqual(resposta.status_code, 200)
         self.assertContains(resposta, "Não foi possível guardar a foto agora")
+
+
+@override_settings(STORAGES=NO_BANCO, MIDIA_CACHE_PASTA="", CLOUDINARY_STORAGE=SEM_CLOUDINARY, SERVERLESS=False)
+class TabelaQueFaltaTests(TransactionTestCase):
+    """Em produção a migração 0015 não rodou e todo envio falhava: guardar
+    foto não pode depender dela."""
+
+    def setUp(self):
+        cache.clear()
+        self._apagar_tabela()
+        self.categoria = CategoriaProdutos(nome_categoria="Bebidas")
+        self.categoria.imagem_categoria.name = "media/imagens_categorias/beb_aa11bb"
+        self.categoria.save()
+        self.refri = Produtos(nome_produto="REFRI-MINI 200ml", categoria=self.categoria, preco=Decimal("2.00"), codigo=555)
+        self.refri.image_produto.name = "media/produtos/refriii_gdff30"
+        self.refri.save()
+        self.client.force_login(User.objects.create_superuser("dono", "dono@x.com", "senha-segura-123"))
+
+    def tearDown(self):
+        midia.garantir_tabela()
+
+    @staticmethod
+    def _apagar_tabela():
+        with connection.cursor() as cursor:
+            cursor.execute(f"DROP TABLE IF EXISTS {ArquivoNoBanco._meta.db_table}")
+
+    def test_admin_guarda_a_foto_mesmo_sem_a_tabela(self):
+        self.assertFalse(midia.tabela_existe())
+        resposta = self.client.post(reverse("admin:core_produtos_change", args=[self.refri.pk]), {
+            "nome_produto": "REFRI-MINI 200ml",
+            "image_produto": SimpleUploadedFile("refri.jpg", imagem(80, 80, "JPEG"), content_type="image/jpeg"),
+            "codigo": 555, "preco": "2.00", "categoria": self.categoria.pk, "ativo": "on",
+        })
+        self.assertEqual(resposta.status_code, 302, resposta.content[:3000])
+        self.refri.refresh_from_db()
+        self.assertTrue(self.refri.image_produto.name.startswith("banco/produtos/refri-"))
+        self.assertEqual(self.client.get(self.refri.image_produto.url).status_code, 200)
+
+    def test_foto_pedida_sem_a_tabela_da_404_e_nao_500(self):
+        self.assertEqual(self.client.get("/midia/banco/produtos/x.jpg").status_code, 404)
+        self.assertTrue(midia.tabela_existe())
+
+    def test_restaurar_fotos_abre_e_testa_o_armazenamento(self):
+        resposta = self.client.get(reverse("restaurar_fotos"))
+        self.assertEqual(resposta.status_code, 200)
+        self.assertContains(resposta, "Armazenamento testado agora")
+        self.assertTrue(midia.tabela_existe())
+        self.assertEqual(ArquivoNoBanco.objects.count(), 0)  # o teste não deixa lixo
+
+    def test_teste_do_armazenamento_conta_o_erro_de_verdade(self):
+        with mock.patch.object(ArquivoNoBanco.objects, "create", side_effect=DatabaseError("cannot execute INSERT in a read-only transaction")):
+            self.assertIn("read-only", midia.testar_armazenamento())
+        resposta_ok = midia.testar_armazenamento()
+        self.assertEqual(resposta_ok, "")
+
+    def test_migracao_0015_aceita_a_tabela_ja_criada(self):
+        midia.garantir_tabela()
+        call_command("migrate", "core", "0014", fake=True, verbosity=0)
+        call_command("migrate", "core", verbosity=0)
+        self.assertTrue(midia.tabela_existe())
 
 
 class _CursorFalso:

@@ -88,6 +88,21 @@
         </div>
     </div>
 
+    {% if banco_ligado %}
+    {% if erro_do_teste %}
+    <div class="rf-aviso erro" id="rf-teste">
+        <i class="fas fa-triangle-exclamation mr-1"></i>
+        <strong>O banco recusou guardar uma foto de teste agora.</strong> Enquanto isto aparecer, nenhuma foto entra.
+        Motivo que o banco deu: <code>{{ erro_do_teste }}</code>
+    </div>
+    {% else %}
+    <div class="rf-aviso ok" id="rf-teste">
+        <i class="fas fa-circle-check mr-1"></i>
+        Armazenamento testado agora: o banco gravou e devolveu uma foto de teste. Pode enviar.
+    </div>
+    {% endif %}
+    {% endif %}
+
     {% if erro_do_banco %}
     <div class="rf-aviso erro">
         <i class="fas fa-triangle-exclamation mr-1"></i>

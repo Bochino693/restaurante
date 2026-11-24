@@ -55,7 +55,10 @@ def servir_midia(request, caminho):
         largura = pedida
 
     nome = midia.PREFIXO + caminho
-    dados_do_arquivo = ArquivoNoBanco.objects.filter(nome=nome).values("sha256", "tipo").first()
+    dados_do_arquivo = midia.com_tabela(
+        lambda: ArquivoNoBanco.objects.filter(nome=nome).values("sha256", "tipo").first(),
+        savepoint=False,
+    )
     if not dados_do_arquivo:
         resposta = HttpResponse("Arquivo não encontrado.", status=404, content_type="text/plain; charset=utf-8")
         resposta["Cache-Control"] = CACHE_CURTO
@@ -129,18 +132,18 @@ class RestaurarFotosView(LoginRequiredMixin, UserPassesTestMixin, View):
             or "application/json" in self.request.headers.get("Accept", "")
         )
 
+    def dispatch(self, request, *args, **kwargs):
+        # A tabela das fotos é criada aqui se a migração não rodou no servidor.
+        if request.user.is_authenticated and self.test_func():
+            try:
+                midia.garantir_tabela()
+            except Exception:
+                logger.exception("Não deu para conferir a tabela das fotos")
+        return super().dispatch(request, *args, **kwargs)
+
     @staticmethod
     def _faltando():
-        """As fotos que faltam. Se a tabela das fotos ainda não existe (a
-        migração não rodou), cria agora e tenta de novo."""
-        try:
-            return restauracao.descrever(restauracao.faltando())
-        except DatabaseError:
-            logger.warning("Tabela das fotos indisponível; aplicando as migrações.", exc_info=True)
-            from .auto_migracao import migrar_pendentes
-
-            migrar_pendentes(forcar=True)
-            return restauracao.descrever(restauracao.faltando())
+        return restauracao.descrever(restauracao.faltando())
 
     @staticmethod
     def _guardadas():
@@ -161,6 +164,7 @@ class RestaurarFotosView(LoginRequiredMixin, UserPassesTestMixin, View):
             "faltando": linhas,
             "guardadas": guardadas,
             "erro_do_banco": erro_do_banco,
+            "erro_do_teste": midia.testar_armazenamento() if self._banco_ligado() else "",
             "banco_ligado": self._banco_ligado(),
             "limite_envio": restauracao.limite_de_envio(),
             "limite_envio_mb": restauracao.limite_de_envio() // (1024 * 1024),

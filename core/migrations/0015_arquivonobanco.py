@@ -3,6 +3,18 @@
 from django.db import migrations, models
 
 
+class CriarSeFaltar(migrations.CreateModel):
+    """A tabela pode já existir: o site a cria sozinho na hora de guardar a
+    primeira foto quando esta migração ainda não rodou (core.midia.garantir_tabela)."""
+
+    def database_forwards(self, app_label, schema_editor, from_state, to_state):
+        modelo = to_state.apps.get_model(app_label, self.name)
+        with schema_editor.connection.cursor() as cursor:
+            existentes = schema_editor.connection.introspection.table_names(cursor)
+        if modelo._meta.db_table not in existentes:
+            super().database_forwards(app_label, schema_editor, from_state, to_state)
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -10,7 +22,7 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.CreateModel(
+        CriarSeFaltar(
             name="ArquivoNoBanco",
             fields=[
                 (
