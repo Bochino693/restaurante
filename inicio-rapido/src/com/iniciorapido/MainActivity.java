@@ -155,7 +155,7 @@ public class MainActivity extends Activity {
         tHome = text("", 15, TEXT, false);
         cHome.addView(tHome);
         bHome = button("", true, new View.OnClickListener() {
-            public void onClick(View v) { chooseDefaultHome(); }
+            public void onClick(View v) { activate(); }
         });
         cHome.addView(bHome, margin(-1, -2, 0, px(12), 0, 0));
         bKiosk = button("", false, new View.OnClickListener() {
@@ -219,11 +219,10 @@ public class MainActivity extends Activity {
         boolean kiosk = sp.getBoolean(Cfg.K_KIOSK, false);
         tHome.setText(isHome
                 ? "ATIVO. O jogo abre no instante em que o Android termina de ligar."
-                : "DESATIVADO. No Android 10 o sistema só deixa abrir o jogo no boot se o Início "
-                + "Rápido for a tela inicial. Toque abaixo, escolha \"Início Rápido\" e depois "
-                + "\"Sempre\". É uma vez só.");
+                : "DESLIGADO. No Android 10 o sistema só deixa abrir o jogo no boot se o Início "
+                + "Rápido for a tela inicial da box. Toque no botão abaixo e confirme.");
         tHome.setTextColor(isHome ? GREEN : ACCENT);
-        bHome.setText(isHome ? "Trocar tela inicial" : "Definir como tela inicial");
+        bHome.setText(isHome ? "Modo rápido ativado  ✓" : "ATIVAR MODO RÁPIDO");
         bKiosk.setText(kiosk ? "●  PRESO NO JOGO: SIM" : "○  PRESO NO JOGO: NÃO");
         bKiosk.setTextColor(states(kiosk ? GREEN : SUB));
 
@@ -231,7 +230,7 @@ public class MainActivity extends Activity {
         int color;
         if (!has) { st = "ESCOLHA O JOGO"; color = ACCENT; }
         else if (!on) { st = "DESLIGADO"; color = SUB; }
-        else if (!isHome && Build.VERSION.SDK_INT >= 29) { st = "ATIVE O MODO RÁPIDO"; color = ACCENT; }
+        else if (!isHome && Build.VERSION.SDK_INT >= 29) { st = "MODO RÁPIDO DESLIGADO"; color = ACCENT; }
         else { st = "PRONTO"; color = GREEN; }
         pill.setText(st);
         pill.setBackgroundDrawable(shape(color, 20));
@@ -247,21 +246,97 @@ public class MainActivity extends Activity {
         refresh();
     }
 
-    /** Abre a tela do Android para escolher a tela inicial padrao. */
-    private void chooseDefaultHome() {
-        toast("Escolha \"Início Rápido\" e depois \"Sempre\"");
-        if (Build.VERSION.SDK_INT >= 21) {
+    // ------------------------------------------------------ modo rapido
+
+    private static final int REQ_ROLE = 7;
+    private static final String HOME_CMD =
+            "cmd package set-home-activity com.iniciorapido/.HomeActivity";
+
+    /**
+     * Torna o Inicio Rapido a tela inicial. Tenta, em ordem:
+     * 1) o pedido oficial do Android 10+ (que substituiu o antigo "Sempre");
+     * 2) root, que muitas TV boxes trazem de fabrica;
+     * 3) a tela de configuracao do Android; e por fim explica o caminho por ADB.
+     */
+    private void activate() {
+        if (Build.VERSION.SDK_INT >= 29) {
             try {
-                startActivity(new Intent(android.provider.Settings.ACTION_HOME_SETTINGS));
+                Object rm = getSystemService("role");
+                Intent i = (Intent) rm.getClass().getMethod("createRequestRoleIntent", String.class)
+                        .invoke(rm, "android.app.role.HOME");
+                startActivityForResult(i, REQ_ROLE);
                 return;
             } catch (Throwable ignored) {}
         }
-        try {
-            // Sem essa tela: o proprio botao Home mostra a pergunta.
-            startActivity(Cfg.homeIntent().addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
-        } catch (Throwable t) {
-            toast("Aperte o botão Home do controle e escolha Início Rápido > Sempre");
+        activateWithRoot();
+    }
+
+    @Override
+    protected void onActivityResult(int req, int res, Intent data) {
+        super.onActivityResult(req, res, data);
+        if (req != REQ_ROLE) return;
+        if (Cfg.isDefaultHome(this)) {
+            toast("Modo rápido ativado");
+            refresh();
+        } else {
+            activateWithRoot();
         }
+    }
+
+    private void activateWithRoot() {
+        final ProgressDialog pd = ProgressDialog.show(this, null, "Ativando...", true, false);
+        new Thread(new Runnable() {
+            public void run() {
+                try {
+                    final Process p = Runtime.getRuntime().exec(new String[] {"su", "-c", HOME_CMD});
+                    Thread killer = new Thread(new Runnable() {
+                        public void run() {
+                            try { Thread.sleep(8000); } catch (Throwable ignored) {}
+                            try { p.destroy(); } catch (Throwable ignored) {}
+                        }
+                    });
+                    killer.setDaemon(true);
+                    killer.start();
+                    p.waitFor();
+                } catch (Throwable ignored) {}
+                runOnUiThread(new Runnable() {
+                    public void run() {
+                        if (isFinishing()) return;
+                        try { pd.dismiss(); } catch (Throwable ignored) {}
+                        if (Cfg.isDefaultHome(MainActivity.this)) {
+                            toast("Modo rápido ativado");
+                            refresh();
+                        } else {
+                            activateBySettings();
+                        }
+                    }
+                });
+            }
+        }).start();
+    }
+
+    private void activateBySettings() {
+        new AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
+                .setTitle("Esta TV box não deixou trocar a tela inicial")
+                .setMessage("O Android desta box não mostrou o pedido de tela inicial e ela não tem "
+                        + "root.\n\nDá para ativar uma única vez por ADB, de um computador ou "
+                        + "celular na mesma rede:\n\n1. Na box: Configurações > Sobre > toque 7 "
+                        + "vezes em \"Número da versão\"; depois Opções do desenvolvedor > "
+                        + "Depuração USB / de rede.\n2. No computador:\n   adb connect IP_DA_BOX\n"
+                        + "   adb shell " + HOME_CMD + "\n\nDepois disso o jogo abre sozinho ao "
+                        + "ligar, para sempre.")
+                .setPositiveButton("Tentar pela configuração do Android",
+                        new DialogInterface.OnClickListener() {
+                            public void onClick(DialogInterface d, int w) {
+                                try {
+                                    startActivity(new Intent(
+                                            android.provider.Settings.ACTION_HOME_SETTINGS));
+                                } catch (Throwable t) {
+                                    toast("Esta box não tem essa tela. Use o ADB.");
+                                }
+                            }
+                        })
+                .setNegativeButton("Fechar", null).show();
     }
 
     // ------------------------------------------------------ escolha do jogo
