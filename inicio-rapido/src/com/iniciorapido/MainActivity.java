@@ -44,6 +44,7 @@ public class MainActivity extends Activity {
 
     private TextView pill, gameName, gamePkg, bPick, bTest, bOn, tDelay, tDiag;
     private ImageView gameIcon;
+    private TextView tHome, bHome, bKiosk;
 
     private static final class App {
         String label, pkg, cls;
@@ -149,11 +150,24 @@ public class MainActivity extends Activity {
                 + "próprio sistema impõe cerca de 5 s entre o boot e a abertura.", 12, SUB, false),
                 margin(-1, -2, 0, px(8), 0, 0));
 
-        // Cartao: como funciona
-        LinearLayout cHow = card(right, "COMO FUNCIONA");
-        cHow.addView(text("1.  Escolha o jogo.\n2.  Reinicie a TV box.\n3.  A tela inicial "
-                + "aparece e o jogo abre sozinho logo em seguida.\n\nNão precisa de nenhuma "
-                + "permissão nem de trocar a tela inicial.", 15, TEXT, false));
+        // Cartao: tela inicial
+        LinearLayout cHome = card(right, "MODO RÁPIDO (TELA INICIAL)");
+        tHome = text("", 15, TEXT, false);
+        cHome.addView(tHome);
+        bHome = button("", true, new View.OnClickListener() {
+            public void onClick(View v) { chooseDefaultHome(); }
+        });
+        cHome.addView(bHome, margin(-1, -2, 0, px(12), 0, 0));
+        bKiosk = button("", false, new View.OnClickListener() {
+            public void onClick(View v) {
+                sp.edit().putBoolean(Cfg.K_KIOSK, !sp.getBoolean(Cfg.K_KIOSK, false)).apply();
+                refresh();
+            }
+        });
+        cHome.addView(bKiosk, margin(-1, -2, 0, px(10), 0, 0));
+        cHome.addView(text("Preso no jogo: o botão Home sempre volta para o jogo. Para abrir esta "
+                + "tela, aperte Home 5 vezes seguidas.", 12, SUB, false),
+                margin(-1, -2, 0, px(8), 0, 0));
 
         // Cartao: diagnostico
         LinearLayout cDiag = card(right, "ÚLTIMA INICIALIZAÇÃO");
@@ -201,10 +215,23 @@ public class MainActivity extends Activity {
         int s = sp.getInt(Cfg.K_DELAY, 0);
         tDelay.setText(s == 0 ? "Atraso: nenhum (imediato)" : "Atraso: " + s + " s");
 
+        boolean isHome = Cfg.isDefaultHome(this);
+        boolean kiosk = sp.getBoolean(Cfg.K_KIOSK, false);
+        tHome.setText(isHome
+                ? "ATIVO. O jogo abre no instante em que o Android termina de ligar."
+                : "DESATIVADO. No Android 10 o sistema só deixa abrir o jogo no boot se o Início "
+                + "Rápido for a tela inicial. Toque abaixo, escolha \"Início Rápido\" e depois "
+                + "\"Sempre\". É uma vez só.");
+        tHome.setTextColor(isHome ? GREEN : ACCENT);
+        bHome.setText(isHome ? "Trocar tela inicial" : "Definir como tela inicial");
+        bKiosk.setText(kiosk ? "●  PRESO NO JOGO: SIM" : "○  PRESO NO JOGO: NÃO");
+        bKiosk.setTextColor(states(kiosk ? GREEN : SUB));
+
         String st;
         int color;
         if (!has) { st = "ESCOLHA O JOGO"; color = ACCENT; }
         else if (!on) { st = "DESLIGADO"; color = SUB; }
+        else if (!isHome && Build.VERSION.SDK_INT >= 29) { st = "ATIVE O MODO RÁPIDO"; color = ACCENT; }
         else { st = "PRONTO"; color = GREEN; }
         pill.setText(st);
         pill.setBackgroundDrawable(shape(color, 20));
@@ -218,6 +245,23 @@ public class MainActivity extends Activity {
         int v = Math.max(0, Math.min(120, sp.getInt(Cfg.K_DELAY, 0) + d));
         sp.edit().putInt(Cfg.K_DELAY, v).apply();
         refresh();
+    }
+
+    /** Abre a tela do Android para escolher a tela inicial padrao. */
+    private void chooseDefaultHome() {
+        toast("Escolha \"Início Rápido\" e depois \"Sempre\"");
+        if (Build.VERSION.SDK_INT >= 21) {
+            try {
+                startActivity(new Intent(android.provider.Settings.ACTION_HOME_SETTINGS));
+                return;
+            } catch (Throwable ignored) {}
+        }
+        try {
+            // Sem essa tela: o proprio botao Home mostra a pergunta.
+            startActivity(Cfg.homeIntent().addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        } catch (Throwable t) {
+            toast("Aperte o botão Home do controle e escolha Início Rápido > Sempre");
+        }
     }
 
     // ------------------------------------------------------ escolha do jogo

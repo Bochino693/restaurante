@@ -3,12 +3,16 @@ package com.iniciorapido;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.ComponentName;
+import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
 import android.os.Build;
 import android.provider.Settings;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
+import java.util.List;
 
 /** Configuracao e rotinas compartilhadas. Sem bibliotecas externas para o processo subir rapido. */
 final class Cfg {
@@ -21,6 +25,7 @@ final class Cfg {
     static final String K_BOOT = "boot";
     static final String K_SCHED = "sched";
     static final String K_DIAG = "diag";
+    static final String K_KIOSK = "kiosk";
 
     private Cfg() {}
 
@@ -92,6 +97,51 @@ final class Cfg {
             return null;
         } catch (Throwable t) {
             return String.valueOf(t.getMessage());
+        }
+    }
+
+    static Intent homeIntent() {
+        Intent i = new Intent(Intent.ACTION_MAIN);
+        i.addCategory(Intent.CATEGORY_HOME);
+        return i;
+    }
+
+    /** true se o Inicio Rapido e a tela inicial padrao da box. */
+    static boolean isDefaultHome(Context c) {
+        try {
+            ResolveInfo ri = c.getPackageManager()
+                    .resolveActivity(homeIntent(), PackageManager.MATCH_DEFAULT_ONLY);
+            return ri != null && ri.activityInfo != null
+                    && c.getPackageName().equals(ri.activityInfo.packageName);
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    /** Abre o launcher normal da TV box (de preferencia o que veio de fabrica). */
+    static boolean launchRealHome(Context c) {
+        try {
+            List<ResolveInfo> all = c.getPackageManager().queryIntentActivities(homeIntent(), 0);
+            ResolveInfo pick = null;
+            for (int k = 0; k < all.size(); k++) {
+                ResolveInfo ri = all.get(k);
+                if (ri.activityInfo == null) continue;
+                if (c.getPackageName().equals(ri.activityInfo.packageName)) continue;
+                if (ri.activityInfo.name.endsWith("FallbackHome")) continue;
+                boolean sys = (ri.activityInfo.applicationInfo.flags & ApplicationInfo.FLAG_SYSTEM) != 0;
+                if (pick == null || (sys && (pick.activityInfo.applicationInfo.flags
+                        & ApplicationInfo.FLAG_SYSTEM) == 0)) {
+                    pick = ri;
+                }
+            }
+            if (pick == null) return false;
+            Intent i = homeIntent();
+            i.setComponent(new ComponentName(pick.activityInfo.packageName, pick.activityInfo.name));
+            i.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
+            c.startActivity(i);
+            return true;
+        } catch (Throwable t) {
+            return false;
         }
     }
 }

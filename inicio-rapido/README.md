@@ -8,19 +8,17 @@ assim que a TV box liga. Feito para aparelhos fracos (Mali-450, 1 GB de RAM).
 
 ## Como funciona
 
-Igual ao AutoStart: o launcher normal da box sobe e o jogo abre em seguida.
-Não é um launcher e não pede para virar app padrão de nada.
+**Modo rápido (necessário no Android 10+):** o Início Rápido é definido como
+tela inicial da box. O Android abre a tela inicial assim que termina de ligar,
+e ela abre o jogo na hora. Depois disso o botão Home leva ao launcher de
+fábrica (ou de volta ao jogo, com "Preso no jogo" ligado).
 
-| | AutoStart original | Início Rápido |
-|---|---|---|
-| Gatilho | só `BOOT_COMPLETED`, sem prioridade | `LOCKED_BOOT_COMPLETED`, `BOOT_COMPLETED` (prioridade 999), armazenamento montado, rede — o que chegar primeiro |
-| Depois do gatilho | alarme, depois abre | Android ≤ 9: abre na hora. Android 10+: alarme (exigência do sistema), armado já no primeiro aviso |
-| Código | 711 KB (support-v4 inteira) | 26 KB, sem bibliotecas |
-| Apps só de TV (leanback) | não abre | abre |
-| Aviso "app criado para versão antiga" | aparece (target 18) | não aparece (target 23) |
+**Modo compatível (Android 9 ou anterior):** sem trocar a tela inicial, o jogo
+abre no primeiro aviso de boot. No Android 10+ o sistema bloqueia esse caminho
+(testado numa box Android 10 / API 29: nada abre).
 
 A tela mostra, em "Última inicialização", quantos segundos depois de ligar o
-jogo foi aberto e por qual aviso — ou o motivo da falha.
+jogo foi aberto e por qual caminho.
 
 ## Compilar
 
