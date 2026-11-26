@@ -61,6 +61,21 @@ e **não é preciso rodar `migrate` à mão**: ver
   redireciona para a mais próxima). O cardápio pede 320 (960 no Prato do
   dia), o caixa 480/640. Nos templates: `{% load midia %}` e
   `{{ produto.image_produto|foto:480 }}`.
+- **Rápido mesmo sem a borda**: a borda da Vercel esvazia a cada deploy, e
+  aí cada foto custava 1,5–2 s (duas consultas, a foto inteira saindo do
+  banco e o redimensionamento, toda vez). Agora cada tamanho é reduzido
+  **uma vez** e fica guardado ao lado da foto (`_mini/<largura>/<nome>`):
+  a entrega seguinte é uma consulta só, leve. A instância ainda lembra o que
+  já entregou (memória + pasta temporária, também na Vercel) e responde sem
+  consultar o banco. Apagar a foto apaga as miniaturas.
+- **Prévia na hora**: toda foto ganha uma versão de 20 px (~300 bytes,
+  `_mini/20/<nome>`) que vai dentro da própria página do cardápio, no fundo
+  da `<img>`: o cliente vê a comida na hora e a foto nítida entra por cima
+  (`fotos.js` tira a prévia). Foto nova já nasce com ela; as antigas ganham
+  na primeira vez que são pedidas. Bebida não leva (fundo branco).
+- **Cardápio**: as primeiras fotos da página carregam com prioridade, as
+  outras só ao rolar; o Prato do dia escolhe 320/640/960 conforme a tela
+  (no celular o quadro tem 128 px e antes baixava a de 960).
 - **Foto que não carrega** (ex.: as antigas da Cloudinary) vira um quadro
   limpo **"Foto em atualização"** no mesmo lugar — no cardápio, no painel e
   no admin — nunca o ícone de imagem quebrada (`core/static/core/js/fotos.js`).

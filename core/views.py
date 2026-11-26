@@ -87,6 +87,10 @@ def _produto_para_cardapio(produto, cores=None, com_refri=False):
         "imagem": _url_imagem(produto.image_produto, 320),
         # Card grande do "Prato do dia".
         "imagem_grande": _url_imagem(produto.image_produto, 960),
+        "imagem_media": _url_imagem(produto.image_produto, 640),
+        # Nome da foto no banco: é por ele que a prévia é encontrada.
+        "foto_nome": str(getattr(produto.image_produto, "name", "") or ""),
+        "previa": "",
         "tem_adicionais": _tem_adicionais(produto, com_refri),
         # Bebida mostra a lata/garrafa inteira na foto (sem corte).
         "bebida": _eh_bebida(produto),
@@ -102,7 +106,7 @@ CARDAPIO_CACHE_SEGUNDOS = 60
 
 def _dados_do_cardapio():
     dia_hoje = timezone.localdate().weekday()
-    chave = f"cardapio:v6:{dia_hoje}"
+    chave = f"cardapio:v7:{dia_hoje}"
     dados = cache.get(chave)
     if dados is not None:
         return dados
@@ -141,12 +145,26 @@ def _dados_do_cardapio():
         "pratos_do_dia": [_produto_para_cardapio(prato.produto, cores, com_refri) for prato in pratos],
     }
     dados["categorias"] = [c for c in dados["categorias"] if c["produtos"]]
+    _por_previas(dados)
     cache.set(chave, dados, CARDAPIO_CACHE_SEGUNDOS)
     return dados
 
 
+def _por_previas(dados):
+    """Prévia de cada foto (a foto em 20 px, dentro da própria página): o
+    cliente vê a comida na hora, e a foto nítida entra por cima. Uma consulta
+    só para o cardápio inteiro; bebida não leva (a foto dela tem fundo branco)."""
+    from .midia import previas
+
+    produtos = [p for c in dados["categorias"] for p in c["produtos"]] + dados["pratos_do_dia"]
+    achadas = previas({p["foto_nome"] for p in produtos if not p["bebida"]})
+    for produto in produtos:
+        produto["previa"] = "" if produto["bebida"] else achadas.get(produto.pop("foto_nome"), "")
+        produto.pop("foto_nome", None)
+
+
 def _limpar_cache_cardapio():
-    cache.delete_many([f"cardapio:v6:{d}" for d in range(7)])
+    cache.delete_many([f"cardapio:v7:{d}" for d in range(7)])
 
 
 class CardapioClienteView(View):
@@ -154,7 +172,8 @@ class CardapioClienteView(View):
         dados = _dados_do_cardapio()
         loja = status_da_loja()
         catalogo = {
-            str(p["id"]): p
+            # A prévia só serve para o HTML: fora do JSON, a página fica leve.
+            str(p["id"]): {k: v for k, v in p.items() if k != "previa"}
             for p in dados["pratos_do_dia"] + [p for c in dados["categorias"] for p in c["produtos"]]
         }
         return render(request, "index.html", {

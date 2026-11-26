@@ -31,8 +31,17 @@
         ["object-fit", "object-position", "background-color"].forEach(function (p) { img.style.removeProperty(p); });
     }
 
+    // A prévia (a foto em 20 px, no fundo da <img>) sai quando a foto chega
+    // ou quando ela falha: não fica aparecendo atrás de nada.
+    function tirarPrevia(img) {
+        if (!img.hasAttribute("data-previa")) return;
+        img.removeAttribute("data-previa");
+        img.style.removeProperty("background");
+    }
+
     function falhou(img) {
         if (!img || img.tagName !== "IMG") return;
+        tirarPrevia(img);
         var src = img.getAttribute("src");
         if (!src || src === RESERVA) return;
         img.setAttribute("data-foto-original", src);
@@ -46,6 +55,7 @@
     document.addEventListener("load", function (e) {
         var img = e.target;
         if (!img || img.tagName !== "IMG") return;
+        tirarPrevia(img);
         if (img.getAttribute("src") === RESERVA) marcar(img);
         else if (img.hasAttribute("data-foto-falhou")) desmarcar(img);  // trocou de foto e carregou
     }, true);
@@ -53,6 +63,7 @@
     // Fotos que já falharam antes deste script rodar.
     function varrer() {
         Array.prototype.forEach.call(document.images, function (img) {
+            if (img.complete && img.naturalWidth) tirarPrevia(img);
             if (!img.complete || img.naturalWidth || !img.getAttribute("src")) return;
             if (img.getAttribute("src") === RESERVA) return;
             if (img.decode) img.decode().catch(function () { falhou(img); });

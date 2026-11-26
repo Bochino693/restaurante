@@ -52,11 +52,47 @@ def _nomes_possiveis(caminho):
     return nomes
 
 
+def _nao_encontrado():
+    resposta = HttpResponse("Arquivo não encontrado.", status=404, content_type="text/plain; charset=utf-8")
+    resposta["Cache-Control"] = CACHE_CURTO
+    return resposta
+
+
+def _entregar(conteudo, tipo, etag):
+    resposta = HttpResponse(conteudo, content_type=tipo or "application/octet-stream")
+    resposta["Content-Length"] = str(len(conteudo))
+    return _cabecalhos(resposta, etag)
+
+
+def _etag(sha256, largura):
+    return f'"{sha256}{f"-w{largura}" if largura else ""}"'
+
+
+def _ja_tem(request, etag):
+    pedidas = parse_etags(request.headers.get("If-None-Match", ""))
+    return "*" in pedidas or etag in pedidas or etag.replace('"', 'W/"', 1) in pedidas
+
+
+def _miniatura_pronta(nomes, largura):
+    """(conteúdo, tipo, sha256 da foto) da miniatura já guardada, numa
+    consulta só e leve; None se ainda não existe."""
+    minis = [m for m in (midia.nome_da_miniatura(nome, largura) for nome in nomes) if m]
+    if not minis:
+        return None
+    linha = ArquivoNoBanco.objects.filter(nome__in=minis).values_list("conteudo", "tipo", "sha256").first()
+    return (bytes(linha[0]), linha[1], linha[2]) if linha else None
+
+
 @require_safe
 def servir_midia(request, caminho):
     """Entrega um arquivo do banco. O endereço nunca muda de conteúdo, então
     vai com cache de um ano (navegador e borda da Vercel); "?w=" entrega uma
-    versão menor em WebP, só nas larguras da lista."""
+    versão menor em WebP, só nas larguras da lista.
+
+    Do mais rápido para o mais lento: a instância já tem a foto (memória +
+    pasta temporária, nenhuma consulta) -> a miniatura pronta está no banco
+    (uma consulta leve) -> primeira vez daquele tamanho (lê a foto inteira,
+    reduz e guarda a miniatura para as próximas)."""
     largura = None
     if "w" in request.GET:
         try:
@@ -73,39 +109,62 @@ def servir_midia(request, caminho):
         largura = pedida
 
     nomes = _nomes_possiveis(caminho)
-    dados_do_arquivo = midia.com_tabela(
-        lambda: ArquivoNoBanco.objects.filter(nome__in=nomes).values("nome", "sha256", "tipo").first(),
-        savepoint=False,
-    )
-    if not dados_do_arquivo:
-        resposta = HttpResponse("Arquivo não encontrado.", status=404, content_type="text/plain; charset=utf-8")
-        resposta["Cache-Control"] = CACHE_CURTO
-        return resposta
+    tem_etag = bool(request.headers.get("If-None-Match"))
+    dados_do_arquivo = midia.lembrado(caminho)
+
+    # Miniatura pronta: resolve tudo numa consulta só (sem a foto inteira).
+    procurei_miniatura = False
+    if dados_do_arquivo is None and largura and not tem_etag:
+        procurei_miniatura = True
+        pronta = midia.com_tabela(lambda: _miniatura_pronta(nomes, largura), savepoint=False)
+        if pronta:
+            conteudo, tipo, sha256 = pronta
+            midia.gravar_no_cache(sha256, largura, conteudo, tipo)
+            return _entregar(conteudo, tipo, _etag(sha256, largura))
+
+    if dados_do_arquivo is None:
+        dados_do_arquivo = midia.com_tabela(
+            lambda: ArquivoNoBanco.objects.filter(nome__in=nomes).values("nome", "sha256", "tipo").first(),
+            savepoint=False,
+        )
+        if not dados_do_arquivo:
+            return _nao_encontrado()
+        midia.lembrar(caminho, dados_do_arquivo)
 
     nome = dados_do_arquivo["nome"]
     sha256 = dados_do_arquivo["sha256"]
-    etag = f'"{sha256}{f"-w{largura}" if largura else ""}"'
-    pedidas = parse_etags(request.headers.get("If-None-Match", ""))
-    if "*" in pedidas or etag in pedidas or etag.replace('"', 'W/"', 1) in pedidas:
+    etag = _etag(sha256, largura)
+    if _ja_tem(request, etag):
         return _cabecalhos(HttpResponseNotModified(), etag)
 
     pronto = midia.ler_do_cache(sha256, largura)
     if pronto:
-        conteudo, tipo = pronto
-    else:
-        bruto = ArquivoNoBanco.objects.filter(nome=nome).values_list("conteudo", flat=True).first()
-        if bruto is None:  # apagado entre as duas consultas
-            raise Http404
-        conteudo, tipo = bytes(bruto), dados_do_arquivo["tipo"]
-        if largura and tipo.startswith("image/"):
-            reduzida = midia.miniatura(conteudo, largura)
-            if reduzida:
-                conteudo, tipo = reduzida, "image/webp"
-        midia.gravar_no_cache(sha256, largura, conteudo, tipo)
+        return _entregar(pronto[0], pronto[1], etag)
 
-    resposta = HttpResponse(conteudo, content_type=tipo or "application/octet-stream")
-    resposta["Content-Length"] = str(len(conteudo))
-    return _cabecalhos(resposta, etag)
+    eh_imagem = dados_do_arquivo["tipo"].startswith("image/")
+    if largura and eh_imagem and not procurei_miniatura:
+        pronta = _miniatura_pronta([nome], largura)
+        if pronta and pronta[2] == sha256:
+            midia.gravar_no_cache(sha256, largura, pronta[0], pronta[1])
+            return _entregar(pronta[0], pronta[1], etag)
+
+    bruto = ArquivoNoBanco.objects.filter(nome=nome).values_list("conteudo", flat=True).first()
+    if bruto is None:  # apagado entre as duas consultas
+        raise Http404
+    original = bytes(bruto)
+    conteudo, tipo = original, dados_do_arquivo["tipo"]
+    if largura and eh_imagem:
+        reduzida = midia.miniatura(original, largura)
+        if reduzida:
+            conteudo, tipo = reduzida, "image/webp"
+        # Guarda para as próximas (a foto que já é menor vai como está).
+        if reduzida or len(original) <= midia.LIMITE_MINI_SEM_REDUZIR:
+            midia.guardar_miniatura(nome, largura, conteudo, tipo, sha256)
+        # Fotos antigas ganham a prévia na primeira vez que são pedidas.
+        if not ArquivoNoBanco.objects.filter(nome=midia.nome_da_miniatura(nome, midia.LARGURA_PREVIA)).exists():
+            midia.guardar_previa(nome, original, sha256)
+    midia.gravar_no_cache(sha256, largura, conteudo, tipo)
+    return _entregar(conteudo, tipo, etag)
 
 
 # ------------------------------------------------------- Restaurar fotos
@@ -166,7 +225,7 @@ class RestaurarFotosView(LoginRequiredMixin, UserPassesTestMixin, View):
 
     @staticmethod
     def _guardadas():
-        total = ArquivoNoBanco.objects.aggregate(quantas=Count("id"), bytes=Sum("tamanho"))
+        total = ArquivoNoBanco.objects.filter(nome__startswith=midia.PREFIXO).aggregate(quantas=Count("id"), bytes=Sum("tamanho"))
         return {"quantas": total["quantas"] or 0, "mb": round((total["bytes"] or 0) / (1024 * 1024), 1)}
 
     def get(self, request):
