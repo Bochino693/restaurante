@@ -76,6 +76,9 @@ e **não é preciso rodar `migrate` à mão**: ver
 - **Cardápio**: as primeiras fotos da página carregam com prioridade, as
   outras só ao rolar; o Prato do dia escolhe 320/640/960 conforme a tela
   (no celular o quadro tem 128 px e antes baixava a de 960).
+- **Caixa**: a mesma coisa — prévia na hora, os 12 primeiros cartões com
+  prioridade e o resto ao aparecer na tela, e o tamanho pela tela
+  (240/320/480; Prato do dia 320/480/640) com `{{ campo|foto_tamanhos:"240,320,480" }}`.
 - **Foto que não carrega** (ex.: as antigas da Cloudinary) vira um quadro
   limpo **"Foto em atualização"** no mesmo lugar — no cardápio, no painel e
   no admin — nunca o ícone de imagem quebrada (`core/static/core/js/fotos.js`).

@@ -335,6 +335,14 @@ class TelasComFotosDoBancoTests(ComProdutos):
         self.assertIn("?w=480", html)
         self.assertIn("core/js/fotos.js", html)
 
+    def test_caixa_vem_com_previa_e_tamanho_por_tela(self):
+        self.client.force_login(self.usuario)
+        html = self.client.get(reverse("caixa")).content.decode()
+        self.assertIn("data-previa", html)
+        self.assertIn("data:image/webp;base64,", html)
+        self.assertRegex(html, r'srcset="[^"]+\?w=240 240w, [^"]+\?w=320 320w, [^"]+\?w=480 480w"')
+        self.assertIn('loading="eager"', html)
+
 
 @override_settings(STORAGES=NO_BANCO, MIDIA_CACHE_PASTA="")
 class EnvioPeloAdminTests(ComProdutos):

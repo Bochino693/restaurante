@@ -246,6 +246,14 @@ class CaixaView(LoginRequiredMixin, View):
             produto.cor = cores.get(produto.categoria_id, PALETA_CATEGORIAS[0])
             produto.tem_adicionais = _tem_adicionais(produto, com_refri)
 
+        # Prévia de cada foto (20 px, dentro da página): o cartão já abre com
+        # a comida e a foto nítida entra por cima. Uma consulta para todos.
+        from .midia import previas
+        com_foto = [p for p in list(produtos) + [prato.produto for prato in pratos_do_dia] if not p.eh_bebida]
+        achadas = previas({str(p.image_produto.name or "") for p in com_foto})
+        for produto in com_foto:
+            produto.previa = achadas.get(str(produto.image_produto.name or ""), "")
+
         return render(request, 'caixa.html', {
             'produtos': produtos,
             'categorias': categorias,
