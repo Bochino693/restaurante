@@ -41,6 +41,7 @@ public class BootReceiver extends BroadcastReceiver {
 
         if (alarm) {
             // Acordado pelo alarme: aqui o Android deixa abrir o jogo.
+            if (id != null && id.equals(sp.getString(Cfg.K_BOOT, ""))) return; // alarme de reforco
             launch(c, sp, id, intent.getStringExtra("via"), up);
             return;
         }
@@ -53,7 +54,10 @@ public class BootReceiver extends BroadcastReceiver {
         int delay = sp.getInt(Cfg.K_DELAY, 0);
         boolean needAlarm = Build.VERSION.SDK_INT >= 29 || delay > 0;
         if (needAlarm) {
-            if (id != null) sp.edit().putString(Cfg.K_SCHED, id).apply();
+            SharedPreferences.Editor e = sp.edit();
+            if (quick) e.remove(Cfg.K_BOOT); // religou sem reiniciar: vale como novo boot
+            if (id != null) e.putString(Cfg.K_SCHED, id);
+            e.apply();
             schedule(c, delay, via);
             // Tentativa direta: de graca, e ganha uns segundos se esta box permitir.
             if (delay == 0) Cfg.launchTarget(c, sp);
