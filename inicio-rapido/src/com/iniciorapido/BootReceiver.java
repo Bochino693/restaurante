@@ -8,7 +8,6 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Build;
 import android.os.SystemClock;
-import android.provider.Settings;
 
 /**
  * Abre o jogo no primeiro aviso que o Android entregar depois de ligar.
@@ -53,10 +52,7 @@ public class BootReceiver extends BroadcastReceiver {
         String via = action.substring(action.lastIndexOf('.') + 1);
         SharedPreferences.Editor e = sp.edit();
         if (id != null) e.putString(Cfg.K_BOOT, id);
-        if (err == null && Build.VERSION.SDK_INT >= 29 && !Settings.canDrawOverlays(c)) {
-            err = "o Android 10+ bloqueia sem a permissao \"abrir sobre outros apps\"";
-        }
-        e.putString(Cfg.K_DIAG, (err == null ? "Abriu o jogo " : "Tentou abrir ")
+        e.putString(Cfg.K_DIAG, (err == null ? "Mandou abrir o jogo " : "Tentou abrir o jogo ")
                 + (up / 1000) + " s depois de ligar (aviso " + via + ")"
                 + (err == null ? "" : " - falhou: " + err));
         e.apply();

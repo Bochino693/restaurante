@@ -1,16 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.iniciorapido"
-    android:versionCode="2"
-    android:versionName="2.0"
+    android:versionCode="3"
+    android:versionName="2.1"
     android:installLocation="internalOnly">
 
-    <!-- target 23: o Android ainda entrega os avisos de boot/rede/armazenamento a apps antigos -->
-    <uses-sdk android:minSdkVersion="16" android:targetSdkVersion="23" />
+    <!-- target 22 (app "antigo", como o AutoStart original): o Android nao pede permissoes em
+         tempo de execucao e concede sozinho, na instalacao, tudo o que esta declarado abaixo. -->
+    <uses-sdk android:minSdkVersion="16" android:targetSdkVersion="22" />
 
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Concedida automaticamente (target 22); libera abrir o jogo a partir do boot no Android 10+ -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
     <uses-feature android:name="android.software.leanback" android:required="false" />

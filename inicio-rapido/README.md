@@ -17,7 +17,7 @@ Não é um launcher e não pede para virar app padrão de nada.
 | Depois do gatilho | agenda alarme (≥ 0,3 s) e só então abre | abre na hora (atraso 0) |
 | Código | 711 KB (support-v4 inteira) | 26 KB, sem bibliotecas |
 | Apps só de TV (leanback) | não abre | abre |
-| Permissões | nenhuma tela | botões dentro do app |
+| Permissões | nenhuma a conceder | nenhuma a conceder |
 
 A tela mostra, em "Última inicialização", quantos segundos depois de ligar o
 jogo foi aberto e por qual aviso — ou o motivo da falha.

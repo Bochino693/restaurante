@@ -3,7 +3,6 @@ package com.iniciorapido;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.ProgressDialog;
-import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -14,11 +13,8 @@ import android.graphics.Typeface;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.StateListDrawable;
-import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.PowerManager;
-import android.provider.Settings;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -39,7 +35,7 @@ import java.util.List;
 /** Tela de configuracao, toda navegavel pelo controle remoto (setas + OK). */
 public class MainActivity extends Activity {
     private static final int BG_TOP = 0xFF16213A, BG_BOTTOM = 0xFF090C14, CARD = 0xFF1C2740;
-    private static final int ACCENT = 0xFFFFB020, GREEN = 0xFF2ECC71, RED = 0xFFFF5A4F;
+    private static final int ACCENT = 0xFFFFB020, GREEN = 0xFF2ECC71;
     private static final int TEXT = 0xFFFFFFFF, SUB = 0xFF9FB0CF, BTN = 0xFF2B3A5C, DARK = 0xFF10141F;
 
     private SharedPreferences sp;
@@ -48,7 +44,6 @@ public class MainActivity extends Activity {
 
     private TextView pill, gameName, gamePkg, bPick, bTest, bOn, tDelay, tDiag;
     private ImageView gameIcon;
-    private TextView dotBoot, dotOverlay, dotBattery, subOverlay, bOverlay, bBattery;
 
     private static final class App {
         String label, pkg, cls;
@@ -153,29 +148,11 @@ public class MainActivity extends Activity {
         cAuto.addView(text("0 s é o mais rápido. Aumente só se o jogo abrir antes da rede ou do "
                 + "armazenamento ficarem prontos.", 12, SUB, false), margin(-1, -2, 0, px(8), 0, 0));
 
-        // Cartao: permissoes
-        LinearLayout cPerm = card(right, "PERMISSÕES");
-        dotBoot = dot();
-        permRow(cPerm, dotBoot, "Iniciar junto com o sistema",
-                text("Concedida na instalação", 12, SUB, false), null);
-        dotOverlay = dot();
-        subOverlay = text("", 12, SUB, false);
-        bOverlay = button("Permitir", true, new View.OnClickListener() {
-            public void onClick(View v) { askOverlay(); }
-        });
-        permRow(cPerm, dotOverlay, "Abrir sobre outros apps", subOverlay, bOverlay);
-        dotBattery = dot();
-        bBattery = button("Permitir", true, new View.OnClickListener() {
-            public void onClick(View v) { askBattery(); }
-        });
-        permRow(cPerm, dotBattery, "Sem restrição de bateria",
-                text("Impede o Android de segurar o app no boot", 12, SUB, false), bBattery);
-        cPerm.addView(button("Abrir informações do app", false, new View.OnClickListener() {
-            public void onClick(View v) { appInfo(); }
-        }), margin(-1, -2, 0, px(12), 0, 0));
-        cPerm.addView(text("Se a sua TV box tiver uma lista de \"inicialização automática\" ou "
-                + "\"apps protegidos\", libere o Início Rápido nela também.", 12, SUB, false),
-                margin(-1, -2, 0, px(8), 0, 0));
+        // Cartao: como funciona
+        LinearLayout cHow = card(right, "COMO FUNCIONA");
+        cHow.addView(text("1.  Escolha o jogo.\n2.  Reinicie a TV box.\n3.  A tela inicial "
+                + "aparece e o jogo abre sozinho logo em seguida.\n\nNão precisa de nenhuma "
+                + "permissão nem de trocar a tela inicial.", 15, TEXT, false));
 
         // Cartao: diagnostico
         LinearLayout cDiag = card(right, "ÚLTIMA INICIALIZAÇÃO");
@@ -209,16 +186,6 @@ public class MainActivity extends Activity {
         String pkg = sp.getString(Cfg.K_PKG, "");
         boolean has = pkg.length() > 0;
         boolean on = sp.getBoolean(Cfg.K_ON, true);
-        boolean overlay = Build.VERSION.SDK_INT < 23 || Settings.canDrawOverlays(this);
-        boolean overlayNeeded = Build.VERSION.SDK_INT >= 29;
-        boolean battery = true;
-        if (Build.VERSION.SDK_INT >= 23) {
-            try {
-                battery = ((PowerManager) getSystemService(Context.POWER_SERVICE))
-                        .isIgnoringBatteryOptimizations(getPackageName());
-            } catch (Throwable ignored) {}
-        }
-
         gameName.setText(has ? sp.getString(Cfg.K_LABEL, pkg) : "Nenhum jogo escolhido");
         gamePkg.setText(has ? pkg : "Toque em \"Escolher jogo\" para começar");
         Drawable ic = null;
@@ -233,19 +200,10 @@ public class MainActivity extends Activity {
         int s = sp.getInt(Cfg.K_DELAY, 0);
         tDelay.setText(s == 0 ? "Atraso: nenhum (imediato)" : "Atraso: " + s + " s");
 
-        dotBoot.setTextColor(GREEN);
-        dotOverlay.setTextColor(overlay ? GREEN : (overlayNeeded ? RED : ACCENT));
-        subOverlay.setText(overlayNeeded ? "Obrigatória neste Android para abrir o jogo no boot"
-                : "Não é exigida neste Android (" + Build.VERSION.RELEASE + ")");
-        bOverlay.setVisibility(overlay ? View.GONE : View.VISIBLE);
-        dotBattery.setTextColor(battery ? GREEN : ACCENT);
-        bBattery.setVisibility(battery ? View.GONE : View.VISIBLE);
-
         String st;
         int color;
         if (!has) { st = "ESCOLHA O JOGO"; color = ACCENT; }
         else if (!on) { st = "DESLIGADO"; color = SUB; }
-        else if (overlayNeeded && !overlay) { st = "FALTA PERMISSÃO"; color = RED; }
         else { st = "PRONTO"; color = GREEN; }
         pill.setText(st);
         pill.setBackgroundDrawable(shape(color, 20));
@@ -259,41 +217,6 @@ public class MainActivity extends Activity {
         int v = Math.max(0, Math.min(120, sp.getInt(Cfg.K_DELAY, 0) + d));
         sp.edit().putInt(Cfg.K_DELAY, v).apply();
         refresh();
-    }
-
-    // ---------------------------------------------------------- permissoes
-
-    private void askOverlay() {
-        try {
-            startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                    Uri.parse("package:" + getPackageName())));
-        } catch (Throwable t) {
-            toast("Esta TV box não tem essa tela. Procure \"Sobrepor a outros apps\" nas "
-                    + "informações do app.");
-            appInfo();
-        }
-    }
-
-    private void askBattery() {
-        try {
-            startActivity(new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
-                    Uri.parse("package:" + getPackageName())));
-        } catch (Throwable t) {
-            try {
-                startActivity(new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS));
-            } catch (Throwable t2) {
-                toast("Esta TV box não tem controle de bateria; não é necessário.");
-            }
-        }
-    }
-
-    private void appInfo() {
-        try {
-            startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                    Uri.parse("package:" + getPackageName())));
-        } catch (Throwable t) {
-            toast("Abra Configurações > Apps > Início Rápido");
-        }
     }
 
     // ------------------------------------------------------ escolha do jogo
@@ -424,12 +347,6 @@ public class MainActivity extends Activity {
         return t;
     }
 
-    private TextView dot() {
-        TextView t = text("●", 18, SUB, false);
-        t.setPadding(0, 0, px(10), 0);
-        return t;
-    }
-
     private static LinearLayout.LayoutParams margin(int w, int h, int l, int t, int r, int b) {
         return margin(w, h, l, t, r, b, 0);
     }
@@ -487,18 +404,6 @@ public class MainActivity extends Activity {
             }
         });
         return b;
-    }
-
-    private void permRow(LinearLayout parent, TextView dot, String title, TextView sub, View btn) {
-        LinearLayout r = row();
-        r.setGravity(Gravity.CENTER_VERTICAL);
-        r.addView(dot);
-        LinearLayout t = col();
-        t.addView(text(title, 16, TEXT, false));
-        t.addView(sub);
-        r.addView(t, new LinearLayout.LayoutParams(0, -2, 1));
-        if (btn != null) r.addView(btn, margin(-2, -2, px(10), 0, 0, 0));
-        parent.addView(r, margin(-1, -2, 0, px(6), 0, px(6)));
     }
 
     private void toast(String s) {
