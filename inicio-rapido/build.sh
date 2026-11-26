@@ -1,12 +1,13 @@
 #!/bin/sh
 # Compila o APK sem Gradle. Requer (Debian/Ubuntu):
-#   apt-get install aapt apksigner zipalign dalvik-exchange android-sdk-platform-23 default-jdk
+#   apt-get install aapt apksigner zipalign dalvik-exchange default-jdk
+# e ANDROID_JAR apontando para um android.jar API 24+ (veja o README).
 set -e
 cd "$(dirname "$0")"
-JAR=${ANDROID_JAR:-/usr/lib/android-sdk/platforms/android-23/android.jar}
+JAR=${ANDROID_JAR:-/usr/lib/android-sdk/platforms/android-23/android.jar}  # precisa ser API 24+ (directBootAware)
 rm -rf build && mkdir -p build/gen build/classes build/dex
 aapt package -f -m -J build/gen -M AndroidManifest.xml -S res -I "$JAR"
-javac -nowarn -Xlint:-options -source 8 -target 8 -bootclasspath "$JAR" -d build/classes \
+javac -encoding UTF-8 -nowarn -Xlint:-options -source 8 -target 8 -cp "$JAR" -d build/classes \
     build/gen/com/iniciorapido/*.java src/com/iniciorapido/*.java
 dalvik-exchange --dex --output=build/dex/classes.dex build/classes
 aapt package -f -M AndroidManifest.xml -S res -I "$JAR" -F build/unaligned.apk
