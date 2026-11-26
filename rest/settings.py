@@ -134,10 +134,11 @@ MIGRAR_AO_INICIAR = (
     else _na_vercel and not _build_da_vercel and bool(os.environ.get("DATABASE_URL"))
 )
 
-# Na Vercel (serverless) quem guarda as fotos já servidas é a borda (CDN); num
-# servidor comum elas também ficam numa pasta temporária, poupando o banco.
+# Quem guarda as fotos já servidas é a borda da Vercel (CDN). Atrás dela, cada
+# instância guarda numa pasta temporária o que já entregou (na Vercel, o /tmp
+# da função): a foto pedida de novo sai sem consultar o banco.
 SERVERLESS = bool(os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"))
-MIDIA_CACHE_PASTA = "" if SERVERLESS else os.path.join(tempfile.gettempdir(), "cantinho-midia")
+MIDIA_CACHE_PASTA = os.path.join(tempfile.gettempdir(), "cantinho-midia")
 
 STORAGES = {
     "default": {

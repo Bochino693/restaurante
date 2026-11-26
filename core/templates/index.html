@@ -13,7 +13,8 @@
                  data-id="{{ produto.id }}" data-nome="{{ produto.nome|lower }}" data-codigo="{{ produto.codigo }}">
             <div class="relative w-32 sm:w-full sm:aspect-[16/9] shrink-0 bg-gray-100">
                 {% if produto.imagem %}
-                <img src="{{ produto.imagem_grande|default:produto.imagem }}" alt="{{ produto.nome }}" loading="lazy" decoding="async" class="absolute inset-0 w-full h-full object-cover{% if produto.bebida %} foto-bebida{% endif %}">
+                {# No celular este quadro tem 128 px: pede a foto pequena. A grande só em tela larga. #}
+                <img src="{{ produto.imagem_grande|default:produto.imagem }}"{% if produto.imagem_media %} srcset="{{ produto.imagem }} 320w, {{ produto.imagem_media }} 640w, {{ produto.imagem_grande }} 960w" sizes="(min-width: 640px) 50vw, 128px"{% endif %} alt="{{ produto.nome }}" loading="eager" fetchpriority="high" decoding="async"{% if produto.previa %} data-previa style="background: url('{{ produto.previa }}') center / cover no-repeat"{% endif %} class="absolute inset-0 w-full h-full object-cover{% if produto.bebida %} foto-bebida{% endif %}">
                 {% else %}
                 <div class="absolute inset-0 flex items-center justify-center text-gray-300"><i class="fas fa-utensils text-3xl"></i></div>
                 {% endif %}
@@ -47,7 +48,8 @@
                      data-id="{{ produto.id }}" data-nome="{{ produto.nome|lower }}" data-codigo="{{ produto.codigo }}"{% if produto.bebida %} data-bebida="1"{% endif %}>
                 <div class="w-24 h-24 rounded-2xl overflow-hidden bg-gray-100 shrink-0 relative">
                     {% if produto.imagem %}
-                    <img src="{{ produto.imagem }}" alt="{{ produto.nome }}" loading="lazy" decoding="async" class="w-full h-full object-cover{% if produto.bebida %} foto-bebida{% endif %}">
+                    {# As primeiras fotos da página já vêm com prioridade; o resto só ao rolar. #}
+                    <img src="{{ produto.imagem }}" alt="{{ produto.nome }}" width="96" height="96" {% if forloop.parentloop.first and forloop.counter <= 6 %}loading="eager"{% else %}loading="lazy"{% endif %} decoding="async"{% if produto.previa %} data-previa style="background: url('{{ produto.previa }}') center / cover no-repeat"{% endif %} class="w-full h-full object-cover{% if produto.bebida %} foto-bebida{% endif %}">
                     {% else %}
                     <div class="w-full h-full flex items-center justify-center text-gray-300"><i class="fas fa-image text-2xl"></i></div>
                     {% endif %}

@@ -61,9 +61,14 @@
                                  onclick="{% if prato.produto.tem_adicionais %}abrirModalAdicionais('{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}', this){% elif prato.produto.eh_bebida %}abrirQtdBebida(this, '{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}'){% else %}adicionarComEfeito(this, '{{ prato.produto.id }}', '{{ prato.produto.nome_produto|escapejs }}', '{{ prato.produto.preco|stringformat:'.2f' }}'){% endif %}">
 
                                 {% if prato.produto.image_produto %}
+                                {% with tamanhos=prato.produto.image_produto|foto_tamanhos:"320,480,640" %}
                                 <img src="{{ prato.produto.image_produto|foto:640 }}"
+                                     {% if tamanhos %}srcset="{{ tamanhos }}" sizes="(min-width: 1280px) 22vw, (min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw"{% endif %}
                                      alt="{{ prato.produto.nome_produto }}"
+                                     loading="eager" fetchpriority="high" decoding="async"
+                                     {% if prato.produto.previa %}data-previa style="background: url('{{ prato.produto.previa }}') center / cover no-repeat"{% endif %}
                                      class="object-cover w-full h-full{% if prato.produto.eh_bebida %} foto-bebida{% endif %}">
+                                {% endwith %}
                                 {% else %}
                                 <i class="fas fa-utensils text-orange-300 text-3xl"></i>
                                 {% endif %}
@@ -117,9 +122,15 @@
                                  onclick="{% if produto.tem_adicionais %}abrirModalAdicionais('{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}', this){% elif produto.eh_bebida %}abrirQtdBebida(this, '{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}'){% else %}adicionarComEfeito(this, '{{ produto.id }}', '{{ produto.nome_produto|escapejs }}', '{{ produto.preco|stringformat:'.2f' }}'){% endif %}">
 
                                 {% if produto.image_produto %}
+                                {# Os primeiros cartões carregam já; o resto só quando aparece na tela. #}
+                                {% with tamanhos=produto.image_produto|foto_tamanhos:"240,320,480" %}
                                 <img src="{{ produto.image_produto|foto:480 }}"
+                                     {% if tamanhos %}srcset="{{ tamanhos }}" sizes="(min-width: 1280px) 17vw, (min-width: 1024px) 22vw, (min-width: 768px) 33vw, 50vw"{% endif %}
                                      alt="{{ produto.nome_produto }}"
+                                     {% if forloop.counter <= 12 %}loading="eager"{% else %}loading="lazy"{% endif %} decoding="async"
+                                     {% if produto.previa %}data-previa style="background: url('{{ produto.previa }}') center / cover no-repeat"{% endif %}
                                      class="object-cover w-full h-full{% if produto.eh_bebida %} foto-bebida{% endif %}">
+                                {% endwith %}
                                 {% else %}
                                 <i class="fas fa-box text-gray-200 text-3xl"></i>
                                 {% endif %}

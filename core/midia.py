@@ -21,7 +21,9 @@ import mimetypes
 import os
 import posixpath
 import re
+import base64
 import secrets
+import time
 import tempfile
 import unicodedata
 from pathlib import Path
@@ -285,6 +287,119 @@ def miniatura(dados, largura):
         return None
 
 
+# ------------------------------------------------- miniaturas prontas
+# Cada tamanho pedido ("?w=320") é reduzido UMA vez e fica guardado ao lado
+# da foto: "_mini/<largura>/<nome da foto>". Quando a borda da Vercel ainda
+# não tem a foto (primeira visita depois de um deploy), o servidor entrega
+# a miniatura pronta numa consulta só e leve, sem baixar a foto inteira do
+# banco nem redimensionar de novo.
+PREFIXO_MINI = "_mini/"
+# A "prévia": a foto em 20 px (uns 300 bytes), que vai dentro da própria
+# página do cardápio e aparece na hora, enquanto a foto de verdade chega.
+LARGURA_PREVIA = 20
+QUALIDADE_PREVIA = 45
+LIMITE_MINI_SEM_REDUZIR = 300 * 1024
+
+
+def nome_da_miniatura(nome, largura):
+    """Onde fica a miniatura pronta, ou "" se o nome não cabe na coluna."""
+    mini = f"{PREFIXO_MINI}{int(largura)}/{nome}"
+    return mini if len(mini) <= 255 else ""
+
+
+def guardar_miniatura(nome, largura, dados, tipo, sha256_da_foto):
+    """Guarda a miniatura pronta (o sha256 é o da FOTO: é ele que vai no
+    ETag). Nunca atrapalha a entrega: qualquer falha só vai para o log."""
+    from .models import ArquivoNoBanco
+
+    mini = nome_da_miniatura(nome, largura)
+    if not mini:
+        return
+    try:
+        with transaction.atomic():
+            ArquivoNoBanco.objects.update_or_create(
+                nome=mini,
+                defaults={"conteudo": dados, "tipo": tipo[:100], "tamanho": len(dados), "sha256": sha256_da_foto},
+            )
+    except Exception:
+        logger.warning("Não deu para guardar a miniatura %s.", mini, exc_info=True)
+
+
+def fazer_previa(dados):
+    """A foto em 20 px, ou None (não é imagem, é animada, é minúscula)."""
+    from PIL import Image, ImageOps
+
+    try:
+        with _abrir_imagem(dados) as imagem:
+            if getattr(imagem, "is_animated", False):
+                return None
+            imagem.draft("RGB", (LARGURA_PREVIA * 8, LARGURA_PREVIA * 8))
+            girada = ImageOps.exif_transpose(imagem)
+            if girada.width <= LARGURA_PREVIA:
+                return None
+            altura = max(1, round(girada.height * LARGURA_PREVIA / girada.width))
+            reduzida = _modo_para_webp(girada).convert("RGB").resize((LARGURA_PREVIA, altura), Image.LANCZOS)
+            return _gravar_webp(reduzida, QUALIDADE_PREVIA)
+    except Exception:
+        return None
+
+
+def guardar_previa(nome, dados, sha256_da_foto):
+    previa = fazer_previa(dados)
+    if previa:
+        guardar_miniatura(nome, LARGURA_PREVIA, previa, "image/webp", sha256_da_foto)
+
+
+def previas(nomes):
+    """{nome da foto: "data:image/webp;base64,..."} das prévias que existem,
+    numa consulta só. Qualquer problema: {} (o cardápio abre sem prévia)."""
+    from .models import ArquivoNoBanco
+
+    minis = {nome_da_miniatura(n, LARGURA_PREVIA): n for n in nomes if n and str(n).startswith(PREFIXO)}
+    minis.pop("", None)
+    if not minis:
+        return {}
+    try:
+        linhas = list(ArquivoNoBanco.objects.filter(nome__in=list(minis), tamanho__lte=4096).values_list("nome", "conteudo"))
+    except Exception:
+        logger.warning("Não deu para ler as prévias das fotos.", exc_info=True)
+        return {}
+    return {
+        minis[mini]: "data:image/webp;base64," + base64.b64encode(bytes(conteudo)).decode("ascii")
+        for mini, conteudo in linhas
+    }
+
+
+# ------------------------------------------- memória da instância (nomes)
+# O nome de uma foto não muda de conteúdo, então a instância que já sabe o
+# sha256 de um endereço não pergunta de novo ao banco (só junto com o cache
+# em disco: sem ele a instância não guarda nada).
+MEMORIA_SEGUNDOS = 600
+MEMORIA_MAXIMO = 4000
+_memoria = {}
+
+
+def lembrar(caminho, valor):
+    if not pasta_do_cache():
+        return
+    if len(_memoria) >= MEMORIA_MAXIMO:
+        _memoria.clear()
+    _memoria[caminho] = (time.monotonic() + MEMORIA_SEGUNDOS, valor)
+
+
+def lembrado(caminho):
+    if not pasta_do_cache():
+        return None
+    guardado = _memoria.get(caminho)
+    if not guardado or guardado[0] < time.monotonic():
+        return None
+    return guardado[1]
+
+
+def esquecer_memoria():
+    _memoria.clear()
+
+
 # --------------------------------------------------------------- nomes
 
 def sem_acentos(texto):
@@ -402,6 +517,8 @@ class MidiaNoBanco(Storage):
         nome = nome_no_banco(name, sha256, extensao, max_length)
         for _ in range(5):
             if guardar_bytes(nome, dados, tipo):
+                if tipo.startswith("image/"):
+                    guardar_previa(nome, dados, sha256)  # já nasce com a prévia
                 return nome
             # Mesmo nome, outro conteúdo (quase impossível): sorteia outro.
             nome = nome_no_banco(f"{posixpath.splitext(name)[0]}_{secrets.token_hex(3)}", sha256, extensao, max_length)
@@ -452,6 +569,9 @@ class MidiaNoBanco(Storage):
         from .models import ArquivoNoBanco
 
         ArquivoNoBanco.objects.filter(nome=name).delete()
+        minis = [m for m in (nome_da_miniatura(name, largura) for largura in (LARGURA_PREVIA, *LARGURAS)) if m]
+        ArquivoNoBanco.objects.filter(nome__in=minis).delete()
+        esquecer_memoria()
 
     def listdir(self, path):
         from .models import ArquivoNoBanco

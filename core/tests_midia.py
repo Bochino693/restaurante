@@ -112,7 +112,7 @@ class ArmazenamentoNoBancoTests(TestCase):
         primeiro = self.storage.save("produtos/a.png", ContentFile(dados))
         segundo = self.storage.save("produtos/a.png", ContentFile(dados))
         self.assertEqual(primeiro, segundo)
-        self.assertEqual(ArquivoNoBanco.objects.count(), 1)
+        self.assertEqual(ArquivoNoBanco.objects.filter(nome__startswith="banco/").count(), 1)
 
     def test_nome_comprido_cabe_no_campo(self):
         nome = self.storage.save("produtos/" + "x" * 150 + ".png", ContentFile(imagem()), max_length=100)
@@ -261,13 +261,45 @@ class RotaDaMidiaTests(TestCase):
 
     def test_cache_em_disco_no_servidor_poupa_o_banco(self):
         with tempfile.TemporaryDirectory() as pasta, override_settings(MIDIA_CACHE_PASTA=pasta):
+            self.addCleanup(midia.esquecer_memoria)
             self.client.get(self.url, {"w": 480})
-            with self.assertNumQueries(1):
+            with self.assertNumQueries(0):  # a instância lembra o nome e tem a foto na pasta
                 resposta = self.client.get(self.url, {"w": 480})
             self.assertEqual(abrir(resposta.content).size, (480, 240))
             self.assertEqual(len(os.listdir(pasta)), 1)
 
-    def test_na_vercel_sem_cache_em_disco(self):
+    def test_miniatura_fica_pronta_no_banco_e_sai_numa_consulta_so(self):
+        primeira = self.client.get(self.url, {"w": 320})
+        mini = ArquivoNoBanco.objects.get(nome=f"_mini/320/{self.nome}")
+        self.assertEqual((mini.tipo, bytes(mini.conteudo)), ("image/webp", primeira.content))
+        with self.assertNumQueries(1), mock.patch("core.midia.miniatura", side_effect=AssertionError("reduziu de novo")):
+            segunda = self.client.get(self.url, {"w": 320})
+        self.assertEqual((segunda.status_code, segunda.content), (200, primeira.content))
+        self.assertEqual(segunda["ETag"], primeira["ETag"])
+        self.assertIn("immutable", segunda["Cache-Control"])
+
+    def test_foto_ja_pequena_tambem_fica_pronta(self):
+        self.client.get(self.url, {"w": 1600})  # a foto tem 1200 px: vai a original
+        with self.assertNumQueries(1):
+            resposta = self.client.get(self.url, {"w": 1600})
+        self.assertEqual((resposta["Content-Type"], resposta.content), ("image/png", self.dados))
+
+    def test_previa_nasce_com_a_foto_e_some_com_ela(self):
+        previa = ArquivoNoBanco.objects.get(nome=f"_mini/{midia.LARGURA_PREVIA}/{self.nome}")
+        self.assertLess(previa.tamanho, 1500)
+        self.assertEqual(abrir(bytes(previa.conteudo)).size, (20, 10))
+        self.assertTrue(midia.previas([self.nome])[self.nome].startswith("data:image/webp;base64,"))
+        self.client.get(self.url, {"w": 320})
+        default_storage.delete(self.nome)
+        self.assertEqual(ArquivoNoBanco.objects.count(), 0)
+        self.assertEqual(self.client.get(self.url, {"w": 320}).status_code, 404)
+
+    def test_foto_antiga_ganha_a_previa_na_primeira_entrega(self):
+        ArquivoNoBanco.objects.filter(nome__startswith="_mini/").delete()
+        self.client.get(self.url, {"w": 320})
+        self.assertTrue(ArquivoNoBanco.objects.filter(nome=f"_mini/{midia.LARGURA_PREVIA}/{self.nome}").exists())
+
+    def test_sem_cache_em_disco(self):
         self.client.get(self.url)
         with self.assertNumQueries(2):
             self.client.get(self.url)
@@ -288,11 +320,28 @@ class TelasComFotosDoBancoTests(ComProdutos):
         self.assertNotIn("this.style.display='none'", html)  # agora aparece o quadro
         self.assertIn("core/js/fotos.js", html)
 
+    def test_cardapio_ja_vem_com_a_previa_da_foto(self):
+        cache.clear()
+        html = self.client.get(reverse("cardapio")).content.decode()
+        self.assertIn("data-previa", html)
+        self.assertEqual(html.count("data:image/webp;base64,"), 1)  # só na <img>, não no JSON
+        self.assertIn('width="96" height="96"', html)
+        self.assertIn('loading="eager"', html)
+        self.assertNotIn("foto_nome", html)
+
     def test_caixa_pede_a_foto_na_largura_certa(self):
         self.client.force_login(self.usuario)
         html = self.client.get(reverse("caixa")).content.decode()
         self.assertIn("?w=480", html)
         self.assertIn("core/js/fotos.js", html)
+
+    def test_caixa_vem_com_previa_e_tamanho_por_tela(self):
+        self.client.force_login(self.usuario)
+        html = self.client.get(reverse("caixa")).content.decode()
+        self.assertIn("data-previa", html)
+        self.assertIn("data:image/webp;base64,", html)
+        self.assertRegex(html, r'srcset="[^"]+\?w=240 240w, [^"]+\?w=320 320w, [^"]+\?w=480 480w"')
+        self.assertIn('loading="eager"', html)
 
 
 @override_settings(STORAGES=NO_BANCO, MIDIA_CACHE_PASTA="")
