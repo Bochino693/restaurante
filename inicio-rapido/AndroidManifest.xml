@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.iniciorapido"
+    android:versionCode="6"
+    android:versionName="3.1"
+    android:installLocation="internalOnly">
+
+    <!-- target 23: o menor que o Android 10 aceita sem mostrar o aviso "app criado para uma
+         versao mais antiga", e ainda recebe os avisos de rede/armazenamento no boot. -->
+    <uses-sdk android:minSdkVersion="16" android:targetSdkVersion="23" />
+
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+    <uses-feature android:name="android.software.leanback" android:required="false" />
+
+    <application
+        android:label="Início Rápido"
+        android:icon="@drawable/icon"
+        android:banner="@drawable/banner"
+        android:allowBackup="false"
+        android:directBootAware="true">
+
+        <activity
+            android:name=".MainActivity"
+            android:label="Início Rápido"
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar"
+            android:configChanges="keyboard|keyboardHidden|orientation|screenSize|navigation">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- Modo rapido: como tela inicial, abre o jogo assim que o Android termina de ligar -->
+        <activity
+            android:name=".HomeActivity"
+            android:label="Início Rápido"
+            android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen"
+            android:launchMode="singleTask"
+            android:taskAffinity="com.iniciorapido.home"
+            android:excludeFromRecents="true"
+            android:stateNotNeeded="true"
+            android:noHistory="true"
+            android:directBootAware="true">
+            <intent-filter android:priority="999">
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.HOME" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <!-- Abre o jogo no primeiro aviso que o Android der depois de ligar -->
+        <receiver
+            android:name=".BootReceiver"
+            android:exported="true"
+            android:directBootAware="true">
+            <intent-filter android:priority="999">
+                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="com.htc.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="android.intent.action.USER_PRESENT" />
+                <action android:name="android.net.conn.CONNECTIVITY_CHANGE" />
+            </intent-filter>
+            <intent-filter android:priority="999">
+                <action android:name="android.intent.action.MEDIA_MOUNTED" />
+                <data android:scheme="file" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>
