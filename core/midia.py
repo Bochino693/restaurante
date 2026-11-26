@@ -23,6 +23,7 @@ import posixpath
 import re
 import secrets
 import tempfile
+import unicodedata
 from pathlib import Path
 
 from django.conf import settings
@@ -286,6 +287,14 @@ def miniatura(dados, largura):
 
 # --------------------------------------------------------------- nomes
 
+def sem_acentos(texto):
+    """Só letras sem acento, números, ".", "_" e "-": o endereço da foto não
+    precisa de "%C3%A7" nenhum, e abre igual em todo servidor e navegador."""
+    texto = unicodedata.normalize("NFKD", str(texto))
+    texto = "".join(letra for letra in texto if not unicodedata.combining(letra))
+    return re.sub(r"_{2,}", "_", re.sub(r"[^A-Za-z0-9._-]", "_", texto)).strip("_.")
+
+
 def nome_no_banco(nome, sha256, extensao, max_length=None):
     """banco/<pasta>/<nome>-<10 do sha256><extensão>, cabendo no campo."""
     nome = nome.replace("\\", "/").lstrip("/")
@@ -293,7 +302,7 @@ def nome_no_banco(nome, sha256, extensao, max_length=None):
         nome = nome[len(PREFIXO):]
     pasta, arquivo = posixpath.split(nome)
     raiz = posixpath.splitext(arquivo)[0] if extensao_de(arquivo) else arquivo
-    raiz = raiz or "arquivo"
+    raiz = sem_acentos(raiz) or "arquivo"
     sufixo = f"-{sha256[:10]}{extensao}"
     inicio = PREFIXO + (f"{pasta}/" if pasta else "")
     limite = min(max_length or 255, 255)

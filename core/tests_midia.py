@@ -81,7 +81,7 @@ class ArmazenamentoNoBancoTests(TestCase):
     def test_guarda_le_e_apaga_no_banco(self):
         dados = imagem()
         nome = self.storage.save("produtos/Coca Lata.png", ContentFile(dados), max_length=100)
-        self.assertRegex(nome, r"^banco/produtos/Coca Lata-[0-9a-f]{10}\.png$")
+        self.assertRegex(nome, r"^banco/produtos/Coca_Lata-[0-9a-f]{10}\.png$")
         arquivo = ArquivoNoBanco.objects.get(nome=nome)
         self.assertEqual((arquivo.tipo, arquivo.tamanho, len(arquivo.sha256)), ("image/png", len(dados), 64))
         self.assertTrue(self.storage.exists(nome))
@@ -233,6 +233,27 @@ class RotaDaMidiaTests(TestCase):
         resposta = self.client.get("/midia/banco/produtos/nao-existe.png")
         self.assertEqual(resposta.status_code, 404)
         self.assertNotIn("immutable", resposta["Cache-Control"])
+
+    def test_foto_com_acento_no_nome_abre_mesmo_sem_decodificar_o_endereco(self):
+        # Na Vercel o caminho chega como veio no endereço ("%C3%B4"), e as
+        # fotos já guardadas com acento no nome davam 404.
+        dados = imagem()
+        for nome in ("banco/produtos/Almôndegas ao molho-2-eb148739af.png",
+                     "banco/produtos/Fi\u0301gado-3-efe138e3f1.png"):  # acento separado (iPhone/Mac)
+            self.assertTrue(midia.guardar_bytes(nome, dados, "image/png"))
+        from .views_midia import servir_midia
+        from django.test import RequestFactory
+        for caminho in ("produtos/Alm%C3%B4ndegas%20ao%20molho-2-eb148739af.png",
+                        "produtos/Almo%CC%82ndegas%20ao%20molho-2-eb148739af.png",
+                        "produtos/F%C3%ADgado-3-efe138e3f1.png"):
+            resposta = servir_midia(RequestFactory().get("/midia/banco/x"), caminho)
+            self.assertEqual((resposta.status_code, resposta.content), (200, dados), caminho)
+        self.assertEqual(self.client.get(default_storage.url("banco/produtos/Almôndegas ao molho-2-eb148739af.png")).status_code, 200)
+
+    def test_nome_novo_nunca_leva_acento(self):
+        nome = default_storage.save("produtos/Marmitex de linguiça toscana & purê-4.png", ContentFile(imagem()), max_length=100)
+        self.assertRegex(nome, r"^banco/produtos/Marmitex_de_linguica_toscana_pure-4-[0-9a-f]{10}\.png$")
+        self.assertEqual(self.client.get(default_storage.url(nome)).status_code, 200)
 
     def test_head_e_post(self):
         self.assertEqual(self.client.head(self.url).status_code, 200)

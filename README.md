@@ -46,6 +46,12 @@ e **não é preciso rodar `migrate` à mão**: ver
   muda de conteúdo. Se gravar falhar, o formulário volta com o aviso
   "Não foi possível guardar a foto agora..." e tudo o que foi digitado —
   nunca uma página de erro 500.
+- **Nome sem acento**: o nome guardado só leva letras sem acento, números,
+  `.`, `_` e `-` ("Almôndegas ao molho.png" vira `Almondegas_ao_molho-…`).
+  A Vercel entrega o caminho sem decodificar (`Alm%C3%B4ndegas`), e por isso
+  as fotos com acento ou espaço no nome eram gravadas mas davam 404 ("não
+  ficava salva"). As que já estavam gravadas com acento também abrem: a rota
+  procura o nome decodificado, com o acento junto ou separado.
 - **Entrega**: `Cache-Control: public, max-age=31536000, s-maxage=31536000, immutable`
   e `ETag` (o navegador revalida com 304). Na Vercel quem segura as fotos é
   a borda (CDN), então o banco quase não é consultado; num servidor comum

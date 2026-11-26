@@ -2,7 +2,9 @@
 guardados no banco, e "Restaurar fotos" traz de volta as fotos antigas."""
 import json
 import logging
+import unicodedata
 import zipfile
+from urllib.parse import unquote
 
 from django.conf import settings
 from django.contrib import messages
@@ -34,6 +36,22 @@ def _cabecalhos(resposta, etag):
     return resposta
 
 
+def _nomes_possiveis(caminho):
+    """Os nomes que este endereço pode ter no banco.
+
+    Na Vercel o caminho chega SEM decodificar ("Alm%C3%B4ndegas" em vez de
+    "Almôndegas"): toda foto com acento ou espaço no nome dava 404, mesmo
+    guardada. E o mesmo acento pode estar gravado como uma letra só ou como
+    letra + acento (arquivo vindo do iPhone/Mac). Tenta todos."""
+    nomes = []
+    for texto in (caminho, unquote(caminho)):
+        for forma in (texto, unicodedata.normalize("NFC", texto), unicodedata.normalize("NFD", texto)):
+            nome = midia.PREFIXO + forma
+            if nome not in nomes:
+                nomes.append(nome)
+    return nomes
+
+
 @require_safe
 def servir_midia(request, caminho):
     """Entrega um arquivo do banco. O endereço nunca muda de conteúdo, então
@@ -54,9 +72,9 @@ def servir_midia(request, caminho):
             return resposta
         largura = pedida
 
-    nome = midia.PREFIXO + caminho
+    nomes = _nomes_possiveis(caminho)
     dados_do_arquivo = midia.com_tabela(
-        lambda: ArquivoNoBanco.objects.filter(nome=nome).values("sha256", "tipo").first(),
+        lambda: ArquivoNoBanco.objects.filter(nome__in=nomes).values("nome", "sha256", "tipo").first(),
         savepoint=False,
     )
     if not dados_do_arquivo:
@@ -64,6 +82,7 @@ def servir_midia(request, caminho):
         resposta["Cache-Control"] = CACHE_CURTO
         return resposta
 
+    nome = dados_do_arquivo["nome"]
     sha256 = dados_do_arquivo["sha256"]
     etag = f'"{sha256}{f"-w{largura}" if largura else ""}"'
     pedidas = parse_etags(request.headers.get("If-None-Match", ""))
