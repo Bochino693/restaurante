@@ -145,8 +145,9 @@ public class MainActivity extends Activity {
             public void onClick(View v) { delay(1); }
         }));
         cAuto.addView(d, margin(-1, -2, 0, px(12), 0, 0));
-        cAuto.addView(text("0 s é o mais rápido. Aumente só se o jogo abrir antes da rede ou do "
-                + "armazenamento ficarem prontos.", 12, SUB, false), margin(-1, -2, 0, px(8), 0, 0));
+        cAuto.addView(text("Deixe sem atraso para abrir o mais cedo possível. No Android 10 o "
+                + "próprio sistema impõe cerca de 5 s entre o boot e a abertura.", 12, SUB, false),
+                margin(-1, -2, 0, px(8), 0, 0));
 
         // Cartao: como funciona
         LinearLayout cHow = card(right, "COMO FUNCIONA");

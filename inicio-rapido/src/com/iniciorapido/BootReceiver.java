@@ -10,12 +10,15 @@ import android.os.Build;
 import android.os.SystemClock;
 
 /**
- * Abre o jogo no primeiro aviso que o Android entregar depois de ligar.
+ * Abre o jogo depois que a TV box liga.
  *
- * O AutoStart original so ouvia o BOOT_COMPLETED (que numa box fraca passa por
- * dezenas de apps antes) e ainda agendava um alarme. Aqui ouvimos tambem avisos
- * que chegam antes (LOCKED_BOOT_COMPLETED, armazenamento montado, rede) e, com
- * atraso 0, o jogo abre na mesma hora.
+ * No Android 10+ um app em segundo plano nao pode abrir outro direto de um
+ * aviso de boot; so pode quando e acordado por um alarme do sistema. E por
+ * isso que o AutoStart original (boot -> alarme -> abre) funciona nessas boxes.
+ * Aqui o caminho e o mesmo, mas o alarme e armado no PRIMEIRO aviso que o
+ * Android entregar (boot bloqueado, armazenamento, rede, boot completo com
+ * prioridade alta), em vez de esperar a fila inteira do BOOT_COMPLETED.
+ * Em Android antigo (ate o 9) o jogo abre direto, sem alarme.
  */
 public class BootReceiver extends BroadcastReceiver {
     static final String ACTION_LAUNCH = "com.iniciorapido.LAUNCH";
@@ -31,45 +34,74 @@ public class BootReceiver extends BroadcastReceiver {
 
         boolean alarm = ACTION_LAUNCH.equals(action);
         boolean quick = action.endsWith("QUICKBOOT_POWERON");
-        boolean boot = alarm || quick || action.endsWith("BOOT_COMPLETED");
+        boolean boot = quick || action.endsWith("BOOT_COMPLETED");
         String id = Cfg.bootId(c);
         long up = SystemClock.elapsedRealtime();
+        String via = action.substring(action.lastIndexOf('.') + 1);
 
+        if (alarm) {
+            // Acordado pelo alarme: aqui o Android deixa abrir o jogo.
+            launch(c, sp, id, intent.getStringExtra("via"), up);
+            return;
+        }
         if (!quick) {
-            if (id != null && id.equals(sp.getString(Cfg.K_BOOT, ""))) return; // ja abriu neste boot
+            if (id != null && id.equals(sp.getString(Cfg.K_BOOT, ""))) return;  // ja abriu
+            if (id != null && id.equals(sp.getString(Cfg.K_SCHED, ""))) return; // ja armado
             if (!boot && (id == null || up > EARLY_WINDOW_MS)) return;
         }
 
-        int delay = alarm ? 0 : sp.getInt(Cfg.K_DELAY, 0);
-        if (delay > 0) {
-            if (id != null && id.equals(sp.getString(Cfg.K_SCHED, ""))) return; // ja agendado
+        int delay = sp.getInt(Cfg.K_DELAY, 0);
+        boolean needAlarm = Build.VERSION.SDK_INT >= 29 || delay > 0;
+        if (needAlarm) {
             if (id != null) sp.edit().putString(Cfg.K_SCHED, id).apply();
-            schedule(c, delay);
-            return;
+            schedule(c, delay, via);
+            // Tentativa direta: de graca, e ganha uns segundos se esta box permitir.
+            if (delay == 0) Cfg.launchTarget(c, sp);
+        } else {
+            launch(c, sp, id, via, up);
         }
+    }
 
+    private static void launch(Context c, SharedPreferences sp, String id, String via, long up) {
         String err = Cfg.launchTarget(c, sp);
-        String via = action.substring(action.lastIndexOf('.') + 1);
         SharedPreferences.Editor e = sp.edit();
         if (id != null) e.putString(Cfg.K_BOOT, id);
-        e.putString(Cfg.K_DIAG, (err == null ? "Mandou abrir o jogo " : "Tentou abrir o jogo ")
-                + (up / 1000) + " s depois de ligar (aviso " + via + ")"
+        e.putString(Cfg.K_DIAG, (err == null ? "Abriu o jogo " : "Tentou abrir o jogo ")
+                + (up / 1000) + " s depois de ligar"
+                + (via == null ? "" : " (aviso " + via + ")")
                 + (err == null ? "" : " - falhou: " + err));
         e.apply();
     }
 
-    private static void schedule(Context c, int delay) {
-        Intent i = new Intent(c, BootReceiver.class).setAction(ACTION_LAUNCH);
+    private static void schedule(Context c, int delay, String via) {
+        int immutable = Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0;
+        Intent i = new Intent(c, BootReceiver.class).setAction(ACTION_LAUNCH).putExtra("via", via);
         PendingIntent pi = PendingIntent.getBroadcast(c, 0, i,
-                Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0);
+                PendingIntent.FLAG_UPDATE_CURRENT | immutable);
         AlarmManager am = (AlarmManager) c.getSystemService(Context.ALARM_SERVICE);
-        long at = SystemClock.elapsedRealtime() + delay * 1000L;
-        if (Build.VERSION.SDK_INT >= 23) {
-            am.setExactAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, at, pi);
-        } else if (Build.VERSION.SDK_INT >= 19) {
-            am.setExact(AlarmManager.ELAPSED_REALTIME_WAKEUP, at, pi);
-        } else {
-            am.set(AlarmManager.ELAPSED_REALTIME_WAKEUP, at, pi);
+        long ms = delay * 1000L + 100; // o Android arredonda para o minimo que ele aceita
+        long at = SystemClock.elapsedRealtime() + ms;
+        try {
+            if (Build.VERSION.SDK_INT >= 23) {
+                am.setExactAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, at, pi);
+            } else if (Build.VERSION.SDK_INT >= 19) {
+                am.setExact(AlarmManager.ELAPSED_REALTIME_WAKEUP, at, pi);
+            } else {
+                am.set(AlarmManager.ELAPSED_REALTIME_WAKEUP, at, pi);
+            }
+        } catch (Throwable ignored) {}
+        if (Build.VERSION.SDK_INT >= 29) {
+            // Reforco: alarme do tipo "despertador", que o Android trata com prioridade maxima.
+            try {
+                Intent j = new Intent(c, BootReceiver.class).setAction(ACTION_LAUNCH)
+                        .putExtra("via", via);
+                PendingIntent pj = PendingIntent.getBroadcast(c, 1, j,
+                        PendingIntent.FLAG_UPDATE_CURRENT | immutable);
+                PendingIntent show = PendingIntent.getActivity(c, 2,
+                        new Intent(c, MainActivity.class), immutable);
+                am.setAlarmClock(new AlarmManager.AlarmClockInfo(
+                        System.currentTimeMillis() + ms, show), pj);
+            } catch (Throwable ignored) {}
         }
     }
 }
