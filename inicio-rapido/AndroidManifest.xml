@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.iniciorapido"
+    android:versionCode="1"
+    android:versionName="1.0"
+    android:installLocation="internalOnly">
+
+    <uses-sdk android:minSdkVersion="16" android:targetSdkVersion="28" />
+
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- So usado no Android 10+ quando o app NAO e o launcher padrao -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+    <uses-feature android:name="android.software.leanback" android:required="false" />
+
+    <application
+        android:label="Início Rápido"
+        android:icon="@drawable/icon"
+        android:banner="@drawable/banner"
+        android:allowBackup="false"
+        android:hardwareAccelerated="false"
+        android:largeHeap="false">
+
+        <!-- Tela de configuracao -->
+        <activity
+            android:name=".MainActivity"
+            android:label="Início Rápido"
+            android:theme="@android:style/Theme.DeviceDefault"
+            android:configChanges="keyboard|keyboardHidden|orientation|screenSize|navigation">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- Modo rapido: funciona como launcher e abre o jogo assim que o Android sobe -->
+        <activity
+            android:name=".HomeActivity"
+            android:label="Início Rápido"
+            android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen"
+            android:launchMode="singleTask"
+            android:taskAffinity="com.iniciorapido.home"
+            android:excludeFromRecents="true"
+            android:stateNotNeeded="true"
+            android:noHistory="true"
+            android:configChanges="keyboard|keyboardHidden|orientation|screenSize|navigation">
+            <intent-filter android:priority="999">
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.HOME" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <!-- Modo compativel: igual ao app original, mas sem alarme quando o atraso e 0 -->
+        <receiver android:name=".BootReceiver" android:exported="true">
+            <intent-filter android:priority="999">
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="com.htc.intent.action.QUICKBOOT_POWERON" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>
